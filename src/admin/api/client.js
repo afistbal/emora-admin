@@ -130,8 +130,11 @@ export const adminApi = {
   modelConfig: {
     list: (params = {}, options) => adminPost("/admin/ai/model-config/list", params, options),
     saveProvider: (params, options) => adminPost("/admin/ai/model-config/provider/save", params, options),
+    providerStatus: (params, options) => adminPost("/admin/ai/model-config/provider/status", params, options),
     saveRoute: (params, options) => adminPost("/admin/ai/model-config/route/save", params, options),
-    deleteProvider: (providerId, params = {}, options) => adminPost(`/admin/ai/model-config/provider/${providerId}/delete`, params, options),
+    routeStatus: (params, options) => adminPost("/admin/ai/model-config/route/status", params, options),
+    deleteRoute: (params, options) => adminPost("/admin/ai/model-config/route/delete", params, options),
+    deleteProvider: (providerId, params = {}, options) => adminPost("/admin/ai/model-config/provider/delete", { ...params, id: Number(providerId) }, options),
   },
   users: {
     list: (params, options) => adminPost("/admin/users/list", params, options),

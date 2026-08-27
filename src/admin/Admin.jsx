@@ -1811,13 +1811,24 @@ function AnalyticsPage({ toast, adminToken }) {
 /* ================= 模型配置 ================= */
 
 const MODEL_PROFILES = [
-  { key: "chat.default", label: "文本", shortKey: "text" },
-  { key: "media.image", label: "图片", shortKey: "image" },
-  { key: "media.video", label: "视频", shortKey: "video" },
+  { type: "text", key: "chat.default", label: "文本" },
+  { type: "image", key: "media.image", label: "图片" },
+  { type: "video", key: "media.video", label: "视频" },
 ];
 
-function getProviderRoute(provider, profileKey) {
-  return (provider.routes || []).find((route) => route.profile_key === profileKey) || null;
+function getProviderRoutes(provider, modelType) {
+  const routes = provider?.routes || [];
+  const typed = routes.filter((route) => route.model_type === modelType);
+  if (typed.length) return typed;
+  const profile = MODEL_PROFILES.find((item) => item.type === modelType);
+  return routes.filter((route) => route.profile_key === profile?.key);
+}
+
+function getProviderRoute(provider, profileOrType) {
+  const type = MODEL_PROFILES.some((item) => item.type === profileOrType)
+    ? profileOrType
+    : MODEL_PROFILES.find((item) => item.key === profileOrType)?.type;
+  return getProviderRoutes(provider, type)[0] || null;
 }
 
 function maskApiKey(value) {
@@ -1840,11 +1851,18 @@ function ProviderDialog({ provider, onClose, onSave }) {
     httpReferer: provider?.http_referer || "",
     xTitle: provider?.x_title || "",
     remark: provider?.remark || "",
-    models: Object.fromEntries(MODEL_PROFILES.map(({ key }) => [key, getProviderRoute(provider || {}, key)?.model || ""])),
+    models: Object.fromEntries(MODEL_PROFILES.map(({ type }) => [type, getProviderRoutes(provider || {}, type).map((route) => ({
+      model: route.model || "",
+      enabled: route.enabled !== false,
+      sort: route.sort || 0,
+      provider_options: route.provider_options || {},
+    }))])),
   }));
   const update = (key, value) => setForm((current) => ({ ...current, [key]: value }));
-  const updateModel = (key, value) => setForm((current) => ({ ...current, models: { ...current.models, [key]: value } }));
-  const ready = form.name.trim() && form.baseUrl.trim() && (editing || form.apiKey.trim()) && MODEL_PROFILES.every(({ key }) => form.models[key].trim());
+  const updateModel = (type, index, key, value) => setForm((current) => ({ ...current, models: { ...current.models, [type]: current.models[type].map((item, itemIndex) => itemIndex === index ? { ...item, [key]: value } : item) } }));
+  const addModel = (type) => setForm((current) => ({ ...current, models: { ...current.models, [type]: [...current.models[type], { model: "", enabled: true, sort: current.models[type].length * 10, provider_options: {} }] } }));
+  const removeModel = (type, index) => setForm((current) => ({ ...current, models: { ...current.models, [type]: current.models[type].filter((_, itemIndex) => itemIndex !== index) } }));
+  const ready = form.name.trim() && form.baseUrl.trim() && (editing || form.apiKey.trim()) && MODEL_PROFILES.every(({ type }) => form.models[type].some((item) => item.model.trim()));
   const submit = () => {
     if (!ready) return;
     const payload = {
@@ -1860,8 +1878,15 @@ function ProviderDialog({ provider, onClose, onSave }) {
       x_title: form.xTitle.trim(),
       remark: form.remark.trim(),
       ...(form.apiKey.trim() ? { api_key: form.apiKey.trim() } : {}),
+      models: MODEL_PROFILES.flatMap(({ type }) => form.models[type].filter((item) => item.model.trim()).map((item, index) => ({
+        model_type: type,
+        model: item.model.trim(),
+        provider_options: item.provider_options || {},
+        enabled: item.enabled !== false,
+        sort: Number(item.sort) || index * 10,
+      }))),
     };
-    onSave(payload, form.models);
+    onSave(payload);
   };
   return (
     <div className="dialog-mask" onClick={onClose}>
@@ -1869,15 +1894,15 @@ function ProviderDialog({ provider, onClose, onSave }) {
         <h3 style={{ marginBottom: 16 }}>{editing ? "编辑中转站" : "新建中转站"}</h3>
         <Field label="名称 *"><input className="input" value={form.name} onChange={(event) => update("name", event.target.value)} placeholder="如：主用中转站" /></Field>
         <div className="grid-2" style={{ marginTop: 12 }}>
-          <Field label="Provider 类型 *"><select className="select" value={form.driver} onChange={(event) => update("driver", event.target.value)}><option value="openrouter">openrouter</option><option value="deepseek">deepseek</option></select></Field>
+          <Field label="Provider 类型 *"><select className="select" value={form.driver} onChange={(event) => update("driver", event.target.value)}><option value="openrouter">openrouter</option><option value="apimart">apimart</option><option value="deepseek">deepseek</option></select></Field>
           <Field label="状态"><select className="select" value={form.status} onChange={(event) => update("status", event.target.value)}><option value="enabled">启用</option><option value="disabled">停用</option></select></Field>
         </div>
         <div style={{ marginTop: 12 }}><Field label="API 地址 / 中转域名 *"><input className="input" value={form.baseUrl} onChange={(event) => update("baseUrl", event.target.value)} placeholder="https://api.example.com/v1" /></Field></div>
         <div style={{ marginTop: 12 }}><Field label={`API Key ${editing ? "（留空则保留原 Key）" : "*"}`}><input className="input" type="password" value={form.apiKey} onChange={(event) => update("apiKey", event.target.value)} placeholder={editing ? `当前：${maskApiKey(provider.api_key)}` : "sk-..."} autoComplete="new-password" /></Field></div>
         <div style={{ marginTop: 12 }}>
-          <Field label="模型（文本、图片、视频各 1 个）">
+          <Field label="模型（可添加多个，类型：文本 / 图片 / 视频）">
             <div style={{ display: "grid", gap: 10 }}>
-              {MODEL_PROFILES.map(({ key, label }) => <div key={key} style={{ display: "grid", gridTemplateColumns: "72px 1fr", alignItems: "center", gap: 8 }}><span className="muted small">{label}</span><input className="input" value={form.models[key]} onChange={(event) => updateModel(key, event.target.value)} placeholder={`输入${label}模型名`} /></div>)}
+              {MODEL_PROFILES.map(({ type, label }) => <div key={type} style={{ border: "1px solid var(--line)", borderRadius: 8, padding: 10 }}><div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8 }}><span className="muted small">{label}模型</span><button className="btn sm" type="button" onClick={() => addModel(type)}>+ 添加模型</button></div><div style={{ display: "grid", gap: 8 }}>{form.models[type].map((item, index) => <div key={`${type}-${index}`} style={{ display: "grid", gridTemplateColumns: "1fr 72px auto", gap: 6, alignItems: "center" }}><input className="input" value={item.model} onChange={(event) => updateModel(type, index, "model", event.target.value)} placeholder={`输入${label}模型名`} /><input className="input" type="number" value={item.sort} onChange={(event) => updateModel(type, index, "sort", event.target.value)} title="优先级" /><button className="btn sm danger-ghost" type="button" disabled={form.models[type].length <= 1} onClick={() => removeModel(type, index)}>删除</button></div>)}</div></div>)}
             </div>
           </Field>
         </div>
@@ -1892,7 +1917,7 @@ function ProviderDialog({ provider, onClose, onSave }) {
         </div>
         <div style={{ marginTop: 12 }}><Field label="备注"><textarea className="textarea" value={form.remark} onChange={(event) => update("remark", event.target.value)} /></Field></div>
         <div className="dialog-actions" style={{ marginTop: 18, gridTemplateColumns: "1fr 1fr" }}><button className="btn primary" disabled={!ready} onClick={submit}>保存</button><button className="btn" onClick={onClose}>取消</button></div>
-        {!ready && <p className="muted small" style={{ margin: "10px 0 0", textAlign: "center" }}>名称、API 地址、API Key（新建时）以及三类模型均为必填</p>}
+        {!ready && <p className="muted small" style={{ margin: "10px 0 0", textAlign: "center" }}>名称、API 地址、API Key（新建时）以及至少一个文本、图片、视频模型均为必填</p>}
       </div>
     </div>
   );
@@ -1916,19 +1941,43 @@ function ModelConfigPage({ toast, adminToken }) {
     return () => controller.abort();
   }, [adminToken]);
 
-  const saveProvider = async (payload, models) => {
+  const saveProvider = async (payload) => {
     try {
       const data = await adminApi.modelConfig.saveProvider(payload);
       const saved = data?.provider || { ...payload, id: payload.id };
       const providerId = Number(saved.id || payload.id);
-      for (const { key } of MODEL_PROFILES) {
-        await adminApi.modelConfig.saveRoute({ profile_key: key, provider_config_id: providerId, model: models[key].trim(), provider_options: {}, enabled: true, sort: 0 });
-      }
       setEditing(undefined);
       await load();
       toast(`中转站「${payload.name}」已保存`);
     } catch (error) {
       toast(`保存中转站失败：${error.message}`);
+    }
+  };
+  const toggleProvider = async (provider) => {
+    try {
+      await adminApi.modelConfig.providerStatus({ id: Number(provider.id), status: provider.status === "enabled" ? "disabled" : "enabled" });
+      await load();
+      toast(`中转站「${provider.name}」已${provider.status === "enabled" ? "停用" : "启用"}`);
+    } catch (error) {
+      toast(`切换中转站状态失败：${error.message}`);
+    }
+  };
+  const toggleRoute = async (provider, route) => {
+    try {
+      await adminApi.modelConfig.routeStatus({ id: Number(route.id), enabled: !route.enabled });
+      await load();
+      toast(`模型「${route.model}」已${route.enabled ? "停用" : "启用"}`);
+    } catch (error) {
+      toast(`切换模型状态失败：${error.message}`);
+    }
+  };
+  const deleteRoute = async (provider, route) => {
+    try {
+      await adminApi.modelConfig.deleteRoute({ id: Number(route.id) });
+      await load();
+      toast(`模型「${route.model}」已删除`);
+    } catch (error) {
+      toast(`删除模型失败：${error.message}`);
     }
   };
   const deleteProvider = async () => {
@@ -1959,14 +2008,14 @@ function ModelConfigPage({ toast, adminToken }) {
   };
   return (
     <div className="section-gap">
-      <Card title="中转站列表" sub={`共 ${providers.length} 个 · 文本/图片/视频可分别生效在不同中转站 · 配置即时生效`} actions={<button className="btn primary" onClick={() => setEditing(null)}>+ 新建中转站</button>}>
+      <Card title="中转站列表" sub={`共 ${providers.length} 个 · 每个中转站可配置多个文本/图片/视频模型 · 配置即时生效`} actions={<button className="btn primary" onClick={() => setEditing(null)}>+ 新建中转站</button>}>
         {loading ? <div className="panel-loading">加载中…</div> : <div className="table-wrap"><table className="table compact"><thead><tr><th>名称</th><th>API 地址</th><th>API Key</th>{MODEL_PROFILES.map(({ label }) => <th key={label}>{label}模型</th>)}<th>操作</th></tr></thead><tbody>
           {providers.map((provider) => <tr key={provider.id}>
             <td style={{ whiteSpace: "nowrap" }}><b>{provider.name}</b><div className="muted small">{provider.driver} · {provider.status === "enabled" ? "启用" : "停用"}</div></td>
             <td className="muted mono" title={provider.base_url} style={{ maxWidth: 190, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{provider.base_url}</td>
             <td className="muted mono" style={{ whiteSpace: "nowrap" }}>{maskApiKey(provider.api_key)}</td>
-            {MODEL_PROFILES.map((profile) => { const route = getProviderRoute(provider, profile.key); const active = Boolean(route?.enabled); return <td key={profile.key}><div style={{ display: "flex", flexDirection: "column", gap: 6, alignItems: "flex-start" }}><span className="mono small">{route?.model || "—"}</span>{active ? <Badge tone="yellow">使用中</Badge> : <button className="btn sm" disabled={!route || provider.status !== "enabled"} onClick={() => switchProvider(profile, provider)}>切换到此站</button>}</div></td>; })}
-            <td><div style={{ display: "flex", gap: 6 }}><button className="btn sm" onClick={() => setEditing(provider)}>编辑</button><button className="btn sm danger-ghost" onClick={() => setConfirmDelete(provider)}>删除</button></div></td>
+            {MODEL_PROFILES.map((profile) => { const routes = getProviderRoutes(provider, profile.type); return <td key={profile.type}><div style={{ display: "grid", gap: 6, minWidth: 170 }}>{routes.length ? routes.map((route) => <div key={route.id || route.model} style={{ display: "grid", gap: 4 }}><span className="mono small">{route.model}</span><div style={{ display: "flex", gap: 4, alignItems: "center" }}>{route.enabled ? <Badge tone="yellow">启用</Badge> : <Badge>停用</Badge>}<button className="btn sm" onClick={() => toggleRoute(provider, route)}>{route.enabled ? "停用" : "启用"}</button>{route.id && <button className="btn sm danger-ghost" onClick={() => deleteRoute(provider, route)}>删除</button>}</div></div>) : <span className="muted">—</span>}</div></td>; })}
+            <td><div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}><button className="btn sm" onClick={() => setEditing(provider)}>编辑模型</button><button className="btn sm" onClick={() => toggleProvider(provider)}>{provider.status === "enabled" ? "停用中转站" : "启用中转站"}</button><button className="btn sm danger-ghost" onClick={() => setConfirmDelete(provider)}>删除</button></div></td>
           </tr>)}
           {!providers.length && <tr><td colSpan={7}><div className="empty-state">暂无中转站配置</div></td></tr>}
         </tbody></table></div>}
