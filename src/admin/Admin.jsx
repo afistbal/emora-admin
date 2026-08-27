@@ -436,11 +436,12 @@ async function loadMediaRefsByIds(ids, signal) {
 }
 
 function CharacterEditorPage({ character, onBack, toast, onStatusChange }) {
-  const [tab, setTab] = useState("profile");
+  const [tab, setTab] = useState("basic");
   const [stage, setStage] = useState(character.status === "草稿" ? "草稿" : "已上架");
   const [locale, setLocale] = useState("zh");
   const [prompt, setPrompt] = useState({ zh: "", en: "" });
   const [greetings, setGreetings] = useState([]);
+  const [mesExamples, setMesExamples] = useState([]);
   const [cover, setCover] = useState(character.cardImage || character.image || "");
   const [assetTab, setAssetTab] = useState("public");
   const [assetItems, setAssetItems] = useState({ public: [], private: [] });
@@ -450,8 +451,13 @@ function CharacterEditorPage({ character, onBack, toast, onStatusChange }) {
   const [profile, setProfile] = useState({
     name: character.name,
     nameEn: character.nameEn || character.name,
+    version: "",
+    creator: "",
+    creatorNotes: "",
     tagline: character.subtitle || "",
     description: character.subtitle || "",
+    personality: "",
+    scenario: "",
     avatarNotes: "",
     tags: character.tags || [],
   });
@@ -462,17 +468,33 @@ function CharacterEditorPage({ character, onBack, toast, onStatusChange }) {
       .then(async (data) => {
         const version = data?.draft || data?.published;
         if (!version) return;
-        const zh = version.data?.["zh-Hant"] || {};
-        const en = version.data?.en || {};
+        const rawData = version.data || {};
+        const zh = rawData["zh-Hant"] || rawData;
+        const en = rawData.en || rawData;
         setProfile({
           name: zh.name || character.name,
           nameEn: en.name || character.nameEn || character.name,
+          version: zh.character_version || en.character_version || "",
+          creator: zh.creator || en.creator || "",
+          creatorNotes: zh.creator_notes || en.creator_notes || "",
           tagline: zh.tagline || "",
           description: zh.description || "",
+          personality: zh.personality || "",
+          scenario: zh.scenario || "",
           avatarNotes: zh.avatar_notes || "",
           tags: zh.tags || [],
         });
         setPrompt({ zh: zh.prompt || "", en: en.prompt || "" });
+        const zhExamples = Array.isArray(zh.mes_example) ? zh.mes_example : Array.isArray(rawData.mes_example) ? rawData.mes_example : [];
+        const enExamples = Array.isArray(en.mes_example) ? en.mes_example : Array.isArray(rawData.mes_example) ? rawData.mes_example : [];
+        const exampleCount = Math.max(zhExamples.length, enExamples.length);
+        setMesExamples(Array.from({ length: exampleCount }, (_, index) => ({
+          id: index + 1,
+          zhUser: zhExamples[index]?.user || "",
+          zhCharacter: zhExamples[index]?.character || "",
+          enUser: enExamples[index]?.user || "",
+          enCharacter: enExamples[index]?.character || "",
+        })));
         const zhGreetings = zh.greetings || [];
         const enGreetings = en.greetings || [];
         const greetingCount = Math.max(zhGreetings.length, enGreetings.length);
@@ -614,30 +636,64 @@ function CharacterEditorPage({ character, onBack, toast, onStatusChange }) {
   };
 
   const tabs = [
-    ["profile", "角色资料"], ["greetings", "开场白"], ["definition", "角色定义"], ["assets", "视觉资产"],
+    ["basic", "基础信息"], ["persona", "人设设定"], ["examples", "示例对话"], ["rules", "对话规则"], ["assets", "视觉资产"],
   ];
 
   const isReadOnly = false;
-  const buildCharacterData = () => ({
-    "zh-Hant": {
+  const buildCharacterData = () => {
+    const zhContent = {
       name: profile.name,
+      character_version: profile.version,
+      creator: profile.creator,
+      creator_notes: profile.creatorNotes,
       tagline: profile.tagline,
       description: profile.description,
+      personality: profile.personality,
+      scenario: profile.scenario,
       prompt: prompt.zh,
+      mes_example: mesExamples.map((example) => ({ user: example.zhUser, character: example.zhCharacter })),
       avatar_notes: profile.avatarNotes,
       greetings: greetings.map((greeting, index) => ({ kind: greeting.primary ? "primary" : "alternate", body: greeting.zh, enabled: greeting.enabled, sort: index })),
       tags: profile.tags,
-    },
-    en: {
+    };
+    const enContent = {
       name: profile.nameEn,
+      character_version: profile.version,
+      creator: profile.creator,
+      creator_notes: profile.creatorNotes,
       tagline: profile.tagline,
       description: profile.description,
+      personality: profile.personality,
+      scenario: profile.scenario,
       prompt: prompt.en,
+      mes_example: mesExamples.map((example) => ({ user: example.enUser, character: example.enCharacter })),
       avatar_notes: profile.avatarNotes,
       greetings: greetings.map((greeting, index) => ({ kind: greeting.primary ? "primary" : "alternate", body: greeting.en, enabled: greeting.enabled, sort: index })),
       tags: profile.tags,
-    },
-  });
+    };
+    // 后端角色卡同时存在两种数据形态：旧接口使用 zh-Hant/en 包裹，
+    // chara_card_v2 使用平铺字段。平铺层放完整字段，避免人格字段只显示在前端却没有被保存。
+    const flatContent = {
+      name: profile.name,
+      character_version: profile.version,
+      creator: profile.creator,
+      creator_notes: profile.creatorNotes,
+      tagline: profile.tagline,
+      description: profile.description,
+      personality: profile.personality,
+      scenario: profile.scenario,
+      prompt: prompt.zh,
+      mes_example: zhContent.mes_example,
+      avatar_notes: profile.avatarNotes,
+      greetings: zhContent.greetings,
+      tags: profile.tags,
+    };
+    return {
+      ...flatContent,
+      "zh-Hant": zhContent,
+      en: enContent,
+    };
+  };
   const buildAssetBindings = () => Object.entries(assetItems).flatMap(([mode, items]) => items
     .filter((asset) => asset.assetId)
     .map((asset, index) => ({
@@ -663,7 +719,7 @@ function CharacterEditorPage({ character, onBack, toast, onStatusChange }) {
   };
   const publish = async () => {
     if (!definitionReady) {
-      setTab("definition");
+      setTab("rules");
       toast("发布前请先完善中英文提示词与主开场");
       return;
     }
@@ -686,6 +742,13 @@ function CharacterEditorPage({ character, onBack, toast, onStatusChange }) {
   };
   const deleteGreeting = (id) => setGreetings((list) => list.filter((g) => !g.primary && g.id !== id));
   const toggleGreeting = (id, enabled) => setGreetings((list) => list.map((g) => g.id === id ? { ...g, enabled } : g));
+  const updateMesExample = (id, field, value) =>
+    setMesExamples((list) => list.map((example) => (example.id === id ? { ...example, [field]: value } : example)));
+  const addMesExample = () => {
+    const nextId = Math.max(...mesExamples.map((example) => example.id), 0) + 1;
+    setMesExamples((list) => [...list, { id: nextId, zhUser: "", zhCharacter: "", enUser: "", enCharacter: "" }]);
+  };
+  const deleteMesExample = (id) => setMesExamples((list) => list.filter((example) => example.id !== id));
 
   const primaryGreeting = greetings.find((g) => g.primary);
   const definitionChecks = [
@@ -734,8 +797,8 @@ function CharacterEditorPage({ character, onBack, toast, onStatusChange }) {
             ))}
           </div>
 
-          {tab === "profile" && (
-            <Card title="角色资料 / Profile" sub="用户可见的门面信息，负责让用户理解角色并愿意开始对话">
+          {tab === "basic" && (
+            <Card title="基础信息" sub="角色数据对应 chara_card_v2 规范（spec: chara_card_v2 / spec_version 2.0）">
               <div style={{ marginBottom: 14 }}>
                 <Field label="Avatar / 封面（本地上传）"><div style={{ display: "flex", alignItems: "center", gap: 12 }}>
                   <img src={cover} alt="封面预览" style={{ width: 56, height: 72, objectFit: "cover", borderRadius: 10 }} />
@@ -752,20 +815,19 @@ function CharacterEditorPage({ character, onBack, toast, onStatusChange }) {
                 <Field label="标签（双语，≤4 个）"><input className="input" value={profile.tags.join(" / ")} onChange={(event) => setProfile((value) => ({ ...value, tags: event.target.value.split(/[，,\/\s]+/).filter(Boolean).slice(0, 4) }))} readOnly={isReadOnly} /></Field>
                 <Field label="AI 标识"><input className="input" value="AI（常量展示，不伪装真人）" readOnly /></Field>
               </div>
-              <div style={{ marginTop: 14 }}>
-                <Field label="Description / 角色简介（≤500 字符，以角色自己的声音写）">
-                  <textarea className="textarea" maxLength={500} value={profile.description} onChange={(event) => setProfile((value) => ({ ...value, description: event.target.value }))} readOnly={isReadOnly} />
-                </Field>
+              <div className="grid-2" style={{ marginTop: 14 }}>
+                <Field label="版本号 character_version"><input className="input" value={profile.version} onChange={(event) => setProfile((value) => ({ ...value, version: event.target.value }))} readOnly={isReadOnly} placeholder="如：v2.3.1" /></Field>
+                <Field label="创建者 creator"><input className="input" value={profile.creator} onChange={(event) => setProfile((value) => ({ ...value, creator: event.target.value }))} readOnly={isReadOnly} placeholder="如：Luma 内容组" /></Field>
               </div>
               <div style={{ marginTop: 14 }}>
-                <Field label="Avatar notes / 视觉备注（内部可见，不进入模型）">
-                  <textarea className="textarea" value={profile.avatarNotes} onChange={(event) => setProfile((value) => ({ ...value, avatarNotes: event.target.value }))} readOnly={isReadOnly} />
+                <Field label="角色备注 creator_notes">
+                  <textarea className="textarea" value={profile.creatorNotes} onChange={(event) => setProfile((value) => ({ ...value, creatorNotes: event.target.value }))} readOnly={isReadOnly} placeholder="补充角色的运营备注…" />
                 </Field>
               </div>
             </Card>
           )}
 
-          {tab === "greetings" && (
+          {tab === "basic" && (
             <Card title="开场白 / Greetings" sub="主开场 + 最多 5 条备选开场；每条都应提供一个不同的对话起点">
               <div className="tabs locale-tabs basic-locale-tabs" aria-label="开场白语言">
                 <button className={locale === "zh" ? "is-active" : ""} onClick={() => setLocale("zh")}>中文</button>
@@ -791,7 +853,28 @@ function CharacterEditorPage({ character, onBack, toast, onStatusChange }) {
             </Card>
           )}
 
-          {tab === "definition" && (
+          {tab === "persona" && (
+            <Card title="人设设定" sub="chara_card_v2 规范字段 · 组装顺序从上到下">
+              <div className="persona-block">
+                <header><b>Description / 角色简介</b><span className="muted small">介绍角色身份、背景和整体定位</span><span className="order">PROMPT SEGMENT 1</span></header>
+                <textarea className="textarea" maxLength={500} value={profile.description} onChange={(event) => setProfile((value) => ({ ...value, description: event.target.value }))} readOnly={isReadOnly} />
+              </div>
+              <div className="persona-block">
+                <header><b>Personality / 人格设定</b><span className="muted small">定义性格、情绪表达、行为倾向和语气</span><span className="order">PROMPT SEGMENT 2</span></header>
+                <textarea className="textarea" value={profile.personality} onChange={(event) => setProfile((value) => ({ ...value, personality: event.target.value }))} readOnly={isReadOnly} placeholder="描述角色的性格、情绪表达、行为倾向和语气…" />
+              </div>
+              <div className="persona-block">
+                <header><b>Scenario / 场景设定</b><span className="muted small">定义用户与 AI 的关系、身份和聊天背景</span><span className="order">PROMPT SEGMENT 3</span></header>
+                <textarea className="textarea" value={profile.scenario} onChange={(event) => setProfile((value) => ({ ...value, scenario: event.target.value }))} readOnly={isReadOnly} placeholder="描述用户与 AI 的关系、身份和聊天背景…" />
+              </div>
+              <div className="persona-block">
+                <header><b>Avatar notes / 视觉备注</b><span className="muted small">内部可见，不进入模型</span></header>
+                <textarea className="textarea" value={profile.avatarNotes} onChange={(event) => setProfile((value) => ({ ...value, avatarNotes: event.target.value }))} readOnly={isReadOnly} />
+              </div>
+            </Card>
+          )}
+
+          {tab === "rules" && (
             <Card
               title="提示词 / Prompt"
               sub="运营直接维护最终交给模型的角色提示词，不再拆分重复的结构化字段"
@@ -818,6 +901,33 @@ function CharacterEditorPage({ character, onBack, toast, onStatusChange }) {
                 {definitionChecks.map((item) => <span key={item.label} className={item.pass ? "is-pass" : ""}>{item.pass ? <Check /> : <Warning />}{item.label}</span>)}
               </div>
 
+            </Card>
+          )}
+
+          {tab === "examples" && (
+            <Card title="示例对话 / mes_example" sub="通过具体问答示范角色的回复方式；每组包含一条用户消息和一条角色回复">
+              <div className="hint-bar greeting-hint"><Info />示例对话会作为角色定义的一部分提交给后端，建议使用真实、具体的对话场景。</div>
+              {mesExamples.map((example, index) => {
+                const userField = locale === "zh" ? "zhUser" : "enUser";
+                const characterField = locale === "zh" ? "zhCharacter" : "enCharacter";
+                return (
+                  <div className="persona-block" key={example.id}>
+                    <header>
+                      <b>示例对话 {index + 1}</b>
+                      <button className="icon-text-btn danger-text" onClick={() => deleteMesExample(example.id)}>删除</button>
+                    </header>
+                    <Field label="User / 用户">
+                      <textarea className="textarea" value={example[userField]} onChange={(event) => updateMesExample(example.id, userField, event.target.value)} placeholder="例如：今天加班到现在，脑子还是懵的。" />
+                    </Field>
+                    <div style={{ marginTop: 10 }}>
+                      <Field label="Character / 角色">
+                        <textarea className="textarea" value={example[characterField]} onChange={(event) => updateMesExample(example.id, characterField, event.target.value)} placeholder="输入角色在这个场景下的回复…" />
+                      </Field>
+                    </div>
+                  </div>
+                );
+              })}
+              <button className="btn" style={{ marginTop: 12 }} onClick={addMesExample}>+ 新增示例对话</button>
             </Card>
           )}
 
@@ -1698,6 +1808,176 @@ function AnalyticsPage({ toast, adminToken }) {
   );
 }
 
+/* ================= 模型配置 ================= */
+
+const MODEL_PROFILES = [
+  { key: "chat.default", label: "文本", shortKey: "text" },
+  { key: "media.image", label: "图片", shortKey: "image" },
+  { key: "media.video", label: "视频", shortKey: "video" },
+];
+
+function getProviderRoute(provider, profileKey) {
+  return (provider.routes || []).find((route) => route.profile_key === profileKey) || null;
+}
+
+function maskApiKey(value) {
+  if (!value) return "—";
+  if (value.includes("****")) return value;
+  return value.length > 10 ? `${value.slice(0, 5)}****${value.slice(-4)}` : "••••••••";
+}
+
+function ProviderDialog({ provider, onClose, onSave }) {
+  const editing = Boolean(provider);
+  const [form, setForm] = useState(() => ({
+    name: provider?.name || "",
+    driver: provider?.driver || "openrouter",
+    baseUrl: provider?.base_url || "",
+    apiKey: "",
+    status: provider?.status || "enabled",
+    connectTimeout: provider?.connect_timeout ?? 5,
+    requestTimeout: provider?.request_timeout ?? 90,
+    mediaTimeout: provider?.media_timeout ?? 300,
+    httpReferer: provider?.http_referer || "",
+    xTitle: provider?.x_title || "",
+    remark: provider?.remark || "",
+    models: Object.fromEntries(MODEL_PROFILES.map(({ key }) => [key, getProviderRoute(provider || {}, key)?.model || ""])),
+  }));
+  const update = (key, value) => setForm((current) => ({ ...current, [key]: value }));
+  const updateModel = (key, value) => setForm((current) => ({ ...current, models: { ...current.models, [key]: value } }));
+  const ready = form.name.trim() && form.baseUrl.trim() && (editing || form.apiKey.trim()) && MODEL_PROFILES.every(({ key }) => form.models[key].trim());
+  const submit = () => {
+    if (!ready) return;
+    const payload = {
+      ...(editing ? { id: Number(provider.id) } : {}),
+      name: form.name.trim(),
+      driver: form.driver,
+      base_url: form.baseUrl.trim(),
+      status: form.status,
+      connect_timeout: Number(form.connectTimeout),
+      request_timeout: Number(form.requestTimeout),
+      media_timeout: Number(form.mediaTimeout),
+      http_referer: form.httpReferer.trim(),
+      x_title: form.xTitle.trim(),
+      remark: form.remark.trim(),
+      ...(form.apiKey.trim() ? { api_key: form.apiKey.trim() } : {}),
+    };
+    onSave(payload, form.models);
+  };
+  return (
+    <div className="dialog-mask" onClick={onClose}>
+      <div className="dialog" style={{ width: 560, maxHeight: "90vh", overflowY: "auto", textAlign: "left" }} onClick={(event) => event.stopPropagation()}>
+        <h3 style={{ marginBottom: 16 }}>{editing ? "编辑中转站" : "新建中转站"}</h3>
+        <Field label="名称 *"><input className="input" value={form.name} onChange={(event) => update("name", event.target.value)} placeholder="如：主用中转站" /></Field>
+        <div className="grid-2" style={{ marginTop: 12 }}>
+          <Field label="Provider 类型 *"><select className="select" value={form.driver} onChange={(event) => update("driver", event.target.value)}><option value="openrouter">openrouter</option><option value="deepseek">deepseek</option></select></Field>
+          <Field label="状态"><select className="select" value={form.status} onChange={(event) => update("status", event.target.value)}><option value="enabled">启用</option><option value="disabled">停用</option></select></Field>
+        </div>
+        <div style={{ marginTop: 12 }}><Field label="API 地址 / 中转域名 *"><input className="input" value={form.baseUrl} onChange={(event) => update("baseUrl", event.target.value)} placeholder="https://api.example.com/v1" /></Field></div>
+        <div style={{ marginTop: 12 }}><Field label={`API Key ${editing ? "（留空则保留原 Key）" : "*"}`}><input className="input" type="password" value={form.apiKey} onChange={(event) => update("apiKey", event.target.value)} placeholder={editing ? `当前：${maskApiKey(provider.api_key)}` : "sk-..."} autoComplete="new-password" /></Field></div>
+        <div style={{ marginTop: 12 }}>
+          <Field label="模型（文本、图片、视频各 1 个）">
+            <div style={{ display: "grid", gap: 10 }}>
+              {MODEL_PROFILES.map(({ key, label }) => <div key={key} style={{ display: "grid", gridTemplateColumns: "72px 1fr", alignItems: "center", gap: 8 }}><span className="muted small">{label}</span><input className="input" value={form.models[key]} onChange={(event) => updateModel(key, event.target.value)} placeholder={`输入${label}模型名`} /></div>)}
+            </div>
+          </Field>
+        </div>
+        <div className="grid-3" style={{ marginTop: 12 }}>
+          <Field label="连接超时（秒）"><input className="input" type="number" min="1" value={form.connectTimeout} onChange={(event) => update("connectTimeout", event.target.value)} /></Field>
+          <Field label="请求超时（秒）"><input className="input" type="number" min="1" value={form.requestTimeout} onChange={(event) => update("requestTimeout", event.target.value)} /></Field>
+          <Field label="媒体超时（秒）"><input className="input" type="number" min="1" value={form.mediaTimeout} onChange={(event) => update("mediaTimeout", event.target.value)} /></Field>
+        </div>
+        <div className="grid-2" style={{ marginTop: 12 }}>
+          <Field label="HTTP Referer"><input className="input" value={form.httpReferer} onChange={(event) => update("httpReferer", event.target.value)} /></Field>
+          <Field label="X-Title"><input className="input" value={form.xTitle} onChange={(event) => update("xTitle", event.target.value)} /></Field>
+        </div>
+        <div style={{ marginTop: 12 }}><Field label="备注"><textarea className="textarea" value={form.remark} onChange={(event) => update("remark", event.target.value)} /></Field></div>
+        <div className="dialog-actions" style={{ marginTop: 18, gridTemplateColumns: "1fr 1fr" }}><button className="btn primary" disabled={!ready} onClick={submit}>保存</button><button className="btn" onClick={onClose}>取消</button></div>
+        {!ready && <p className="muted small" style={{ margin: "10px 0 0", textAlign: "center" }}>名称、API 地址、API Key（新建时）以及三类模型均为必填</p>}
+      </div>
+    </div>
+  );
+}
+
+function ModelConfigPage({ toast, adminToken }) {
+  const [providers, setProviders] = useState([]);
+  const [profileKeys, setProfileKeys] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [editing, setEditing] = useState(undefined);
+  const [confirmDelete, setConfirmDelete] = useState(null);
+
+  const load = (signal) => adminApi.modelConfig.list({}, { signal }).then((data) => {
+    setProviders(data?.providers || []);
+    setProfileKeys(data?.profile_keys || []);
+  });
+  useEffect(() => {
+    const controller = new AbortController();
+    setLoading(true);
+    load(controller.signal).catch((error) => { if (error.name !== "AbortError") toast(`模型配置加载失败：${error.message}`); }).finally(() => setLoading(false));
+    return () => controller.abort();
+  }, [adminToken]);
+
+  const saveProvider = async (payload, models) => {
+    try {
+      const data = await adminApi.modelConfig.saveProvider(payload);
+      const saved = data?.provider || { ...payload, id: payload.id };
+      const providerId = Number(saved.id || payload.id);
+      for (const { key } of MODEL_PROFILES) {
+        await adminApi.modelConfig.saveRoute({ profile_key: key, provider_config_id: providerId, model: models[key].trim(), provider_options: {}, enabled: true, sort: 0 });
+      }
+      setEditing(undefined);
+      await load();
+      toast(`中转站「${payload.name}」已保存`);
+    } catch (error) {
+      toast(`保存中转站失败：${error.message}`);
+    }
+  };
+  const deleteProvider = async () => {
+    try {
+      await adminApi.modelConfig.deleteProvider(confirmDelete.id);
+      setConfirmDelete(null);
+      await load();
+      toast(`中转站「${confirmDelete.name}」已删除`);
+    } catch (error) {
+      toast(`删除中转站失败：${error.message}`);
+    }
+  };
+  const switchProvider = async (profile, provider) => {
+    const route = getProviderRoute(provider, profile.key);
+    if (!route) return;
+    try {
+      await Promise.all(providers.map(async (item) => {
+        const itemRoute = getProviderRoute(item, profile.key);
+        if (!itemRoute || item.id === provider.id) return;
+        return adminApi.modelConfig.saveRoute({ profile_key: profile.key, provider_config_id: Number(item.id), model: itemRoute.model, provider_options: itemRoute.provider_options || {}, enabled: false, sort: itemRoute.sort || 0 });
+      }));
+      await adminApi.modelConfig.saveRoute({ profile_key: profile.key, provider_config_id: Number(provider.id), model: route.model, provider_options: route.provider_options || {}, enabled: true, sort: route.sort || 0 });
+      await load();
+      toast(`${profile.label}调用已切换至「${provider.name}」`);
+    } catch (error) {
+      toast(`切换${profile.label}中转站失败：${error.message}`);
+    }
+  };
+  return (
+    <div className="section-gap">
+      <Card title="中转站列表" sub={`共 ${providers.length} 个 · 文本/图片/视频可分别生效在不同中转站 · 配置即时生效`} actions={<button className="btn primary" onClick={() => setEditing(null)}>+ 新建中转站</button>}>
+        {loading ? <div className="panel-loading">加载中…</div> : <div className="table-wrap"><table className="table compact"><thead><tr><th>名称</th><th>API 地址</th><th>API Key</th>{MODEL_PROFILES.map(({ label }) => <th key={label}>{label}模型</th>)}<th>操作</th></tr></thead><tbody>
+          {providers.map((provider) => <tr key={provider.id}>
+            <td style={{ whiteSpace: "nowrap" }}><b>{provider.name}</b><div className="muted small">{provider.driver} · {provider.status === "enabled" ? "启用" : "停用"}</div></td>
+            <td className="muted mono" title={provider.base_url} style={{ maxWidth: 190, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{provider.base_url}</td>
+            <td className="muted mono" style={{ whiteSpace: "nowrap" }}>{maskApiKey(provider.api_key)}</td>
+            {MODEL_PROFILES.map((profile) => { const route = getProviderRoute(provider, profile.key); const active = Boolean(route?.enabled); return <td key={profile.key}><div style={{ display: "flex", flexDirection: "column", gap: 6, alignItems: "flex-start" }}><span className="mono small">{route?.model || "—"}</span>{active ? <Badge tone="yellow">使用中</Badge> : <button className="btn sm" disabled={!route || provider.status !== "enabled"} onClick={() => switchProvider(profile, provider)}>切换到此站</button>}</div></td>; })}
+            <td><div style={{ display: "flex", gap: 6 }}><button className="btn sm" onClick={() => setEditing(provider)}>编辑</button><button className="btn sm danger-ghost" onClick={() => setConfirmDelete(provider)}>删除</button></div></td>
+          </tr>)}
+          {!providers.length && <tr><td colSpan={7}><div className="empty-state">暂无中转站配置</div></td></tr>}
+        </tbody></table></div>}
+      </Card>
+      <Card title="业务模型路由" sub="后端支持的业务 profile_key；当前页面展示文本、图片、视频三类调用路由"><div className="pill-row">{profileKeys.map((key) => <span className="tag-pill" key={key}>{key}</span>)}</div></Card>
+      {editing !== undefined && <ProviderDialog provider={editing} onClose={() => setEditing(undefined)} onSave={saveProvider} />}
+      {confirmDelete && <ConfirmDialog title="删除该中转站" desc={`将删除「${confirmDelete.name}」及其模型配置，操作不可恢复。`} confirmText="确认删除" onClose={() => setConfirmDelete(null)} onConfirm={deleteProvider} />}
+    </div>
+  );
+}
+
 /* ================= 系统设置 ================= */
 
 function SettingsPage() {
@@ -1714,6 +1994,7 @@ const NAV = [
   { id: "dashboard", path: "/", label: "仪表盘", icon: Gauge },
   { id: "characters", path: "/characters", label: "角色管理", icon: MaskHappy },
   { id: "presets", path: "/presets", label: "生成预设", icon: ImageSquare },
+  { id: "models", path: "/models", label: "模型配置", icon: GearSix },
   { id: "users", path: "/users", label: "用户管理", icon: Users },
   { id: "commerce", path: "/commerce", label: "商业化配置", icon: Coins },
   { id: "analytics", path: "/analytics", label: "数据看板", icon: ChartLineUp },
@@ -1908,6 +2189,7 @@ export default function Admin() {
             />
           )}
           {page === "presets" && <PresetsPage toast={toast} adminToken={adminToken} />}
+          {page === "models" && <ModelConfigPage toast={toast} adminToken={adminToken} />}
           {page === "users" && <UsersPage toast={toast} adminToken={adminToken} />}
           {page === "commerce" && <CommercePage toast={toast} adminToken={adminToken} />}
           {page === "analytics" && <AnalyticsPage toast={toast} adminToken={adminToken} />}

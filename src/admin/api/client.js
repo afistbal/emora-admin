@@ -127,6 +127,12 @@ export const adminApi = {
     status: (params, options) => adminPost("/admin/ai/presets/status", params, options),
     remove: (params, options) => adminPost("/admin/ai/presets/delete", params, options),
   },
+  modelConfig: {
+    list: (params = {}, options) => adminPost("/admin/ai/model-config/list", params, options),
+    saveProvider: (params, options) => adminPost("/admin/ai/model-config/provider/save", params, options),
+    saveRoute: (params, options) => adminPost("/admin/ai/model-config/route/save", params, options),
+    deleteProvider: (providerId, params = {}, options) => adminPost(`/admin/ai/model-config/provider/${providerId}/delete`, params, options),
+  },
   users: {
     list: (params, options) => adminPost("/admin/users/list", params, options),
     detail: (params, options) => adminPost("/admin/users/detail", params, options),
