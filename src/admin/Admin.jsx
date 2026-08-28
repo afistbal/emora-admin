@@ -1950,7 +1950,8 @@ function ModelConfigPage({ toast, adminToken }) {
     if (!target) return;
     try {
       await Promise.all(routes.filter((route) => route.id && route.id !== target.id && route.enabled).map((route) => adminApi.modelConfig.routeStatus({ id: Number(route.id), enabled: false })));
-      if (!target.enabled) await adminApi.modelConfig.routeStatus({ id: Number(target.id), enabled: true });
+      // 用户选择下拉项时，无论前端缓存的 enabled 状态是什么，都明确调用启用接口。
+      await adminApi.modelConfig.routeStatus({ id: Number(target.id), enabled: true });
       await load();
       toast(`${profile.label}模型已切换为「${target.model}」`);
     } catch (error) {
