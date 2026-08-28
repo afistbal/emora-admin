@@ -1944,13 +1944,17 @@ function ModelConfigPage({ toast, adminToken }) {
       toast(`切换中转站状态失败：${error.message}`);
     }
   };
-  const toggleRoute = async (provider, route) => {
+  const switchRoute = async (provider, profile, routeId) => {
+    const routes = getProviderRoutes(provider, profile.type);
+    const target = routes.find((route) => String(route.id) === String(routeId));
+    if (!target) return;
     try {
-      await adminApi.modelConfig.routeStatus({ id: Number(route.id), enabled: !route.enabled });
+      await Promise.all(routes.filter((route) => route.id && route.id !== target.id && route.enabled).map((route) => adminApi.modelConfig.routeStatus({ id: Number(route.id), enabled: false })));
+      if (!target.enabled) await adminApi.modelConfig.routeStatus({ id: Number(target.id), enabled: true });
       await load();
-      toast(`模型「${route.model}」已${route.enabled ? "停用" : "启用"}`);
+      toast(`${profile.label}模型已切换为「${target.model}」`);
     } catch (error) {
-      toast(`切换模型状态失败：${error.message}`);
+      toast(`切换${profile.label}模型失败：${error.message}`);
     }
   };
   const deleteRoute = async (provider, route) => {
@@ -1996,7 +2000,7 @@ function ModelConfigPage({ toast, adminToken }) {
             <td style={{ whiteSpace: "nowrap" }}><b>{provider.name}</b><div className="muted small">{provider.driver} · {provider.status === "enabled" ? "启用" : "停用"}</div></td>
             <td className="muted mono" title={provider.base_url} style={{ maxWidth: 190, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{provider.base_url}</td>
             <td className="muted mono" style={{ whiteSpace: "nowrap" }}>{maskApiKey(provider.api_key)}</td>
-            {MODEL_PROFILES.map((profile) => { const routes = getProviderRoutes(provider, profile.type); return <td key={profile.type}><div style={{ display: "grid", gap: 6, minWidth: 170 }}>{routes.length ? routes.map((route) => <div key={route.id || route.model} style={{ display: "grid", gap: 4 }}><span className="mono small">{route.model}</span><div style={{ display: "flex", gap: 8, alignItems: "center" }}>{route.enabled ? <Badge tone="yellow">启用</Badge> : <Badge>未启用</Badge>}<label className="muted small" style={{ display: "inline-flex", alignItems: "center", gap: 4, cursor: "pointer" }}><input type="checkbox" checked={Boolean(route.enabled)} onChange={() => toggleRoute(provider, route)} />启用</label>{route.id && <button className="btn sm danger-ghost" onClick={() => deleteRoute(provider, route)}>删除</button>}</div></div>) : <span className="muted">—</span>}</div></td>; })}
+            {MODEL_PROFILES.map((profile) => { const routes = getProviderRoutes(provider, profile.type); const active = routes.find((route) => route.enabled) || routes[0]; return <td key={profile.type}><div style={{ minWidth: 190 }}>{routes.length ? <select className="select" value={active?.id || ""} disabled={provider.status !== "enabled"} onChange={(event) => switchRoute(provider, profile, event.target.value)}>{routes.map((route) => <option key={route.id || route.model} value={route.id}>{route.model}{route.enabled ? "（当前启用）" : ""}</option>)}</select> : <span className="muted">—</span>}</div></td>; })}
             <td><div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}><button className="btn sm" onClick={() => setEditing(provider)}>编辑模型</button><button className="btn sm" onClick={() => toggleProvider(provider)}>{provider.status === "enabled" ? "停用中转站" : "启用中转站"}</button><button className="btn sm danger-ghost" onClick={() => setConfirmDelete(provider)}>删除</button></div></td>
           </tr>)}
           {!providers.length && <tr><td colSpan={7}><div className="empty-state">暂无中转站配置</div></td></tr>}
