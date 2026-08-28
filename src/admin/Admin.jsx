@@ -671,25 +671,7 @@ function CharacterEditorPage({ character, onBack, toast, onStatusChange }) {
       greetings: greetings.map((greeting, index) => ({ kind: greeting.primary ? "primary" : "alternate", body: greeting.en, enabled: greeting.enabled, sort: index })),
       tags: profile.tags,
     };
-    // 后端角色卡同时存在两种数据形态：旧接口使用 zh-Hant/en 包裹，
-    // chara_card_v2 使用平铺字段。平铺层放完整字段，避免人格字段只显示在前端却没有被保存。
-    const flatContent = {
-      name: profile.name,
-      character_version: profile.version,
-      creator: profile.creator,
-      creator_notes: profile.creatorNotes,
-      tagline: profile.tagline,
-      description: profile.description,
-      personality: profile.personality,
-      scenario: profile.scenario,
-      prompt: prompt.zh,
-      mes_example: zhContent.mes_example,
-      avatar_notes: profile.avatarNotes,
-      greetings: zhContent.greetings,
-      tags: profile.tags,
-    };
     return {
-      ...flatContent,
       "zh-Hant": zhContent,
       en: enContent,
     };
@@ -1902,7 +1884,7 @@ function ProviderDialog({ provider, onClose, onSave }) {
         <div style={{ marginTop: 12 }}>
           <Field label="模型（可添加多个，类型：文本 / 图片 / 视频）">
             <div style={{ display: "grid", gap: 10 }}>
-              {MODEL_PROFILES.map(({ type, label }) => <div key={type} style={{ border: "1px solid var(--line)", borderRadius: 8, padding: 10 }}><div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8 }}><span className="muted small">{label}模型</span><button className="btn sm" type="button" onClick={() => addModel(type)}>+ 添加模型</button></div><div style={{ display: "grid", gap: 8 }}>{form.models[type].map((item, index) => <div key={`${type}-${index}`} style={{ display: "grid", gridTemplateColumns: "1fr 72px auto", gap: 6, alignItems: "center" }}><input className="input" value={item.model} onChange={(event) => updateModel(type, index, "model", event.target.value)} placeholder={`输入${label}模型名`} /><input className="input" type="number" value={item.sort} onChange={(event) => updateModel(type, index, "sort", event.target.value)} title="优先级" /><button className="btn sm danger-ghost" type="button" disabled={form.models[type].length <= 1} onClick={() => removeModel(type, index)}>删除</button></div>)}</div></div>)}
+              {MODEL_PROFILES.map(({ type, label }) => <div key={type} style={{ border: "1px solid var(--line)", borderRadius: 8, padding: 10 }}><div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8 }}><span className="muted small">{label}模型</span><button className="btn sm" type="button" onClick={() => addModel(type)}>+ 添加模型</button></div><div style={{ display: "grid", gap: 8 }}>{form.models[type].map((item, index) => <div key={`${type}-${index}`} style={{ display: "grid", gridTemplateColumns: "1fr 72px 48px auto", gap: 6, alignItems: "center" }}><input className="input" value={item.model} onChange={(event) => updateModel(type, index, "model", event.target.value)} placeholder={`输入${label}模型名`} /><input className="input" type="number" value={item.sort} onChange={(event) => updateModel(type, index, "sort", event.target.value)} title="优先级" /><label className="muted small" style={{ display: "inline-flex", alignItems: "center", gap: 3, cursor: "pointer" }}><input type="checkbox" checked={item.enabled !== false} onChange={(event) => updateModel(type, index, "enabled", event.target.checked)} />启用</label><button className="btn sm danger-ghost" type="button" disabled={form.models[type].length <= 1} onClick={() => removeModel(type, index)}>删除</button></div>)}</div></div>)}
             </div>
           </Field>
         </div>
@@ -2014,7 +1996,7 @@ function ModelConfigPage({ toast, adminToken }) {
             <td style={{ whiteSpace: "nowrap" }}><b>{provider.name}</b><div className="muted small">{provider.driver} · {provider.status === "enabled" ? "启用" : "停用"}</div></td>
             <td className="muted mono" title={provider.base_url} style={{ maxWidth: 190, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{provider.base_url}</td>
             <td className="muted mono" style={{ whiteSpace: "nowrap" }}>{maskApiKey(provider.api_key)}</td>
-            {MODEL_PROFILES.map((profile) => { const routes = getProviderRoutes(provider, profile.type); return <td key={profile.type}><div style={{ display: "grid", gap: 6, minWidth: 170 }}>{routes.length ? routes.map((route) => <div key={route.id || route.model} style={{ display: "grid", gap: 4 }}><span className="mono small">{route.model}</span><div style={{ display: "flex", gap: 4, alignItems: "center" }}>{route.enabled ? <Badge tone="yellow">启用</Badge> : <Badge>停用</Badge>}<button className="btn sm" onClick={() => toggleRoute(provider, route)}>{route.enabled ? "停用" : "启用"}</button>{route.id && <button className="btn sm danger-ghost" onClick={() => deleteRoute(provider, route)}>删除</button>}</div></div>) : <span className="muted">—</span>}</div></td>; })}
+            {MODEL_PROFILES.map((profile) => { const routes = getProviderRoutes(provider, profile.type); return <td key={profile.type}><div style={{ display: "grid", gap: 6, minWidth: 170 }}>{routes.length ? routes.map((route) => <div key={route.id || route.model} style={{ display: "grid", gap: 4 }}><span className="mono small">{route.model}</span><div style={{ display: "flex", gap: 8, alignItems: "center" }}>{route.enabled ? <Badge tone="yellow">启用</Badge> : <Badge>未启用</Badge>}<label className="muted small" style={{ display: "inline-flex", alignItems: "center", gap: 4, cursor: "pointer" }}><input type="checkbox" checked={Boolean(route.enabled)} onChange={() => toggleRoute(provider, route)} />启用</label>{route.id && <button className="btn sm danger-ghost" onClick={() => deleteRoute(provider, route)}>删除</button>}</div></div>) : <span className="muted">—</span>}</div></td>; })}
             <td><div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}><button className="btn sm" onClick={() => setEditing(provider)}>编辑模型</button><button className="btn sm" onClick={() => toggleProvider(provider)}>{provider.status === "enabled" ? "停用中转站" : "启用中转站"}</button><button className="btn sm danger-ghost" onClick={() => setConfirmDelete(provider)}>删除</button></div></td>
           </tr>)}
           {!providers.length && <tr><td colSpan={7}><div className="empty-state">暂无中转站配置</div></td></tr>}
