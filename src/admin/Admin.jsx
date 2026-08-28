@@ -1911,6 +1911,7 @@ function ModelConfigPage({ toast, adminToken }) {
   const [loading, setLoading] = useState(true);
   const [editing, setEditing] = useState(undefined);
   const [confirmDelete, setConfirmDelete] = useState(null);
+  const routeClickTimers = useRef(new Map());
 
   const load = (signal) => adminApi.modelConfig.list({}, { signal }).then((data) => {
     setProviders(data?.providers || []);
@@ -1958,6 +1959,22 @@ function ModelConfigPage({ toast, adminToken }) {
       toast(`切换${profile.label}模型失败：${error.message}`);
     }
   };
+  const handleRouteSelect = (provider, profile, routeId, source) => {
+    const timerKey = `${provider.id}:${profile.type}`;
+    const pending = routeClickTimers.current.get(timerKey);
+    if (pending) clearTimeout(pending);
+    routeClickTimers.current.delete(timerKey);
+    if (source === "click") {
+      // 原生 select 选择当前值时不会触发 change；延迟执行 click，给 change 留出优先处理机会。
+      const timer = setTimeout(() => {
+        routeClickTimers.current.delete(timerKey);
+        switchRoute(provider, profile, routeId);
+      }, 80);
+      routeClickTimers.current.set(timerKey, timer);
+      return;
+    }
+    switchRoute(provider, profile, routeId);
+  };
   const deleteRoute = async (provider, route) => {
     try {
       await adminApi.modelConfig.deleteRoute({ id: Number(route.id) });
@@ -2001,7 +2018,7 @@ function ModelConfigPage({ toast, adminToken }) {
             <td style={{ whiteSpace: "nowrap" }}><b>{provider.name}</b><div className="muted small">{provider.driver} · {provider.status === "enabled" ? "启用" : "停用"}</div></td>
             <td className="muted mono" title={provider.base_url} style={{ maxWidth: 190, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{provider.base_url}</td>
             <td className="muted mono" style={{ whiteSpace: "nowrap" }}>{maskApiKey(provider.api_key)}</td>
-            {MODEL_PROFILES.map((profile) => { const routes = getProviderRoutes(provider, profile.type); const active = routes.find((route) => route.enabled) || routes[0]; return <td key={profile.type}><div style={{ minWidth: 190 }}>{routes.length ? <select className="select" value={active?.id || ""} disabled={provider.status !== "enabled"} onChange={(event) => switchRoute(provider, profile, event.target.value)}>{routes.map((route) => <option key={route.id || route.model} value={route.id}>{route.model}{route.enabled ? "（当前启用）" : ""}</option>)}</select> : <span className="muted">—</span>}</div></td>; })}
+            {MODEL_PROFILES.map((profile) => { const routes = getProviderRoutes(provider, profile.type); const active = routes.find((route) => route.enabled) || routes[0]; return <td key={profile.type}><div style={{ minWidth: 190 }}>{routes.length ? <select className="select" value={active?.id || ""} disabled={provider.status !== "enabled"} onClick={() => handleRouteSelect(provider, profile, active?.id, "click")} onChange={(event) => handleRouteSelect(provider, profile, event.target.value, "change")}>{routes.map((route) => <option key={route.id || route.model} value={route.id}>{route.model}{route.enabled ? "（当前启用）" : ""}</option>)}</select> : <span className="muted">—</span>}</div></td>; })}
             <td><div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}><button className="btn sm" onClick={() => setEditing(provider)}>编辑模型</button><button className="btn sm" onClick={() => toggleProvider(provider)}>{provider.status === "enabled" ? "停用中转站" : "启用中转站"}</button><button className="btn sm danger-ghost" onClick={() => setConfirmDelete(provider)}>删除</button></div></td>
           </tr>)}
           {!providers.length && <tr><td colSpan={7}><div className="empty-state">暂无中转站配置</div></td></tr>}
