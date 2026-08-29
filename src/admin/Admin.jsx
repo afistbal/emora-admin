@@ -1916,7 +1916,7 @@ function maskApiKey(value) {
   return value.length > 10 ? `${value.slice(0, 5)}****${value.slice(-4)}` : "••••••••";
 }
 
-function ProviderDialog({ provider, onClose, onSave }) {
+function ProviderDialog({ provider, onClose, onSave, onDeleteModel }) {
   const editing = Boolean(provider);
   const [form, setForm] = useState(() => ({
     name: provider?.name || "",
@@ -1931,6 +1931,7 @@ function ProviderDialog({ provider, onClose, onSave }) {
     xTitle: provider?.x_title || "",
     remark: provider?.remark || "",
     models: Object.fromEntries(MODEL_PROFILES.map(({ type }) => [type, getProviderRoutes(provider || {}, type).map((route) => ({
+      id: route.id,
       model: route.model || "",
       enabled: route.enabled !== false,
       sort: route.sort || 0,
@@ -1940,9 +1941,25 @@ function ProviderDialog({ provider, onClose, onSave }) {
   const update = (key, value) => setForm((current) => ({ ...current, [key]: value }));
   const updateModel = (type, index, key, value) => setForm((current) => ({ ...current, models: { ...current.models, [type]: current.models[type].map((item, itemIndex) => itemIndex === index ? { ...item, [key]: value } : item) } }));
   const addModel = (type) => setForm((current) => ({ ...current, models: { ...current.models, [type]: [...current.models[type], { model: "", enabled: true, sort: current.models[type].length * 10, provider_options: {} }] } }));
-  const removeModel = (type, index) => setForm((current) => ({ ...current, models: { ...current.models, [type]: current.models[type].filter((_, itemIndex) => itemIndex !== index) } }));
+  const [deletingModel, setDeletingModel] = useState(null);
+  const removeModel = async (type, index) => {
+    const model = form.models[type][index];
+    if (!model || (model.id && model.enabled)) return;
+    if (model.id) {
+      setDeletingModel(model.id);
+      try {
+        await onDeleteModel({ ...model, model_type: type });
+      } catch {
+        setDeletingModel(null);
+        return;
+      }
+      setDeletingModel(null);
+    }
+    setForm((current) => ({ ...current, models: { ...current.models, [type]: current.models[type].filter((_, itemIndex) => itemIndex !== index) } }));
+  };
+  const [saving, setSaving] = useState(false);
   const ready = form.name.trim() && form.baseUrl.trim() && (editing || form.apiKey.trim()) && MODEL_PROFILES.every(({ type }) => form.models[type].some((item) => item.model.trim()));
-  const submit = () => {
+  const submit = async () => {
     if (!ready) return;
     const payload = {
       ...(editing ? { id: Number(provider.id) } : {}),
@@ -1965,7 +1982,12 @@ function ProviderDialog({ provider, onClose, onSave }) {
         sort: Number(item.sort) || index * 10,
       }))),
     };
-    onSave(payload);
+    setSaving(true);
+    try {
+      await onSave(payload);
+    } finally {
+      setSaving(false);
+    }
   };
   return (
     <div className="dialog-mask" onClick={onClose}>
@@ -1981,7 +2003,7 @@ function ProviderDialog({ provider, onClose, onSave }) {
         <div style={{ marginTop: 12 }}>
           <Field label="模型（可添加多个，类型：文本 / 图片 / 视频）">
             <div style={{ display: "grid", gap: 10 }}>
-              {MODEL_PROFILES.map(({ type, label }) => <div key={type} style={{ border: "1px solid var(--line)", borderRadius: 8, padding: 10 }}><div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8 }}><span className="muted small">{label}模型</span><button className="btn sm" type="button" onClick={() => addModel(type)}>+ 添加模型</button></div><div style={{ display: "grid", gap: 8 }}>{form.models[type].map((item, index) => <div key={`${type}-${index}`} style={{ display: "grid", gridTemplateColumns: "1fr 72px 48px auto", gap: 6, alignItems: "center" }}><input className="input" value={item.model} onChange={(event) => updateModel(type, index, "model", event.target.value)} placeholder={`输入${label}模型名`} /><input className="input" type="number" value={item.sort} onChange={(event) => updateModel(type, index, "sort", event.target.value)} title="优先级" /><label className="muted small" style={{ display: "inline-flex", alignItems: "center", gap: 3, cursor: "pointer" }}><input type="checkbox" checked={item.enabled !== false} onChange={(event) => updateModel(type, index, "enabled", event.target.checked)} />启用</label><button className="btn sm danger-ghost" type="button" disabled={form.models[type].length <= 1} onClick={() => removeModel(type, index)}>删除</button></div>)}</div></div>)}
+              {MODEL_PROFILES.map(({ type, label }) => <div key={type} style={{ border: "1px solid var(--line)", borderRadius: 8, padding: 10 }}><div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8 }}><span className="muted small">{label}模型</span><button className="btn sm" type="button" onClick={() => addModel(type)}>+ 添加模型</button></div><div style={{ display: "grid", gap: 8 }}>{form.models[type].map((item, index) => <div key={`${type}-${index}`} style={{ display: "grid", gridTemplateColumns: "1fr 72px 48px auto", gap: 6, alignItems: "center" }}><input className="input" value={item.model} onChange={(event) => updateModel(type, index, "model", event.target.value)} placeholder={`输入${label}模型名`} /><input className="input" type="number" value={item.sort} onChange={(event) => updateModel(type, index, "sort", event.target.value)} title="优先级" /><label className="muted small" style={{ display: "inline-flex", alignItems: "center", gap: 3, cursor: "pointer" }}><input type="checkbox" checked={item.enabled !== false} onChange={(event) => updateModel(type, index, "enabled", event.target.checked)} />启用</label><button className="btn sm danger-ghost" type="button" disabled={Boolean(item.id && item.enabled) || deletingModel === item.id} title={item.id && item.enabled ? "启用中的模型不可删除，请先停用" : "删除模型"} onClick={() => removeModel(type, index)}>{deletingModel === item.id ? "删除中…" : "删除"}</button></div>)}</div></div>)}
             </div>
           </Field>
         </div>
@@ -1995,7 +2017,7 @@ function ProviderDialog({ provider, onClose, onSave }) {
           <Field label="X-Title"><input className="input" value={form.xTitle} onChange={(event) => update("xTitle", event.target.value)} /></Field>
         </div>
         <div style={{ marginTop: 12 }}><Field label="备注"><textarea className="textarea" value={form.remark} onChange={(event) => update("remark", event.target.value)} /></Field></div>
-        <div className="dialog-actions" style={{ marginTop: 18, gridTemplateColumns: "1fr 1fr" }}><button className="btn primary" disabled={!ready} onClick={submit}>保存</button><button className="btn" onClick={onClose}>取消</button></div>
+        <div className="dialog-actions" style={{ marginTop: 18, gridTemplateColumns: "1fr 1fr" }}><button className="btn primary" disabled={!ready || deletingModel !== null || saving} onClick={submit}>{saving ? "保存中…" : "保存"}</button><button className="btn" disabled={saving || deletingModel !== null} onClick={onClose}>取消</button></div>
         {!ready && <p className="muted small" style={{ margin: "10px 0 0", textAlign: "center" }}>名称、API 地址、API Key（新建时）以及至少一个文本、图片、视频模型均为必填</p>}
       </div>
     </div>
@@ -2073,12 +2095,18 @@ function ModelConfigPage({ toast, adminToken }) {
     switchRoute(provider, profile, routeId);
   };
   const deleteRoute = async (provider, route) => {
+    if (route.enabled) {
+      const error = new Error("启用中的模型不可删除，请先停用");
+      toast(error.message);
+      throw error;
+    }
     try {
       await adminApi.modelConfig.deleteRoute({ id: Number(route.id) });
       await load();
       toast(`模型「${route.model}」已删除`);
     } catch (error) {
       toast(`删除模型失败：${error.message}`);
+      throw error;
     }
   };
   const deleteProvider = async () => {
@@ -2122,7 +2150,7 @@ function ModelConfigPage({ toast, adminToken }) {
         </tbody></table></div>}
       </Card>
       <Card title="业务模型路由" sub="后端支持的业务 profile_key；当前页面展示文本、图片、视频三类调用路由"><div className="pill-row">{profileKeys.map((key) => <span className="tag-pill" key={key}>{key}</span>)}</div></Card>
-      {editing !== undefined && <ProviderDialog provider={editing} onClose={() => setEditing(undefined)} onSave={saveProvider} />}
+      {editing !== undefined && <ProviderDialog provider={editing} onClose={() => setEditing(undefined)} onSave={saveProvider} onDeleteModel={(route) => deleteRoute(editing, route)} />}
       {confirmDelete && <ConfirmDialog title="删除该中转站" desc={`将删除「${confirmDelete.name}」及其模型配置，操作不可恢复。`} confirmText="确认删除" onClose={() => setConfirmDelete(null)} onConfirm={deleteProvider} />}
     </div>
   );
