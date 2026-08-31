@@ -4,9 +4,11 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "dev": "vite --open /",
-    "build": "vite build",
-    "preview": "vite preview",
+    "dev": "vite --mode dev --open /",
+    "prod": "vite --mode prod --open /",
+    "build": "vite build --mode prod",
+    "build:dev": "vite build --mode dev",
+    "preview": "vite preview --mode prod",
     "validate": "node scripts/validate-knowledge.mjs && vite build"
   },
   "dependencies": {

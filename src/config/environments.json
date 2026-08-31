@@ -1,0 +1,10 @@
+{
+  "dev": {
+    "name": "测试环境",
+    "apiBaseUrl": "https://testapi.weshow.cc/api"
+  },
+  "prod": {
+    "name": "正式环境",
+    "apiBaseUrl": "https://api.emoraai.net/api"
+  }
+}

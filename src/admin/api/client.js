@@ -1,4 +1,8 @@
-export const API_BASE_URL = "https://testapi.weshow.cc/api";
+import environments from "../../config/environments.json";
+
+const environmentKey = import.meta.env.MODE === "prod" || import.meta.env.MODE === "production" ? "prod" : "dev";
+export const API_ENVIRONMENT = environments[environmentKey];
+export const API_BASE_URL = API_ENVIRONMENT.apiBaseUrl;
 
 const TOKEN_KEY = "emora.admin.token";
 
