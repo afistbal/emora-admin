@@ -2,12 +2,13 @@
 
 > 基址：`https://testapi.weshow.cc/api`  
 > 鉴权：`Authorization: Bearer <admin-token>`  
-> 本页共 4 个接口；全部使用 JSON POST。
+> 本页共 5 个接口；全部使用 JSON POST。
 
 ## 目录
 
 - [查询后台用户列表](#adminuserlist) — `/admin/users/list`
 - [查询后台用户详情](#adminuserdetail) — `/admin/users/detail`
+- [设置或取消管理员](#adminuseradminstatus) — `/admin/users/admin/status`
 - [查询用户金币流水](#adminuserwallethistory) — `/admin/users/wallet/history`
 - [后台补发金币](#adminusergrantcoins) — `/admin/users/coins/grant`
 
@@ -63,6 +64,7 @@
 | d.items[].registered_at | 是 | integer |  | Unix timestamp。 |
 | d.items[].is_vip | 是 | boolean |  |  |
 | d.items[].vip_expires_at | 否 | integer |  |  |
+| d.items[].is_admin | 是 | boolean |  | 是否为管理员。 |
 | d.items[].coin_balance | 是 | integer |  |  |
 | d.items[].session_count | 是 | integer |  | 等消息服务接口接入后填充。 |
 | d.items[].status | 是 | string | enum: "normal" | 当前未接入封禁状态，现阶段非删除用户统一返回 normal。 |
@@ -96,6 +98,45 @@
     "total": 1,
     "keyword": "u_8f2k1a90"
   }
+}
+```
+
+---
+
+<a id="adminuseradminstatus"></a>
+## 设置或取消管理员
+
+- **操作 ID**：`adminUserAdminStatus`
+- **请求**：`POST https://testapi.weshow.cc/api/admin/users/admin/status`
+- **鉴权**：Bearer Admin Token
+- **Content-Type**：`application/json`
+- **说明**：仅管理员可访问。不能取消当前操作者自己的管理员权限，也不能取消最后一个管理员的权限。
+
+### 请求字段
+
+| 字段 | 必填 | 类型 | 约束 | 说明 |
+|---|---:|---|---|---|
+| user_id | 是 | string | maxLength: 100 | users.unique_id；也支持传数字 users.id。 |
+| is_admin | 是 | boolean |  | `true` 设置管理员，`false` 取消管理员。 |
+
+### 响应
+
+| 状态码 | 定义 |
+|---:|---|
+| 200 | 管理员状态更新成功 |
+| 401 | 未登录或 token 无效 |
+| 403 | 无权限 |
+| 404 | 用户不存在 |
+| 409 | 不允许取消当前操作者或最后一个管理员 |
+| 422 | 参数校验失败 |
+
+成功响应数据：
+
+```json
+{
+  "user_id": "u_8f2k1a90",
+  "internal_id": 12,
+  "is_admin": true
 }
 ```
 
@@ -145,6 +186,7 @@
 | d | 是 | AdminUserDetailData |  |  |
 | d.user_id | 是 | string |  |  |
 | d.internal_id | 是 | integer |  |  |
+| d.is_admin | 是 | boolean |  | 是否为管理员。 |
 | d.profile | 是 | AdminUserProfile |  |  |
 | d.profile.nickname | 否 | string |  |  |
 | d.profile.email | 否 | string | email |  |

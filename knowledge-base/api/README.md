@@ -6,7 +6,7 @@
 - **文档版本**：0.2.0
 - **源文件 SHA-256**：`16a86fce8814a88ca49d47a86b9656d19434cac122e561a301d1079b1742e256`
 - **筛选规则**：仅保留路径以 `/admin/` 开头的接口；忽略路径以 `/ai/` 开头的 C 端聊天接口。
-- **接口数量**：30
+- **接口数量**：31
 
 ## 通用约定
 
@@ -23,7 +23,7 @@
 | 角色与版本 | 9 | [admin-character.md](./admin-character.md) |
 | 媒体资产 | 3 | [admin-media.md](./admin-media.md) |
 | 生成预设 | 5 | [admin-presets.md](./admin-presets.md) |
-| 用户与金币 | 4 | [admin-user.md](./admin-user.md) |
+| 用户与金币 | 5 | [admin-user.md](./admin-user.md) |
 | 用户反馈 | 1 | [admin-feedback.md](./admin-feedback.md) |
 | 商品与商业化 | 5 | [admin-product.md](./admin-product.md) |
 | 后台设置 | 2 | [admin-settings.md](./admin-settings.md) |
@@ -52,14 +52,15 @@
 | 17 | POST | `/admin/ai/presets/delete` | 删除 AI 提示语预设 | [查看](./admin-presets.md#adminaipromptpresetdelete) |
 | 18 | POST | `/admin/users/list` | 查询后台用户列表 | [查看](./admin-user.md#adminuserlist) |
 | 19 | POST | `/admin/users/detail` | 查询后台用户详情 | [查看](./admin-user.md#adminuserdetail) |
-| 20 | POST | `/admin/users/wallet/history` | 查询用户金币流水 | [查看](./admin-user.md#adminuserwallethistory) |
-| 21 | POST | `/admin/users/coins/grant` | 后台补发金币 | [查看](./admin-user.md#adminusergrantcoins) |
-| 22 | POST | `/admin/feedback/list` | 查询用户反馈列表 | [查看](./admin-feedback.md#adminfeedbacklist) |
-| 23 | POST | `/admin/products/list` | 查询后台商品列表 | [查看](./admin-product.md#adminproductlist) |
-| 24 | POST | `/admin/products/create` | 创建后台商品 | [查看](./admin-product.md#adminproductcreate) |
-| 25 | POST | `/admin/products/update` | 编辑后台商品 | [查看](./admin-product.md#adminproductupdate) |
-| 26 | POST | `/admin/products/status` | 上下架商品 | [查看](./admin-product.md#adminproductstatus) |
-| 27 | POST | `/admin/products/delete` | 下架后台商品 | [查看](./admin-product.md#adminproductdelete) |
-| 28 | POST | `/admin/analytics/query` | 查询后台统计 | [查看](./admin-analytics.md#adminanalyticsquery) |
-| 29 | POST | `/admin/settings/commerce/benefits` | 查询后台会员权益配置 | [查看](./admin-settings.md) |
-| 30 | POST | `/admin/settings/commerce/benefits/save` | 保存后台会员权益配置 | [查看](./admin-settings.md) |
+| 20 | POST | `/admin/users/admin/status` | 设置或取消管理员 | [查看](./admin-user.md#adminuseradminstatus) |
+| 21 | POST | `/admin/users/wallet/history` | 查询用户金币流水 | [查看](./admin-user.md#adminuserwallethistory) |
+| 22 | POST | `/admin/users/coins/grant` | 后台补发金币 | [查看](./admin-user.md#adminusergrantcoins) |
+| 23 | POST | `/admin/feedback/list` | 查询用户反馈列表 | [查看](./admin-feedback.md#adminfeedbacklist) |
+| 24 | POST | `/admin/products/list` | 查询后台商品列表 | [查看](./admin-product.md#adminproductlist) |
+| 25 | POST | `/admin/products/create` | 创建后台商品 | [查看](./admin-product.md#adminproductcreate) |
+| 26 | POST | `/admin/products/update` | 编辑后台商品 | [查看](./admin-product.md#adminproductupdate) |
+| 27 | POST | `/admin/products/status` | 上下架商品 | [查看](./admin-product.md#adminproductstatus) |
+| 28 | POST | `/admin/products/delete` | 下架后台商品 | [查看](./admin-product.md#adminproductdelete) |
+| 29 | POST | `/admin/analytics/query` | 查询后台统计 | [查看](./admin-analytics.md#adminanalyticsquery) |
+| 30 | POST | `/admin/settings/commerce/benefits` | 查询后台会员权益配置 | [查看](./admin-settings.md) |
+| 31 | POST | `/admin/settings/commerce/benefits/save` | 保存后台会员权益配置 | [查看](./admin-settings.md) |

@@ -1296,6 +1296,7 @@ function UsersPage({ toast, adminToken }) {
   const [addAmount, setAddAmount] = useState(100);
   const [addNote, setAddNote] = useState("后台补币");
   const [txFilter, setTxFilter] = useState("全部");
+  const [adminBusyUserId, setAdminBusyUserId] = useState("");
 
   useEffect(() => {
     const controller = new AbortController();
@@ -1304,6 +1305,7 @@ function UsersPage({ toast, adminToken }) {
         setUsers((data?.items || []).map((user) => ({
           id: user.user_id,
           internalId: user.internal_id,
+          isAdmin: Boolean(user.is_admin),
           nick: user.nickname || "未设置昵称",
           registered: formatUnixDate(user.registered_at),
           member: user.is_vip ? "有效会员" : "非会员",
@@ -1327,6 +1329,23 @@ function UsersPage({ toast, adminToken }) {
   const patchUser = (id, patch) => {
     setUsers((list) => list.map((u) => (u.id === id ? { ...u, ...patch } : u)));
     setSelected((s) => (s && s.id === id ? { ...s, ...patch } : s));
+  };
+
+  const toggleAdmin = async (user) => {
+    const nextIsAdmin = !user.isAdmin;
+    const action = nextIsAdmin ? "设置为管理员" : "取消管理员权限";
+    if (!window.confirm(`确认${action}「${user.nick}」吗？`)) return;
+
+    setAdminBusyUserId(user.id);
+    try {
+      const result = await adminApi.users.adminStatus({ user_id: user.id, is_admin: nextIsAdmin });
+      patchUser(user.id, { isAdmin: Boolean(result.is_admin) });
+      toast(`${user.nick}已${result.is_admin ? "设置为管理员" : "取消管理员权限"}`);
+    } catch (error) {
+      toast(`${action}失败：${error.message}`);
+    } finally {
+      setAdminBusyUserId("");
+    }
   };
 
   const addCoins = async () => {
@@ -1383,6 +1402,8 @@ function UsersPage({ toast, adminToken }) {
         coins: data.wallet?.balance || 0,
         sessions: data.session_count ?? "—",
         status: data.status === "normal" ? "正常" : data.status,
+        // 兼容后端灰度发布期间的旧详情响应，未返回字段时沿用列表状态。
+        isAdmin: data.is_admin === undefined ? user.isAdmin : Boolean(data.is_admin),
       });
     } catch (error) {
       toast(`用户详情请求失败：${error.message}`);
@@ -1419,7 +1440,7 @@ function UsersPage({ toast, adminToken }) {
         </div>
         <div className="table-wrap">
           <table className="table">
-            <thead><tr><th>用户 ID</th><th>昵称</th><th>注册时间</th><th>会员状态</th><th>金币余额</th><th>会话数</th><th>状态</th></tr></thead>
+            <thead><tr><th>用户 ID</th><th>昵称</th><th>注册时间</th><th>会员状态</th><th>金币余额</th><th>会话数</th><th>状态</th><th>操作</th></tr></thead>
             <tbody>
               {filtered.map((u) => (
                 <tr key={u.id} className="clickable" onClick={() => openUser(u)}>
@@ -1430,6 +1451,11 @@ function UsersPage({ toast, adminToken }) {
                   <td className="num">{u.coins.toLocaleString()}</td>
                   <td className="num">{u.sessions}</td>
                   <td><Badge tone={statusTone(u.status)}>{u.status}</Badge></td>
+                  <td>
+                    <button className={`btn sm ${u.isAdmin ? "danger-ghost" : ""}`} disabled={adminBusyUserId === u.id} onClick={(event) => { event.stopPropagation(); toggleAdmin(u); }}>
+                      {adminBusyUserId === u.id ? "处理中…" : u.isAdmin ? "取消管理员" : "设置管理员"}
+                    </button>
+                  </td>
                 </tr>
               ))}
             </tbody>
@@ -1489,6 +1515,9 @@ function UsersPage({ toast, adminToken }) {
               <div className="card">
                 <div className="card-head"><h2>处置操作</h2><span className="sub">全部留痕 · 即时生效于 C 端</span></div>
                 <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
+                  <button className={`btn ${selected.isAdmin ? "danger-ghost" : "primary"}`} disabled={adminBusyUserId === selected.id} onClick={() => toggleAdmin(selected)}>
+                    {adminBusyUserId === selected.id ? "处理中…" : selected.isAdmin ? "取消管理员" : "设置管理员"}
+                  </button>
                   <button className="btn" disabled title="暂无对应后台接口">重置免费额度</button>
                   <button className={`btn ${selected.status === "正常" ? "danger-ghost" : ""}`} disabled title="暂无对应后台接口">
                     {selected.status === "正常" ? "封禁用户" : "解除封禁"}

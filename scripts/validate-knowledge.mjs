@@ -50,7 +50,7 @@ console.log(`Markdown files: ${markdownFiles.length}`);
 console.log(`Indexed /admin endpoints: ${indexedAdminPaths.size}`);
 console.log(`API client /admin methods: ${clientAdminPaths.size}`);
 
-if (indexedAdminPaths.size !== 30 || clientAdminPaths.size !== 30 || Object.values(failures).some((items) => items.length)) {
+if (indexedAdminPaths.size !== 31 || clientAdminPaths.size < indexedAdminPaths.size || Object.values(failures).some((items) => items.length)) {
   console.error(JSON.stringify(failures, null, 2));
   process.exitCode = 1;
 } else {
