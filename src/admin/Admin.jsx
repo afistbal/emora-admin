@@ -19,6 +19,7 @@ import {
   Users,
   VideoCamera,
   Warning,
+  WarningCircle,
   X,
 } from "@phosphor-icons/react";
 import { adminApi, getAdminToken, setAdminToken } from "./api/client.js";
@@ -546,8 +547,9 @@ function CharacterEditorPage({ character, onBack, toast, onStatusChange }) {
         const version = data?.draft || data?.published;
         if (!version) return;
         const rawData = version.data || {};
-        const zh = rawData["zh-Hant"] || rawData;
-        const en = rawData.en || rawData;
+        // 角色内容已统一为英文；旧版本仍可能带有 zh-Hant 时，仅作为英文内容缺失时的兼容回退。
+        const en = rawData.en || rawData["zh-Hant"] || rawData;
+        const zh = en;
         setProfile({
           name: zh.name || character.name,
           nameEn: en.name || character.nameEn || character.name,
@@ -563,8 +565,8 @@ function CharacterEditorPage({ character, onBack, toast, onStatusChange }) {
           tags: zh.tags || [],
         });
         setPrompt({ zh: zh.prompt || "", en: en.prompt || "" });
-        const zhExamples = Array.isArray(zh.mes_example) ? zh.mes_example : Array.isArray(rawData.mes_example) ? rawData.mes_example : [];
-        const enExamples = Array.isArray(en.mes_example) ? en.mes_example : Array.isArray(rawData.mes_example) ? rawData.mes_example : [];
+        const zhExamples = Array.isArray(en.mes_example) ? en.mes_example : Array.isArray(rawData.mes_example) ? rawData.mes_example : [];
+        const enExamples = zhExamples;
         const exampleCount = Math.max(zhExamples.length, enExamples.length);
         setMesExamples(Array.from({ length: exampleCount }, (_, index) => ({
           id: index + 1,
@@ -573,17 +575,17 @@ function CharacterEditorPage({ character, onBack, toast, onStatusChange }) {
           enUser: enExamples[index]?.user || "",
           enCharacter: enExamples[index]?.character || "",
         })));
-        const zhGreetings = zh.greetings || [];
-        const enGreetings = en.greetings || [];
+        const zhGreetings = Array.isArray(en.greetings) ? en.greetings : [];
+        const enGreetings = zhGreetings;
         const greetingCount = Math.max(zhGreetings.length, enGreetings.length);
         if (greetingCount) {
           setGreetings(Array.from({ length: greetingCount }, (_, index) => ({
             id: index + 1,
             primary: (zhGreetings[index]?.kind || enGreetings[index]?.kind) === "primary",
             enabled: zhGreetings[index]?.enabled ?? enGreetings[index]?.enabled ?? true,
-            // 开场白只有一个编辑值，优先取中文旧数据，没有时再取英文旧数据，并同步到两种语言字段。
-            zh: zhGreetings[index]?.body || enGreetings[index]?.body || "",
-            en: zhGreetings[index]?.body || enGreetings[index]?.body || "",
+            // 开场白只保留英文编辑值，同时同步到兼容字段，避免旧接口结构导致发布校验误判。
+            zh: enGreetings[index]?.body || "",
+            en: enGreetings[index]?.body || "",
           })));
         }
         const bindings = version.assets || [];
@@ -729,10 +731,10 @@ function CharacterEditorPage({ character, onBack, toast, onStatusChange }) {
       description: profile.description,
       personality: profile.personality,
       scenario: profile.scenario,
-      prompt: prompt.zh,
+      prompt: prompt.en || prompt.zh,
       mes_example: mesExamples.map((example) => ({ user: example.zhUser, character: example.zhCharacter })),
       avatar_notes: profile.avatarNotes,
-      greetings: greetings.map((greeting, index) => ({ kind: greeting.primary ? "primary" : "alternate", body: greeting.zh, enabled: greeting.enabled, sort: index })),
+      greetings: greetings.map((greeting, index) => ({ kind: greeting.primary ? "primary" : "alternate", body: greeting.en || greeting.zh, enabled: greeting.enabled, sort: index })),
       tags: profile.tags,
     };
     const enContent = {
@@ -781,7 +783,7 @@ function CharacterEditorPage({ character, onBack, toast, onStatusChange }) {
   const publish = async () => {
     if (!definitionReady) {
       setTab("rules");
-      toast("发布前请先完善中英文提示词与主开场");
+      toast("发布前请先完善提示词与主开场");
       return;
     }
     if (!(await save(true))) return;
@@ -822,10 +824,13 @@ function CharacterEditorPage({ character, onBack, toast, onStatusChange }) {
   };
 
   const primaryGreeting = greetings.find((g) => g.primary);
+  // 发布只检查英文内容；zh 字段仅为兼容旧接口保留，不再参与多语言必填判断。
+  const effectivePrompt = String(prompt.en || prompt.zh || "");
+  const effectivePrimaryGreeting = String(primaryGreeting?.en || primaryGreeting?.zh || "");
   const definitionChecks = [
-    { label: "对话规则已填写", pass: String(prompt.zh || "").trim().length > 0 },
-    { label: "主开场中英文已完成，且未超过 4,096 字符", pass: Boolean(primaryGreeting && String(primaryGreeting.zh || "").trim() && String(primaryGreeting.en || "").trim() && String(primaryGreeting.zh || "").length <= 4096 && String(primaryGreeting.en || "").length <= 4096) },
-    { label: "对话规则未超过 32,000 字符", pass: String(prompt.zh || "").length <= 32000 },
+    { label: "对话规则已填写", pass: effectivePrompt.trim().length > 0 },
+    { label: "主开场已完成，且未超过 4,096 字符", pass: Boolean(primaryGreeting && effectivePrimaryGreeting.trim() && effectivePrimaryGreeting.length <= 4096) },
+    { label: "对话规则未超过 32,000 字符", pass: effectivePrompt.length <= 32000 },
   ];
   const definitionReady = definitionChecks.every((item) => item.pass);
 
@@ -924,9 +929,9 @@ function CharacterEditorPage({ character, onBack, toast, onStatusChange }) {
                         ? <Badge tone={g.enabled ? "green" : "gray"}>{g.enabled ? "启用" : "停用"}</Badge>
                         : <><Switch checked={g.enabled} onChange={(enabled) => toggleGreeting(g.id, enabled)} label={`启用备选开场 ${index}`} /><button className="icon-text-btn danger-text" onClick={() => deleteGreeting(g.id)}>删除</button></>}
                   </header>
-                  <Field label="开场白内容">
-                    <textarea className="textarea" value={g.zh || g.en} maxLength={4096} readOnly={isReadOnly} onChange={(e) => updateGreeting(g.id, e.target.value)} />
-                    <div className="greeting-foot"><span>{(g.zh || g.en).length} / 4096</span>{g.primary && <span>重置对话时恢复此条</span>}</div>
+                  <Field label="English greeting">
+                    <textarea className="textarea" value={g.en || g.zh} maxLength={4096} readOnly={isReadOnly} onChange={(e) => updateGreeting(g.id, e.target.value)} />
+                    <div className="greeting-foot"><span>{(g.en || g.zh).length} / 4096</span>{g.primary && <span>重置对话时恢复此条</span>}</div>
                   </Field>
                 </div>
               ))}
@@ -968,13 +973,13 @@ function CharacterEditorPage({ character, onBack, toast, onStatusChange }) {
                 <header><b>历史后指令 post_history_instructions</b><span className="muted small">注入对话历史之后、生成回复之前的补充指令</span><span className="order">PROMPT SEGMENT 4</span></header>
                 <textarea
                   className="textarea prompt-textarea"
-                  value={prompt.zh}
+                  value={prompt.en || prompt.zh}
                   maxLength={32000}
                   readOnly={isReadOnly}
                   placeholder="输入角色对话规则…"
                   onChange={(e) => setPrompt({ zh: e.target.value, en: e.target.value })}
                 />
-                <div className="greeting-foot"><span>{prompt.zh.length.toLocaleString()} / 32,000</span></div>
+                <div className="greeting-foot"><span>{(prompt.en || prompt.zh).length.toLocaleString()} / 32,000</span></div>
               </div>
               <div className="prompt-checks">
                 {definitionChecks.map((item) => <span key={item.label} className={item.pass ? "is-pass" : ""}>{item.pass ? <Check /> : <Warning />}{item.label}</span>)}
@@ -2220,6 +2225,8 @@ export default function Admin() {
   const [apiState, setApiState] = useState("loading");
 
   const toast = (msg) => setToastMsg(msg);
+  // 现有调用方统一传入文本，这里根据错误文案集中标记错误样式，避免逐个修改几十处调用。
+  const isErrorToast = /失败|错误|请先|过期|超时|不能为空|不存在/.test(toastMsg);
   useEffect(() => {
     if (!toastMsg) return undefined;
     const t = setTimeout(() => setToastMsg(""), 2200);
@@ -2407,7 +2414,7 @@ export default function Admin() {
         </main>
       </div>
 
-      {toastMsg && <div className="admin-toast">{toastMsg}</div>}
+      {toastMsg && <div className={`admin-toast${isErrorToast ? " is-error" : ""}`} role={isErrorToast ? "alert" : "status"}>{isErrorToast && <WarningCircle weight="fill" />}{toastMsg}</div>}
     </div>
   );
 }
