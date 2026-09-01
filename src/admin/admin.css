@@ -5,7 +5,8 @@
   --bg: #ffffff;
   --surface: #ffffff;
   --surface-2: #ffffff;
-  --surface-3: #ffffff;
+  /* 控件描边使用独立浅蓝色，避免白底下边框消失。 */
+  --surface-3: #c9deef;
   --text: #24527a;
   --muted: #6b8eae;
   --faint: #9bb8d0;
@@ -15,11 +16,43 @@
   --danger: #e35d6a;
   --danger-soft: rgba(227, 93, 106, 0.11);
   --success: #20a779;
+  --topbar-bg: rgba(255, 255, 255, 0.94);
+  --login-bg: #ffffff;
+}
+
+:root[data-theme="dark"] {
+  color: #f5f5f5;
+  background: #000000;
+  --bg: #000000;
+  --surface: #121212;
+  --surface-2: #1c1c1c;
+  --surface-3: #242424;
+  --text: #f5f5f5;
+  --muted: #8a8a8a;
+  --faint: #555555;
+  --line: #232323;
+  --accent: #f5ed18;
+  --accent-soft: rgba(245, 237, 24, 0.1);
+  --danger: #f04a44;
+  --danger-soft: rgba(240, 74, 68, 0.12);
+  --success: #4ade80;
+  --topbar-bg: rgba(0, 0, 0, 0.86);
+  --login-bg: #050505;
+}
+
+:root[data-theme="dark"] .admin-brand-mark,
+:root[data-theme="dark"] .login-brand > span {
+  color: #111111;
+}
+
+:root[data-theme="dark"] .btn.primary,
+:root[data-theme="dark"] .tabs button.is-active {
+  color: #111111;
 }
 
 * { box-sizing: border-box; }
 
-html, body, #root { margin: 0; min-height: 100%; background: #ffffff; }
+html, body, #root { margin: 0; min-height: 100%; background: var(--bg); }
 
 body {
   margin: 0;
@@ -45,7 +78,7 @@ button { color: inherit; cursor: pointer; }
   display: flex;
   flex-direction: column;
   padding: 22px 14px 18px;
-  background: #ffffff;
+  background: var(--surface);
   border-right: 1px solid var(--line);
 }
 
@@ -80,13 +113,13 @@ button { color: inherit; cursor: pointer; }
   color: var(--faint); font-size: 11px; line-height: 1.6;
 }
 
-.admin-main { flex: 1; min-width: 0; display: flex; flex-direction: column; background: #ffffff; }
+.admin-main { flex: 1; min-width: 0; display: flex; flex-direction: column; background: var(--bg); }
 
 .admin-topbar {
   position: sticky; top: 0; z-index: 30;
   display: flex; align-items: center; gap: 14px;
   height: 60px; padding: 0 28px;
-  background: rgba(255, 255, 255, 0.94);
+  background: var(--topbar-bg);
   backdrop-filter: blur(12px);
   border-bottom: 1px solid var(--line);
 }
@@ -116,8 +149,8 @@ button { color: inherit; cursor: pointer; }
 .api-access-gate code { margin: 16px 0; padding: 9px 12px; border-radius: 9px; background: var(--surface); color: var(--accent); font-size: 12px; }
 .api-unavailable { display: flex; align-items: center; gap: 10px; min-height: 88px; padding: 18px; border: 1px dashed var(--surface-3); border-radius: 14px; color: var(--muted); background: var(--surface); }
 .api-unavailable svg { flex: 0 0 auto; color: var(--accent); }
-.login-page { min-height: 100vh; display: grid; place-items: center; padding: 32px; background: radial-gradient(circle at 75% 15%, rgba(40,120,212,.1), transparent 30%), #fff; }
-.login-panel { width: min(440px, 100%); padding: 32px; border: 1px solid var(--line); border-radius: 24px; background: rgba(255,255,255,.96); box-shadow: 0 24px 80px rgba(45,92,135,.14); }
+.login-page { min-height: 100vh; display: grid; place-items: center; padding: 32px; background: radial-gradient(circle at 75% 15%, rgba(40,120,212,.1), transparent 30%), var(--login-bg); }
+.login-panel { width: min(440px, 100%); padding: 32px; border: 1px solid var(--line); border-radius: 24px; background: var(--surface); box-shadow: 0 24px 80px rgba(45,92,135,.14); }
 .login-brand { display: flex; align-items: center; gap: 11px; }
 .login-brand > span { width: 38px; height: 38px; display: grid; place-items: center; border-radius: 12px; background: var(--accent); color: #fff; }
 .login-brand svg { width: 20px; height: 20px; }
@@ -152,7 +185,7 @@ button { color: inherit; cursor: pointer; }
 .admin-user strong { display: block; font-size: 12px; }
 .admin-user small { display: block; color: var(--muted); font-size: 10px; }
 
-.admin-content { flex: 1; padding: 26px 28px 48px; background: #ffffff; }
+.admin-content { flex: 1; padding: 26px 28px 48px; background: var(--bg); }
 
 /* ---------- 通用元素 ---------- */
 .card { background: var(--surface); border: 1px solid var(--line); border-radius: 16px; padding: 18px; }
@@ -239,6 +272,7 @@ table.table { width: 100%; border-collapse: collapse; font-size: 13px; }
 .table tr:last-child td { border-bottom: 0; }
 .table tbody tr { transition: background .12s ease; }
 .table tbody tr:hover { background: #f5faff; }
+:root[data-theme="dark"] .table tbody tr:hover { background: #1c1c1c; }
 .table tr.clickable { cursor: pointer; }
 .table .num { font-variant-numeric: tabular-nums; }
 
@@ -517,6 +551,9 @@ table.table { width: 100%; border-collapse: collapse; font-size: 13px; }
 .hint-bar svg { width: 15px; height: 15px; flex: 0 0 auto; }
 
 .filter-bar { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.pagination-bar { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-top: 16px; padding-top: 14px; border-top: 1px solid var(--line); }
+.pagination-actions { display: flex; align-items: center; gap: 10px; }
+.pagination-page { min-width: 86px; color: var(--text); font-size: 12px; font-weight: 700; text-align: center; }
 .filter-bar .select { width: auto; min-width: 130px; }
 
 .page-desc { margin: -10px 0 18px; color: var(--muted); font-size: 13px; }

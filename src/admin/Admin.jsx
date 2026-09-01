@@ -13,8 +13,10 @@ import {
   Info,
   LockKey,
   MaskHappy,
+  Moon,
   Prohibit,
   Sparkle,
+  Sun,
   UserCircle,
   Users,
   VideoCamera,
@@ -781,11 +783,7 @@ function CharacterEditorPage({ character, onBack, toast, onStatusChange }) {
     }
   };
   const publish = async () => {
-    if (!definitionReady) {
-      setTab("rules");
-      toast("发布前请先完善提示词与主开场");
-      return;
-    }
+    // 发布资格由后端基于即将保存的英文草稿最终判断，避免前端异步回填或旧数据结构造成误拦截。
     if (!(await save(true))) return;
     try {
       await adminApi.characters.publish({ char_id: Number(character.id) });
@@ -1296,6 +1294,8 @@ function UsersPage({ toast, adminToken }) {
   const [selected, setSelected] = useState(null);
   const [recordsUser, setRecordsUser] = useState(null);
   const [users, setUsers] = useState([]);
+  const [page, setPage] = useState(1);
+  const [totalUsers, setTotalUsers] = useState(0);
   const [records, setRecords] = useState([]);
   const [keyword, setKeyword] = useState("");
   const [addAmount, setAddAmount] = useState(100);
@@ -1305,11 +1305,16 @@ function UsersPage({ toast, adminToken }) {
 
   useEffect(() => {
     const controller = new AbortController();
-    adminApi.users.list({ page: 1, page_size: 100 }, { signal: controller.signal })
+    adminApi.users.list({ page, page_size: 20, ...(keyword.trim() ? { keyword: keyword.trim() } : {}) }, { signal: controller.signal })
       .then((data) => {
+        setTotalUsers(Number(data?.total || 0));
         setUsers((data?.items || []).map((user) => ({
-          id: user.user_id,
-          internalId: user.internal_id,
+          // internal_id 才是 users 表主键，所有需要 user_id 的后台操作统一使用它。
+          // 接口的 user_id 参数保持字符串类型；值使用 users.id，避免 Laravel string 校验拒绝数字 JSON。
+          id: String(user.internal_id),
+          publicUserId: user.user_id,
+          userUuid: user.user_uuid || "—",
+          email: user.email || "—",
           isAdmin: Boolean(user.is_admin),
           nick: user.nickname || "未设置昵称",
           registered: formatUnixDate(user.registered_at),
@@ -1327,9 +1332,10 @@ function UsersPage({ toast, adminToken }) {
         if (error.name !== "AbortError") toast(`用户列表请求失败：${error.message}`);
       });
     return () => controller.abort();
-  }, [adminToken]);
+  }, [adminToken, page, keyword]);
 
-  const filtered = users.filter((u) => !keyword || u.id.includes(keyword) || u.nick.includes(keyword));
+  const filtered = users;
+  const totalPages = Math.max(1, Math.ceil(totalUsers / 20));
 
   const patchUser = (id, patch) => {
     setUsers((list) => list.map((u) => (u.id === id ? { ...u, ...patch } : u)));
@@ -1395,8 +1401,9 @@ function UsersPage({ toast, adminToken }) {
       const data = await adminApi.users.detail({ user_id: user.id });
       setSelected({
         ...user,
+        userUuid: data.user_uuid || data.profile?.user_uuid || user.userUuid,
+        email: data.profile?.email || user.email || "—",
         nick: data.profile?.nickname || user.nick,
-        email: data.profile?.email || "—",
         gender: data.profile?.gender || "—",
         ageRange: data.profile?.age_range || "—",
         bio: data.profile?.bio || "—",
@@ -1439,17 +1446,19 @@ function UsersPage({ toast, adminToken }) {
 
   return (
     <div>
-      <Card title="用户列表" sub={`共 ${filtered.length} 位用户`}>
+      <Card title="用户列表" sub={`共 ${totalUsers} 位用户 · 第 ${page} / ${totalPages} 页`}>
         <div className="filter-bar" style={{ marginBottom: 14 }}>
-          <input className="input" style={{ width: 280 }} placeholder="按用户 ID / 昵称搜索" value={keyword} onChange={(e) => setKeyword(e.target.value)} />
+        <input className="input" style={{ width: 320 }} placeholder="按 ID / user_uuid / 邮箱 / 昵称搜索" value={keyword} onChange={(e) => { setKeyword(e.target.value); setPage(1); }} />
         </div>
         <div className="table-wrap">
           <table className="table">
-            <thead><tr><th>用户 ID</th><th>昵称</th><th>注册时间</th><th>会员状态</th><th>金币余额</th><th>会话数</th><th>状态</th><th>操作</th></tr></thead>
+            <thead><tr><th>ID</th><th>user_uuid</th><th>邮箱</th><th>昵称</th><th>注册时间</th><th>会员状态</th><th>金币余额</th><th>会话数</th><th>状态</th><th>操作</th></tr></thead>
             <tbody>
               {filtered.map((u) => (
                 <tr key={u.id} className="clickable" onClick={() => openUser(u)}>
                   <td className="muted">{u.id}</td>
+                  <td className="muted">{u.userUuid}</td>
+                  <td className="muted">{u.email}</td>
                   <td><b>{u.nick}</b></td>
                   <td className="muted">{u.registered}</td>
                   <td><Badge tone={u.member === "有效会员" ? "green" : "gray"}>{u.member}{u.member === "有效会员" ? ` · ${u.memberUntil}` : ""}</Badge></td>
@@ -1466,6 +1475,14 @@ function UsersPage({ toast, adminToken }) {
             </tbody>
           </table>
         </div>
+        <div className="pagination-bar">
+          <span className="muted small">每页 20 条</span>
+          <div className="pagination-actions">
+            <button className="btn sm" disabled={page <= 1} onClick={() => setPage((currentPage) => Math.max(1, currentPage - 1))}>上一页</button>
+            <span className="pagination-page">第 {page} / {totalPages} 页</span>
+            <button className="btn sm" disabled={page >= totalPages} onClick={() => setPage((currentPage) => Math.min(totalPages, currentPage + 1))}>下一页</button>
+          </div>
+        </div>
       </Card>
 
       {selected && (
@@ -1479,7 +1496,8 @@ function UsersPage({ toast, adminToken }) {
             <div className="drawer-body section-gap">
               <div className="card">
                 <div className="summary-kv">
-                  <div><span>用户 ID</span><b>{selected.id}</b></div>
+                  <div><span>ID</span><b>{selected.id}</b></div>
+                  <div><span>user_uuid</span><b>{selected.userUuid || "—"}</b></div>
                   <div><span>性别 / 语言</span><b>{selected.gender} · {selected.lang}</b></div>
                   <div><span>注册渠道</span><b>{selected.channel}</b></div>
                   <div><span>注册时间</span><b>{selected.registered}</b></div>
@@ -2223,6 +2241,16 @@ export default function Admin() {
   const [toastMsg, setToastMsg] = useState("");
   const [adminToken, setAdminTokenState] = useState(getAdminToken());
   const [apiState, setApiState] = useState("loading");
+  const [theme, setTheme] = useState(() => {
+    const savedTheme = window.localStorage.getItem("emora-admin-theme");
+    return savedTheme === "dark" ? "dark" : "light";
+  });
+
+  useEffect(() => {
+    // 主题只影响当前后台浏览器，不写入服务端，默认白色且不会改变业务数据。
+    document.documentElement.dataset.theme = theme;
+    window.localStorage.setItem("emora-admin-theme", theme);
+  }, [theme]);
 
   const toast = (msg) => setToastMsg(msg);
   // 现有调用方统一传入文本，这里根据错误文案集中标记错误样式，避免逐个修改几十处调用。
@@ -2384,6 +2412,16 @@ export default function Admin() {
                 <small>已通过后台鉴权</small>
               </div>
             </div>
+            <button
+              className="btn sm theme-toggle"
+              type="button"
+              title={theme === "dark" ? "切换为白色主题" : "切换为黑色主题"}
+              aria-label={theme === "dark" ? "切换为白色主题" : "切换为黑色主题"}
+              onClick={() => setTheme((currentTheme) => (currentTheme === "dark" ? "light" : "dark"))}
+            >
+              {theme === "dark" ? <Sun /> : <Moon />}
+              {theme === "dark" ? "白色模式" : "黑色模式"}
+            </button>
             <button className="btn sm ghost" onClick={() => { setAdminToken(""); setAdminTokenState(""); navigate("/login", { replace: true }); }}>退出</button>
           </div>
         </header>
