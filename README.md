@@ -5,7 +5,7 @@ Emora 运营后台，使用 React 19 与 Vite 开发。
 ## 当前约定
 
 - 本地地址：`http://localhost:8666/`
-- 使用 React Router 的 History 路由：`/characters`、`/presets`、`/users`、`/commerce`、`/analytics`、`/settings`。
+- 使用 React Router 的 History 路由：`/characters`、`/presets`、`/users`、`/commerce`、`/analytics`、`/token-usage`、`/settings`。
 - 未认证访问会跳转到 `/login`；Token 经真实 `/admin/characters/list` 验证通过后才能进入。
 - 开发与预览端口固定为 `8666`，端口被占用时直接报错。
 - API 基址固定为 `https://testapi.weshow.cc/api`。

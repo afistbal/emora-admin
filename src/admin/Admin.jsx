@@ -3,6 +3,7 @@ import {
   ArrowLeft,
   Bell,
   ChartLineUp,
+  ChartBar,
   ChatCircleDots,
   Check,
   Coins,
@@ -263,6 +264,257 @@ function DashboardPage({ toast }) {
       </div>
 
       {liveSummary?.kpis ? <LiveAnalyticsKpis kpis={liveSummary.kpis} /> : <div className="panel-loading">加载中…</div>}
+    </div>
+  );
+}
+
+/* ================= Token 用量统计 ================= */
+
+const TOKEN_USAGE_KEYS = {
+  total_tokens: "总 Token",
+  prompt_tokens: "输入 Token",
+  completion_tokens: "输出 Token",
+  requests: "调用次数",
+  estimated_cost: "预估成本",
+};
+
+function formatTokenNumber(value) {
+  const number = Number(value);
+  return Number.isFinite(number) ? number.toLocaleString("zh-CN") : "—";
+}
+
+function formatTokenCost(value) {
+  const number = Number(value);
+  return Number.isFinite(number) ? `¥${number.toLocaleString("zh-CN", { minimumFractionDigits: 2, maximumFractionDigits: 4 })}` : "—";
+}
+
+function TokenUsageValue({ value, cost = false }) {
+  return <>{cost ? formatTokenCost(value) : formatTokenNumber(value)}</>;
+}
+
+function TokenUsageChart({ trend }) {
+  const rows = Array.isArray(trend) ? trend.filter((item) => item && item.date) : [];
+  const max = Math.max(...rows.map((item) => Number(item.total_tokens) || 0), 0);
+  if (!rows.length) return <div className="empty-state">后端暂无 Token 趋势数据。</div>;
+  return (
+    <div className="token-trend-list">
+      {rows.map((item) => {
+        const total = Number(item.total_tokens) || 0;
+        const width = max > 0 ? Math.max(3, (total / max) * 100) : 0;
+        return (
+          <div className="token-trend-row" key={item.date}>
+            <span>{item.date}</span>
+            <div className="token-trend-track"><i style={{ width: `${width}%` }} /></div>
+            <b>{formatTokenNumber(total)}</b>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
+function tokenDateString(date) {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
+}
+
+function tokenDisplayDate(value) {
+  return value ? value.replaceAll("-", "/") : "选择日期";
+}
+
+function parseTokenDate(value) {
+  const [year, month, day] = value.split("-").map(Number);
+  return new Date(year, month - 1, day);
+}
+
+function getTokenCalendarDays(monthDate) {
+  const firstDay = new Date(monthDate.getFullYear(), monthDate.getMonth(), 1);
+  const firstCell = new Date(firstDay);
+  firstCell.setDate(firstDay.getDate() - firstDay.getDay());
+  return Array.from({ length: 42 }, (_, index) => {
+    const date = new Date(firstCell);
+    date.setDate(firstCell.getDate() + index);
+    return date;
+  });
+}
+
+function TokenCalendarMonth({ monthDate, startDate, endDate, today, onPick, onMoveMonth }) {
+  const days = getTokenCalendarDays(monthDate);
+  return (
+    <div className="token-calendar-month">
+      <div className="token-calendar-head">
+        <button className="token-calendar-arrow" type="button" aria-label="上一个月" onClick={() => onMoveMonth(-1)}>‹</button>
+        <b>{monthDate.toLocaleDateString("zh-CN", { year: "numeric", month: "long" })}</b>
+        <button className="token-calendar-arrow" type="button" aria-label="下一个月" onClick={() => onMoveMonth(1)}>›</button>
+      </div>
+      <div className="token-calendar-weekdays">{["日", "一", "二", "三", "四", "五", "六"].map((day) => <span key={day}>{day}</span>)}</div>
+      <div className="token-calendar-grid">
+        {days.map((date) => {
+          const value = tokenDateString(date);
+          const inCurrentMonth = date.getMonth() === monthDate.getMonth();
+          const isFuture = value > today;
+          const isStart = value === startDate;
+          const isEnd = value === endDate;
+          const inRange = startDate && endDate && value > startDate && value < endDate;
+          return (
+            <button
+              key={value}
+              type="button"
+              className={`token-calendar-day${inCurrentMonth ? "" : " is-outside"}${isStart || isEnd ? " is-edge" : ""}${inRange ? " is-range" : ""}`}
+              disabled={isFuture}
+              onClick={() => onPick(value)}
+            >
+              {date.getDate()}
+            </button>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+function TokenDateRangePicker({ startDate, endDate, today, onApply }) {
+  const [open, setOpen] = useState(false);
+  const [draftStart, setDraftStart] = useState(startDate);
+  const [draftEnd, setDraftEnd] = useState(endDate);
+  const [monthDate, setMonthDate] = useState(() => parseTokenDate(startDate));
+
+  const openPicker = () => {
+    setDraftStart(startDate);
+    setDraftEnd(endDate);
+    setMonthDate(parseTokenDate(startDate));
+    setOpen(true);
+  };
+
+  const pickDate = (value) => {
+    if (!draftStart || (draftStart && draftEnd)) {
+      setDraftStart(value);
+      setDraftEnd("");
+      return;
+    }
+    if (value < draftStart) {
+      setDraftStart(value);
+      setDraftEnd(draftStart);
+      return;
+    }
+    setDraftEnd(value);
+  };
+
+  const clear = () => {
+    setDraftStart(today);
+    setDraftEnd(today);
+  };
+
+  const confirm = () => {
+    const value = draftStart || today;
+    onApply(value, draftEnd || value);
+    setOpen(false);
+  };
+
+  return (
+    <div className="token-date-picker">
+      <div className="token-date-fields">
+        <button className="token-date-field" type="button" onClick={openPicker} aria-label="开始日期">{tokenDisplayDate(startDate)}</button>
+        <span className="muted">~</span>
+        <button className="token-date-field" type="button" onClick={openPicker} aria-label="结束日期">{tokenDisplayDate(endDate)}</button>
+      </div>
+      {open && (
+        <div className="token-calendar-popover">
+          <div className="token-calendar-months">
+            <TokenCalendarMonth monthDate={monthDate} startDate={draftStart} endDate={draftEnd} today={today} onPick={pickDate} onMoveMonth={(offset) => { const next = new Date(monthDate); next.setMonth(next.getMonth() + offset); setMonthDate(next); }} />
+            <TokenCalendarMonth monthDate={new Date(monthDate.getFullYear(), monthDate.getMonth() + 1, 1)} startDate={draftStart} endDate={draftEnd} today={today} onPick={pickDate} onMoveMonth={(offset) => { const next = new Date(monthDate); next.setMonth(next.getMonth() + offset); setMonthDate(next); }} />
+          </div>
+          <div className="token-calendar-actions">
+            <button className="btn ghost sm" type="button" onClick={clear}>清除</button>
+            <button className="btn primary sm" type="button" onClick={confirm}>确定</button>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function TokenUsagePage({ toast, adminToken }) {
+  const today = tokenDateString(new Date());
+  const [startDate, setStartDate] = useState(today);
+  const [endDate, setEndDate] = useState(today);
+  const [usage, setUsage] = useState(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    const controller = new AbortController();
+    setLoading(true);
+    setUsage(null);
+    // 复用已有统计接口，token_usage 是向后兼容的可选响应字段；旧后端仍可正常返回原统计数据。
+    adminApi.analytics.query({
+      tab: "all",
+      start_date: startDate,
+      end_date: endDate,
+      user_type: "all",
+      timezone: "Asia/Shanghai",
+    }, { signal: controller.signal })
+      .then((data) => setUsage(data?.token_usage || null))
+      .catch((error) => {
+        if (error.name !== "AbortError") toast(`Token 统计请求失败：${error.message}`);
+      })
+      .finally(() => setLoading(false));
+    return () => controller.abort();
+  }, [startDate, endDate, adminToken]);
+
+  const summary = usage?.summary || {};
+  const models = Array.isArray(usage?.by_model) ? usage.by_model : [];
+  const types = Array.isArray(usage?.by_type) ? usage.by_type : [];
+  const hasUsage = Boolean(usage && (usage.summary || usage.trend || usage.by_model || usage.by_type));
+
+  return (
+    <div className="section-gap">
+      <div className="page-intro-row">
+        <div>
+          <p className="page-desc">按时间范围查看模型调用量、输入输出消耗与成本分布。</p>
+          <div className="token-safety-note"><Info /> 仅展示聚合统计，不展示 Prompt、回复内容或任何密钥。</div>
+        </div>
+        <div className="filter-bar">
+          <TokenDateRangePicker startDate={startDate} endDate={endDate} today={today} onApply={(nextStart, nextEnd) => { setStartDate(nextStart); setEndDate(nextEnd); }} />
+        </div>
+      </div>
+
+      {loading ? <div className="panel-loading">加载中…</div> : !hasUsage ? (
+        <Card title="Token 用量统计" sub="当前统计接口未返回 token_usage 字段">
+          <div className="token-contract-empty">
+            <div className="api-access-icon"><ChartBar weight="fill" /></div>
+            <h3>等待后端 Token 统计字段</h3>
+            <p>页面已完成，接入后端聚合字段后会展示调用次数、输入/输出 Token、模型分布、趋势与预估成本。当前没有可展示的真实数据。</p>
+            <code>POST /admin/analytics/query · d.token_usage</code>
+          </div>
+        </Card>
+      ) : <>
+        <div className="kpi-grid token-kpi-grid">
+          {Object.entries(TOKEN_USAGE_KEYS).map(([key, label]) => (
+            <div className="kpi-card" key={key}>
+              <div className="kpi-label"><ChartBar />{label}</div>
+              <div className="kpi-value"><TokenUsageValue value={summary[key]} cost={key === "estimated_cost"} /></div>
+              {key === "total_tokens" && <div className="kpi-delta">输入 {formatTokenNumber(summary.prompt_tokens)} · 输出 {formatTokenNumber(summary.completion_tokens)}</div>}
+            </div>
+          ))}
+        </div>
+        <div className="grid-2">
+          <Card title="Token 消耗趋势" sub="按日汇总">
+            <TokenUsageChart trend={usage.trend} />
+          </Card>
+          <Card title="模型消耗分布" sub="按调用模型聚合">
+            {models.length ? <div className="table-wrap"><table className="table compact"><thead><tr><th>模型</th><th>调用次数</th><th>总 Token</th><th>预估成本</th></tr></thead><tbody>
+              {models.map((item) => <tr key={`${item.provider || "default"}-${item.model}`}><td><b>{item.model || "—"}</b><div className="muted small">{item.provider || "未标注 Provider"}</div></td><td className="num">{formatTokenNumber(item.requests)}</td><td className="num">{formatTokenNumber(item.total_tokens)}</td><td className="num">{formatTokenCost(item.estimated_cost)}</td></tr>)}
+            </tbody></table></div> : <div className="empty-state">后端暂无模型维度数据。</div>}
+          </Card>
+        </div>
+        <Card title="业务类型消耗" sub="用于识别聊天、图片、视频等调用成本">
+          {types.length ? <div className="table-wrap"><table className="table compact"><thead><tr><th>业务类型</th><th>调用次数</th><th>输入 Token</th><th>输出 Token</th><th>总 Token</th><th>预估成本</th></tr></thead><tbody>
+            {types.map((item) => <tr key={item.type}><td><Badge tone="yellow">{item.type || "未标注"}</Badge></td><td className="num">{formatTokenNumber(item.requests)}</td><td className="num">{formatTokenNumber(item.prompt_tokens)}</td><td className="num">{formatTokenNumber(item.completion_tokens)}</td><td className="num">{formatTokenNumber(item.total_tokens)}</td><td className="num">{formatTokenCost(item.estimated_cost)}</td></tr>)}
+          </tbody></table></div> : <div className="empty-state">后端暂无业务类型数据。</div>}
+        </Card>
+      </>}
     </div>
   );
 }
@@ -1302,6 +1554,7 @@ function UsersPage({ toast, adminToken }) {
   const [addNote, setAddNote] = useState("后台补币");
   const [txFilter, setTxFilter] = useState("全部");
   const [adminBusyUserId, setAdminBusyUserId] = useState("");
+  const [adminConfirmUser, setAdminConfirmUser] = useState(null);
 
   useEffect(() => {
     const controller = new AbortController();
@@ -1345,8 +1598,6 @@ function UsersPage({ toast, adminToken }) {
   const toggleAdmin = async (user) => {
     const nextIsAdmin = !user.isAdmin;
     const action = nextIsAdmin ? "设置为管理员" : "取消管理员权限";
-    if (!window.confirm(`确认${action}「${user.nick}」吗？`)) return;
-
     setAdminBusyUserId(user.id);
     try {
       const result = await adminApi.users.adminStatus({ user_id: user.id, is_admin: nextIsAdmin });
@@ -1357,6 +1608,18 @@ function UsersPage({ toast, adminToken }) {
     } finally {
       setAdminBusyUserId("");
     }
+  };
+
+  const requestAdminToggle = (user) => {
+    // 使用应用内统一弹窗，避免浏览器原生 confirm 阻断页面并显示系统域名。
+    setAdminConfirmUser({ user, nextIsAdmin: !user.isAdmin });
+  };
+
+  const confirmAdminToggle = async () => {
+    if (!adminConfirmUser) return;
+    const { user } = adminConfirmUser;
+    setAdminConfirmUser(null);
+    await toggleAdmin(user);
   };
 
   const addCoins = async () => {
@@ -1466,7 +1729,7 @@ function UsersPage({ toast, adminToken }) {
                   <td className="num">{u.sessions}</td>
                   <td><Badge tone={statusTone(u.status)}>{u.status}</Badge></td>
                   <td>
-                    <button className={`btn sm ${u.isAdmin ? "danger-ghost" : ""}`} disabled={adminBusyUserId === u.id} onClick={(event) => { event.stopPropagation(); toggleAdmin(u); }}>
+                    <button className={`btn sm ${u.isAdmin ? "danger-ghost" : ""}`} disabled={adminBusyUserId === u.id} onClick={(event) => { event.stopPropagation(); requestAdminToggle(u); }}>
                       {adminBusyUserId === u.id ? "处理中…" : u.isAdmin ? "取消管理员" : "设置管理员"}
                     </button>
                   </td>
@@ -1538,7 +1801,7 @@ function UsersPage({ toast, adminToken }) {
               <div className="card">
                 <div className="card-head"><h2>处置操作</h2><span className="sub">全部留痕 · 即时生效于 C 端</span></div>
                 <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
-                  <button className={`btn ${selected.isAdmin ? "danger-ghost" : "primary"}`} disabled={adminBusyUserId === selected.id} onClick={() => toggleAdmin(selected)}>
+                  <button className={`btn ${selected.isAdmin ? "danger-ghost" : "primary"}`} disabled={adminBusyUserId === selected.id} onClick={() => requestAdminToggle(selected)}>
                     {adminBusyUserId === selected.id ? "处理中…" : selected.isAdmin ? "取消管理员" : "设置管理员"}
                   </button>
                   <button className="btn" disabled title="暂无对应后台接口">重置免费额度</button>
@@ -1550,6 +1813,15 @@ function UsersPage({ toast, adminToken }) {
             </div>
           </aside>
         </>
+      )}
+      {adminConfirmUser && (
+        <ConfirmDialog
+          title={adminConfirmUser.nextIsAdmin ? "设置管理员" : "取消管理员权限"}
+          desc={`确认${adminConfirmUser.nextIsAdmin ? "将" : "取消"}「${adminConfirmUser.user.nick}」的管理员权限吗？`}
+          confirmText="确认操作"
+          onClose={() => setAdminConfirmUser(null)}
+          onConfirm={confirmAdminToggle}
+        />
       )}
     </div>
   );
@@ -1992,7 +2264,8 @@ function ProviderDialog({ provider, onClose, onSave, onDeleteModel }) {
   }));
   const update = (key, value) => setForm((current) => ({ ...current, [key]: value }));
   const updateModel = (type, index, key, value) => setForm((current) => ({ ...current, models: { ...current.models, [type]: current.models[type].map((item, itemIndex) => itemIndex === index ? { ...item, [key]: value } : item) } }));
-  const addModel = (type) => setForm((current) => ({ ...current, models: { ...current.models, [type]: [...current.models[type], { model: "", enabled: true, sort: current.models[type].length * 10, provider_options: {} }] } }));
+  // 新增模型默认停用，避免保存时触发同类型默认模型的自动切换；需要使用时再明确启用。
+  const addModel = (type) => setForm((current) => ({ ...current, models: { ...current.models, [type]: [...current.models[type], { model: "", enabled: false, sort: current.models[type].length * 10, provider_options: {} }] } }));
   const [deletingModel, setDeletingModel] = useState(null);
   const removeModel = async (type, index) => {
     const model = form.models[type][index];
@@ -2228,6 +2501,7 @@ const NAV = [
   { id: "users", path: "/users", label: "用户管理", icon: Users },
   { id: "commerce", path: "/commerce", label: "商业化配置", icon: Coins },
   { id: "analytics", path: "/analytics", label: "数据看板", icon: ChartLineUp },
+  { id: "token-usage", path: "/token-usage", label: "Token 统计", icon: ChartBar },
   { id: "settings", path: "/settings", label: "系统设置", icon: GearSix },
 ];
 
@@ -2447,6 +2721,7 @@ export default function Admin() {
           {page === "users" && <UsersPage toast={toast} adminToken={adminToken} />}
           {page === "commerce" && <CommercePage toast={toast} adminToken={adminToken} />}
           {page === "analytics" && <AnalyticsPage toast={toast} adminToken={adminToken} />}
+          {page === "token-usage" && <TokenUsagePage toast={toast} adminToken={adminToken} />}
           {page === "settings" && <SettingsPage />}
           </>}
         </main>
