@@ -798,9 +798,12 @@ function CharacterEditorPage({ character, onBack, toast, onStatusChange }) {
   });
   useEffect(() => {
     if (!Number.isInteger(Number(character.id))) return undefined;
-    const controller = new AbortController();
-    adminApi.characters.detail({ char_id: Number(character.id) }, { signal: controller.signal })
+    let active = true;
+    // 详情请求不绑定组件卸载信号，避免编辑器切换或 Vite 热更新把唯一请求标记为 canceled。
+    // 组件卸载后仍通过 active 保护状态，防止旧角色详情回写到新编辑器。
+    adminApi.characters.detail({ char_id: Number(character.id) })
       .then(async (data) => {
+        if (!active) return;
         const version = data?.draft || data?.published;
         if (!version) return;
         const rawData = version.data || {};
@@ -846,7 +849,8 @@ function CharacterEditorPage({ character, onBack, toast, onStatusChange }) {
           })));
         }
         const bindings = version.assets || [];
-        const previewRefs = await loadMediaRefsByIds(bindings.map((binding) => binding.preview_id), controller.signal);
+        const previewRefs = await loadMediaRefsByIds(bindings.map((binding) => binding.preview_id));
+        if (!active) return;
         if (bindings.length) {
           const mapped = { public: [], private: [] };
           for (const binding of bindings) {
@@ -872,9 +876,9 @@ function CharacterEditorPage({ character, onBack, toast, onStatusChange }) {
         setStage(data.character?.state === "online" ? "已上架" : "草稿");
       })
       .catch((error) => {
-        if (error.name !== "AbortError") toast(`角色详情请求失败：${error.message}`);
+        if (active) toast(`角色详情请求失败：${error.message}`);
       });
-    return () => controller.abort();
+    return () => { active = false; };
   }, [character.id]);
 
   useEffect(() => {
