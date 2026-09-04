@@ -131,6 +131,10 @@ export const adminApi = {
     status: (params, options) => adminPost("/admin/ai/presets/status", params, options),
     remove: (params, options) => adminPost("/admin/ai/presets/delete", params, options),
   },
+  settings: {
+    dialogueRules: (params = {}, options) => adminPost("/admin/settings/dialogue-rules", params, options),
+    saveDialogueRules: (params, options) => adminPost("/admin/settings/dialogue-rules/save", params, options),
+  },
   modelConfig: {
     list: (params = {}, options) => adminPost("/admin/ai/model-config/list", params, options),
     saveProvider: (params, options) => adminPost("/admin/ai/model-config/provider/save", params, options),

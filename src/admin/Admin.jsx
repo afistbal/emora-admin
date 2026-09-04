@@ -772,6 +772,9 @@ function CharacterEditorPage({ character, onBack, toast, onStatusChange }) {
   const [locale, setLocale] = useState("zh");
   const [tagDraft, setTagDraft] = useState("");
   const [prompt, setPrompt] = useState({ zh: "", en: "" });
+  const [platformSystemPrompt, setPlatformSystemPrompt] = useState(PLATFORM_SYSTEM_PROMPT);
+  const [platformPromptLoading, setPlatformPromptLoading] = useState(true);
+  const [platformPromptSaving, setPlatformPromptSaving] = useState(false);
   const [greetings, setGreetings] = useState([]);
   const [mesExamples, setMesExamples] = useState([]);
   const [cover, setCover] = useState(character.cardImage || character.image || "");
@@ -873,6 +876,35 @@ function CharacterEditorPage({ character, onBack, toast, onStatusChange }) {
       });
     return () => controller.abort();
   }, [character.id]);
+
+  useEffect(() => {
+    const controller = new AbortController();
+    adminApi.settings.dialogueRules({}, { signal: controller.signal })
+      .then((data) => setPlatformSystemPrompt(String(data?.prompt || PLATFORM_SYSTEM_PROMPT)))
+      .catch((error) => {
+        if (error.name !== "AbortError") toast(`全局对话规则加载失败：${error.message}`);
+      })
+      .finally(() => setPlatformPromptLoading(false));
+    return () => controller.abort();
+  }, []);
+
+  const savePlatformPrompt = async () => {
+    const value = platformSystemPrompt.trim();
+    if (!value) {
+      toast("平台安全规则不能为空");
+      return;
+    }
+    setPlatformPromptSaving(true);
+    try {
+      const data = await adminApi.settings.saveDialogueRules({ prompt: value });
+      setPlatformSystemPrompt(String(data?.prompt || value));
+      toast("全局平台安全规则已保存，新对话请求立即生效");
+    } catch (error) {
+      toast(`保存全局对话规则失败：${error.message}`);
+    } finally {
+      setPlatformPromptSaving(false);
+    }
+  };
 
   const uploadAssets = async (files) => {
     const selectedFiles = [...files];
@@ -1213,11 +1245,22 @@ function CharacterEditorPage({ character, onBack, toast, onStatusChange }) {
           {tab === "rules" && (
             <Card
               title="对话规则"
-              sub="system_prompt 全局只读 · post_history_instructions 按角色可编辑"
+              sub="system_prompt 全局可编辑并立即生效 · post_history_instructions 按角色保存到草稿"
             >
               <div className="persona-block">
-                <header><b>平台安全规则 system_prompt</b><span className="muted small">全局统一维护</span><span className="order">只读</span></header>
-                <textarea className="textarea prompt-textarea" value={PLATFORM_SYSTEM_PROMPT} readOnly />
+                <header><b>平台安全规则 system_prompt</b><span className="muted small">全局统一维护</span><span className="order">可编辑</span></header>
+                <textarea
+                  className="textarea prompt-textarea"
+                  value={platformSystemPrompt}
+                  maxLength={32000}
+                  disabled={platformPromptLoading || platformPromptSaving}
+                  onChange={(e) => setPlatformSystemPrompt(e.target.value)}
+                />
+                <div className="dialog-actions" style={{ marginTop: 10, justifyContent: "flex-end" }}>
+                  <button className="btn primary" type="button" disabled={platformPromptLoading || platformPromptSaving || !platformSystemPrompt.trim()} onClick={savePlatformPrompt}>
+                    {platformPromptSaving ? "保存中…" : "保存全局规则"}
+                  </button>
+                </div>
               </div>
               <div className="persona-block" style={{ marginTop: 12 }}>
                 <header><b>历史后指令 post_history_instructions</b><span className="muted small">注入对话历史之后、生成回复之前的补充指令</span><span className="order">PROMPT SEGMENT 4</span></header>
