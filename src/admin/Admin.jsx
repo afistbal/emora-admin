@@ -1849,11 +1849,38 @@ function UsersPage({ toast, adminToken }) {
   );
 }
 
-/* ================= 商业化配置（金币包 / 订阅套餐 / 权益清单） ================= */
+/* ================= 商业化配置（平台 / 订阅 / 一次性商品） ================= */
 
-function AddProductDialog({ kind, onClose, onCreate }) {
+// 扩展配置沿用后端数组/对象结构；先统一校验，再发起保存，避免批量更新半途遇到非法 JSON。
+function parseProductExtra(value) {
+  if (!value.trim()) return null;
+  let extra;
+  try { extra = JSON.parse(value); } catch { throw new Error("扩展配置必须是有效的 JSON 对象或数组"); }
+  if (extra !== null && typeof extra !== "object") throw new Error("扩展配置必须是 JSON 对象、数组或 null");
+  if (extra && Object.hasOwn(extra, "subscription_type") && !["周", "年"].includes(extra.subscription_type)) {
+    throw new Error("订阅类型只能为周或年");
+  }
+  return extra;
+}
+
+function ProductSubscriptionType({ value, onChange }) {
+  let extra = null;
+  let invalid = false;
+  try { extra = parseProductExtra(value); } catch { invalid = true; }
+  // 历史数组及非法 JSON 不自动转换，避免选择订阅类型时丢失原有扩展配置。
+  const disabled = invalid || Array.isArray(extra);
+  return <Field label="订阅类型">
+    <select className="select" disabled={disabled} value={extra?.subscription_type || ""}
+      onChange={(event) => onChange(JSON.stringify({ ...(extra || {}), subscription_type: event.target.value }, null, 2))}>
+      <option value="" disabled>请选择</option>
+      <option value="周">周</option><option value="年">年</option>
+    </select>
+    {disabled && <span className="muted small">请先将 extra 编辑为有效的 JSON 对象。</span>}
+  </Field>;
+}
+
+function AddProductDialog({ kind, platform, onClose, onCreate }) {
   const isCoin = kind === "pack";
-  const [platform, setPlatform] = useState(1);
   const [pkgName, setPkgName] = useState("");
   const [productId, setProductId] = useState("");
   const [basePlanId, setBasePlanId] = useState("");
@@ -1862,6 +1889,7 @@ function AddProductDialog({ kind, onClose, onCreate }) {
   const [firstPrice, setFirstPrice] = useState("");
   const [coin, setCoin] = useState("");
   const [bonus, setBonus] = useState("0");
+  const [extra, setExtra] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState("");
   const valid = pkgName.trim() && productId.trim() && name.trim() && price !== ""
@@ -1872,6 +1900,7 @@ function AddProductDialog({ kind, onClose, onCreate }) {
     setError("");
     try {
       await onCreate({
+        extra: parseProductExtra(extra),
         plate_form: platform,
         pkg_name: pkgName.trim(),
         product_id: productId.trim(),
@@ -1892,14 +1921,12 @@ function AddProductDialog({ kind, onClose, onCreate }) {
   };
 
   return (
-    <div className="dialog-mask" onClick={onClose}>
+    <div className="dialog-mask" onClick={() => !submitting && onClose()}>
       <div className="dialog" style={{ width: 560, textAlign: "left" }} onClick={(event) => event.stopPropagation()}>
-        <h3 style={{ marginBottom: 16 }}>新增{isCoin ? "金币包" : "订阅套餐"}</h3>
+        <h3 style={{ marginBottom: 16 }}>新增 {platform === 2 ? "iOS" : "安卓"} {isCoin ? "一次性商品" : "订阅套餐"}</h3>
         <div className="grid-2" style={{ gap: 12 }}>
           <Field label="平台 *">
-            <select className="select" value={platform} onChange={(event) => setPlatform(Number(event.target.value))}>
-              <option value={1}>Android</option><option value={2}>iOS</option>
-            </select>
+            <input className="input" readOnly value={platform === 2 ? "iOS" : "安卓"} />
           </Field>
           <Field label="包名 *"><input className="input" value={pkgName} onChange={(event) => setPkgName(event.target.value)} placeholder="com.example.app" /></Field>
           <Field label="商品 ID *"><input className="input" value={productId} onChange={(event) => setProductId(event.target.value)} /></Field>
@@ -1917,6 +1944,8 @@ function AddProductDialog({ kind, onClose, onCreate }) {
             </>
           )}
         </div>
+        {!isCoin && <ProductSubscriptionType value={extra} onChange={setExtra} />}
+        <Field label="扩展配置 extra（JSON，可留空）"><textarea className="textarea" value={extra} onChange={(event) => setExtra(event.target.value)} placeholder='{"key": "value"}' /></Field>
         {error && <div className="login-error" style={{ marginTop: 12 }}><Warning weight="fill" />{error}</div>}
         <p className="muted small" style={{ margin: "12px 0 0" }}>新建商品默认为下架状态，确认配置后再手动上架。</p>
         <div style={{ marginTop: 18, display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
@@ -1929,14 +1958,15 @@ function AddProductDialog({ kind, onClose, onCreate }) {
 }
 
 function CommercePage({ toast, adminToken }) {
-  const [tab, setTab] = useState("packs");
+  const [tab, setTab] = useState("plans");
+  const [platform, setPlatform] = useState(2);
+  const [productPage, setProductPage] = useState(1);
+  const [productTotal, setProductTotal] = useState(0);
+  const [productsLoading, setProductsLoading] = useState(false);
+  const productRequest = useRef(0);
+  const platformName = platform === 2 ? "iOS" : "安卓";
   const [packs, setPacks] = useState([]);
   const [plans, setPlans] = useState([]);
-  const [benefitLocale, setBenefitLocale] = useState("zh-Hant");
-  const [benefitItems, setBenefitItems] = useState([]);
-  const [benefitVersion, setBenefitVersion] = useState(null);
-  const [benefitsLoading, setBenefitsLoading] = useState(false);
-  const [benefitsSaving, setBenefitsSaving] = useState(false);
   const [showAddProduct, setShowAddProduct] = useState(null);
 
   const applyProductList = (data) => {
@@ -1945,6 +1975,7 @@ function CommercePage({ toast, adminToken }) {
     const memberItems = items.filter((item) => Number(item.type) === 2);
     setPacks(coinItems.map((item) => ({
       id: item.id,
+      extra: item.extra == null ? "" : JSON.stringify(item.extra, null, 2),
       productId: item.product_id,
       name: item.name,
       base: Number(item.coin || 0),
@@ -1954,6 +1985,7 @@ function CommercePage({ toast, adminToken }) {
     })));
     setPlans(memberItems.map((item) => ({
       id: item.id,
+      extra: item.extra == null ? "" : JSON.stringify(item.extra, null, 2),
       name: item.name,
       price: Number(item.price || 0),
       renewPrice: Number(item.first_price || 0),
@@ -1963,59 +1995,52 @@ function CommercePage({ toast, adminToken }) {
   };
 
   const refreshProducts = async (options) => {
-    const data = await adminApi.products.list({ page: 1, page_size: 100 }, options);
-    applyProductList(data);
+    // 请求序号防止快速切换平台、类型或分页时，旧响应覆盖当前分类。
+    const requestId = ++productRequest.current;
+    setProductsLoading(true);
+    setPacks([]);
+    setPlans([]);
+    setProductTotal(0);
+    try {
+      const data = await adminApi.products.list({
+        plate_form: platform, type: tab === "packs" ? 1 : 2,
+        page: productPage, page_size: 100,
+      }, options);
+      if (requestId !== productRequest.current || options?.signal?.aborted) return;
+      applyProductList(data);
+      setProductTotal(Number(data?.total || 0));
+    } finally {
+      if (requestId === productRequest.current) setProductsLoading(false);
+    }
   };
 
   useEffect(() => {
     const controller = new AbortController();
     refreshProducts({ signal: controller.signal })
       .catch((error) => {
-        if (error.name !== "AbortError") toast(`商品列表请求失败：${error.message}`);
+        if (!controller.signal.aborted) toast(`商品列表请求失败：${error.message}`);
       });
-    return () => controller.abort();
-  }, [adminToken]);
-
-  useEffect(() => {
-    if (tab !== "benefits") return undefined;
-    const controller = new AbortController();
-    setBenefitsLoading(true);
-    setBenefitItems([]);
-    setBenefitVersion(null);
-    adminApi.settings.commerceBenefits({ locale: benefitLocale }, { signal: controller.signal })
-      .then((data) => {
-        setBenefitItems((data?.items || []).map((item) => ({
-          key: String(item.key || ""),
-          title: String(item.title || ""),
-          description: String(item.description || ""),
-          icon_key: String(item.icon_key || ""),
-          sort: Number(item.sort || 0),
-          enabled: item.enabled !== false,
-        })));
-        setBenefitVersion(data?.version ?? null);
-      })
-      .catch((error) => {
-        if (error.name !== "AbortError") toast(`会员权益请求失败：${error.message}`);
-      })
-      .finally(() => setBenefitsLoading(false));
-    return () => controller.abort();
-  }, [tab, benefitLocale, adminToken]);
+    return () => {
+      controller.abort();
+      productRequest.current += 1;
+    };
+  }, [adminToken, platform, tab, productPage]);
 
   const updatePack = (id, key, value) =>
     setPacks((list) => list.map((p) => (p.id === id ? { ...p, [key]: value } : p)));
-  const updatePlan = (i, key, value) =>
-    setPlans((list) => list.map((p, idx) => (idx === i ? { ...p, [key]: value } : p)));
-  const updateBenefit = (key, field, value) =>
-    setBenefitItems((items) => items.map((item) => (item.key === key ? { ...item, [field]: value } : item)));
+  const updatePlan = (id, key, value) =>
+    setPlans((list) => list.map((p) => (p.id === id ? { ...p, [key]: value } : p)));
   const savePacks = async () => {
     try {
-      await Promise.all(packs.map((pack) => adminApi.products.update({
+      const updates = packs.map((pack) => ({
+        extra: parseProductExtra(pack.extra),
         id: Number(pack.id),
         name: pack.name || `${pack.base} Coins`,
         price: String(pack.price),
         coin: Number(pack.base),
         bonus: String(pack.bonus),
-      })));
+      }));
+      await Promise.all(updates.map((params) => adminApi.products.update(params)));
       toast("金币包配置已保存");
     } catch (error) {
       toast(`保存金币包失败：${error.message}`);
@@ -2037,6 +2062,7 @@ function CommercePage({ toast, adminToken }) {
     try {
       await adminApi.products.update({
         id: Number(plan.id),
+        extra: parseProductExtra(plan.extra),
         name: plan.name,
         price: String(plan.price),
         first_price: String(plan.renewPrice || 0),
@@ -2049,47 +2075,38 @@ function CommercePage({ toast, adminToken }) {
 
   const createProduct = async (params) => {
     await adminApi.products.create(params);
-    await refreshProducts();
     setShowAddProduct(null);
+    // 创建成功后刷新失败不能提示创建失败，避免用户重试生成重复商品。
+    await refreshProducts().catch((error) => toast(`商品已创建，但列表刷新失败：${error.message}`));
     toast(`${params.type === 1 ? "金币包" : "订阅套餐"}已创建，当前为下架状态`);
-  };
-
-  const saveBenefits = async () => {
-    setBenefitsSaving(true);
-    try {
-      const data = await adminApi.settings.saveCommerceBenefits({
-        locale: benefitLocale,
-        items: [...benefitItems]
-          .sort((a, b) => a.sort - b.sort)
-          .map(({ key, title, description, icon_key, sort, enabled }) => ({ key, title, description, icon_key, sort, enabled })),
-      });
-      setBenefitVersion(data?.version ?? benefitVersion);
-      toast(`会员权益（${benefitLocale}）已保存`);
-    } catch (error) {
-      toast(`保存会员权益失败：${error.message}`);
-    } finally {
-      setBenefitsSaving(false);
-    }
   };
 
   return (
     <div className="section-gap">
-      <div className="tabs">
-        {[["packs", "金币包"], ["plans", "订阅套餐"], ["benefits", "权益清单"]].map(([key, label]) => (
-          <button key={key} className={tab === key ? "is-active" : ""} onClick={() => setTab(key)}>{label}</button>
+      <div className="tabs" aria-label="商品平台">
+        {[[2, "iOS"], [1, "安卓"]].map(([value, label]) => (
+          <button key={value} className={platform === value ? "is-active" : ""}
+            onClick={() => { setPlatform(value); setProductPage(1); }}>{label}</button>
         ))}
       </div>
+      <div className="tabs" aria-label="商品类型">
+        {[["plans", "订阅"], ["packs", "一次性商品"]].map(([key, label]) => (
+          <button key={key} className={tab === key ? "is-active" : ""} onClick={() => { setTab(key); setProductPage(1); }}>{label}</button>
+        ))}
+      </div>
+      {productsLoading && <div className="panel-loading">正在加载 {platformName} 商品…</div>}
 
-      {tab === "packs" && (
+      {tab === "packs" && !productsLoading && (
         <Card
-          title="金币包配置"
-          sub={`共 ${packs.length} 档 · 数据来自商品接口`}
-          actions={<div style={{ display: "flex", gap: 8 }}><button className="btn" onClick={() => setShowAddProduct("pack")}>+ 新增金币包</button><button className="btn primary" disabled={packs.length === 0} onClick={savePacks}>保存</button></div>}
+          title={`${platformName} · 一次性商品`}
+          sub={`共 ${productTotal} 个 · 当前页 ${packs.length} 个`}
+          actions={<div style={{ display: "flex", gap: 8 }}><button className="btn" onClick={() => setShowAddProduct("pack")}>+ 新增一次性商品</button><button className="btn primary" disabled={packs.length === 0} onClick={savePacks}>保存当前页</button></div>}
         >
           <div className="table-wrap">
             <table className="table">
-              <thead><tr><th>档位</th><th>基础金币</th><th>赠送金币</th><th>价格（CNY）</th><th>C 端展示</th><th>上架</th></tr></thead>
+              <thead><tr><th>档位</th><th>基础金币</th><th>赠送金币</th><th>价格（CNY）</th><th>C 端展示</th><th>扩展配置 extra（JSON）</th><th>上架</th></tr></thead>
               <tbody>
+                {packs.length === 0 && <tr><td colSpan={7} className="empty-state">当前平台暂无一次性商品。</td></tr>}
                 {packs.map((p) => (
                   <tr key={p.id}>
                     <td className="muted">{p.productId || p.name || `#${p.id}`}</td>
@@ -2097,6 +2114,7 @@ function CommercePage({ toast, adminToken }) {
                     <td><input className="input" style={{ width: 100, height: 32 }} type="number" value={p.bonus} onChange={(e) => updatePack(p.id, "bonus", Number(e.target.value))} /></td>
                     <td><input className="input" style={{ width: 90, height: 32 }} type="number" value={p.price} onChange={(e) => updatePack(p.id, "price", Number(e.target.value))} /></td>
                     <td className="muted small">额外赠送 +{p.bonus} · ¥{p.price}</td>
+                    <td><textarea className="textarea" style={{ minWidth: 200 }} value={p.extra} onChange={(e) => updatePack(p.id, "extra", e.target.value)} placeholder="留空保存为 null" /></td>
                     <td><Switch checked={p.active} onChange={(value) => setProductStatus("pack", p.id, value)} label={`pack_${p.id}`} /></td>
                   </tr>
                 ))}
@@ -2106,23 +2124,26 @@ function CommercePage({ toast, adminToken }) {
         </Card>
       )}
 
-      {tab === "plans" && (
+      {tab === "plans" && !productsLoading && (
         <>
-          <div className="filter-bar" style={{ justifyContent: "flex-end" }}>
+          <div className="filter-bar" style={{ justifyContent: "space-between" }}>
+            <b>{platformName} · 订阅 · 共 {productTotal} 个</b>
             <button className="btn primary" onClick={() => setShowAddProduct("plan")}>+ 新增订阅套餐</button>
           </div>
-          {plans.length === 0 ? <div className="empty-state">商品接口暂未返回订阅套餐。</div> : (
+          {plans.length === 0 ? <div className="empty-state">当前平台暂无订阅商品。</div> : (
             <div className="grid-3">
-              {plans.map((p, i) => (
+              {plans.map((p) => (
                 <Card key={p.id || p.name} title={p.name} actions={<button className="btn sm primary" onClick={() => savePlan(p)}>保存</button>}>
                   <div className="grid-2" style={{ gap: 10 }}>
                     <Field label="价格（CNY）">
-                      <input className="input" type="number" value={p.price} onChange={(e) => updatePlan(i, "price", Number(e.target.value))} />
+                      <input className="input" type="number" value={p.price} onChange={(e) => updatePlan(p.id, "price", Number(e.target.value))} />
                     </Field>
                     <Field label="首次优惠价（CNY）">
-                      <input className="input" type="number" value={p.renewPrice} onChange={(e) => updatePlan(i, "renewPrice", Number(e.target.value))} />
+                      <input className="input" type="number" value={p.renewPrice} onChange={(e) => updatePlan(p.id, "renewPrice", Number(e.target.value))} />
                     </Field>
                   </div>
+                  <ProductSubscriptionType value={p.extra} onChange={(value) => updatePlan(p.id, "extra", value)} />
+                  <Field label="扩展配置 extra（JSON，可留空）"><textarea className="textarea" value={p.extra} onChange={(e) => updatePlan(p.id, "extra", e.target.value)} /></Field>
                   {p.id && <ToggleRow label="商品状态" checked={p.active !== false} onChange={(value) => setProductStatus("plan", p.id, value)} />}
                   <p className="muted small" style={{ margin: "10px 0 0" }}>划线价 {p.struck} · 续费自「当前时间与当前到期日较晚者」起顺延</p>
                 </Card>
@@ -2132,41 +2153,12 @@ function CommercePage({ toast, adminToken }) {
         </>
       )}
 
-      {tab === "benefits" && (
-        <Card
-          title="权益清单"
-          sub={`${benefitLocale}${benefitVersion == null ? "" : ` · 版本 ${benefitVersion}`} · 数据来自后台配置接口`}
-          actions={<button className="btn primary" disabled={benefitsLoading || benefitsSaving || benefitItems.length === 0} onClick={saveBenefits}>{benefitsSaving ? "保存中…" : "保存"}</button>}
-        >
-          <div className="tabs" style={{ marginBottom: 14 }}>
-            {[["zh-Hant", "繁體中文"], ["en", "English"]].map(([locale, label]) => (
-              <button key={locale} className={benefitLocale === locale ? "is-active" : ""} onClick={() => setBenefitLocale(locale)}>{label}</button>
-            ))}
-          </div>
-          {benefitsLoading ? <div className="panel-loading">加载中…</div> : benefitItems.length === 0 ? (
-            <div className="empty-state">该语言尚未保存会员权益配置。</div>
-          ) : (
-            <div className="table-wrap">
-              <table className="table">
-                <thead><tr><th style={{ width: 260 }}>权益标题</th><th>描述</th><th style={{ width: 90 }}>状态</th></tr></thead>
-                <tbody>
-                  {[...benefitItems].sort((a, b) => a.sort - b.sort).map((item) => (
-                    <tr key={item.key}>
-                      <td>
-                        <input className="input" style={{ height: 32 }} value={item.title} onChange={(event) => updateBenefit(item.key, "title", event.target.value)} />
-                        <div className="muted small" style={{ marginTop: 5 }}>{item.key}{item.icon_key ? ` · ${item.icon_key}` : ""}</div>
-                      </td>
-                      <td><input className="input" style={{ height: 32 }} value={item.description} onChange={(event) => updateBenefit(item.key, "description", event.target.value)} /></td>
-                      <td><Switch checked={item.enabled} onChange={(value) => updateBenefit(item.key, "enabled", value)} label={item.title || item.key} /></td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          )}
-        </Card>
-      )}
-      {showAddProduct && <AddProductDialog kind={showAddProduct} onClose={() => setShowAddProduct(null)} onCreate={createProduct} />}
+      {!productsLoading && productTotal > 100 && <div className="filter-bar">
+        <button className="btn" disabled={productPage <= 1} onClick={() => setProductPage((page) => page - 1)}>上一页</button>
+        <span>第 {productPage} / {Math.ceil(productTotal / 100)} 页 · 切换前请保存当前页修改</span>
+        <button className="btn" disabled={productPage * 100 >= productTotal} onClick={() => setProductPage((page) => page + 1)}>下一页</button>
+      </div>}
+      {showAddProduct && <AddProductDialog platform={platform} kind={showAddProduct} onClose={() => setShowAddProduct(null)} onCreate={createProduct} />}
     </div>
   );
 }

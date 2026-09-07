@@ -257,3 +257,11 @@
 
 ---
 
+
+### 商品扩展配置更新
+
+`/admin/products/update` 支持可选 `extra`：JSON 对象或数组；显式传 `null` 清空，未传保留原值。新增和编辑页面均可填写；商品仅分 iOS/安卓及订阅/一次性商品，会员权益展示配置不属于商品类型。
+
+订阅商品使用 `extra.subscription_type`，字符串枚举 `周` / `年`，例如 `{"subscription_type":"周"}`。历史请求可不传该键；传入时不能为空或其他值。该配置不替代支付平台的计费周期，更新时应携带需保留的其他 extra 字段。
+
+商品响应增加顶层 `subscription_type`：订阅商品返回 `周`、`年`，未配置、非法历史值或一次性商品返回 `null`。适用于后台商品列表及新增/编辑/状态/删除响应、`applePay/products` 的商品项、`ggPay/products` 的一次性商品项及 `subscription[].plans[]`；安卓订阅分组不提供单一周期。
