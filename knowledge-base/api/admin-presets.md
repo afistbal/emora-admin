@@ -3,6 +3,7 @@
 > 基址：`https://testapi.weshow.cc/api`  
 > 鉴权：`Authorization: Bearer <admin-token>`  
 > 本页共 5 个接口；全部使用 JSON POST。
+> 新增和编辑只需 `label_i18n.en`（标签名，最多 64 字符）和 `prompt_i18n.en`（英文提示词，最多 4096 字符）；`zh-Hant` 可选，仅兼容旧客户端。编辑可省略整个内容对象，但传入时必须含非空 `en`。上架只检查英文内容，客户端提示词优先返回英文。
 
 ## 目录
 
@@ -88,10 +89,10 @@
 | response_type | 是 | string | enum: "image" / "video" |  |
 | label_i18n | 是 | AiPromptPresetI18nLabel |  |  |
 | label_i18n.en | 是 | string | maxLength: 64 |  |
-| label_i18n.zh-Hant | 是 | string | maxLength: 64 |  |
+| label_i18n.zh-Hant | 否 | string | maxLength: 64 |  |
 | prompt_i18n | 是 | AiPromptPresetI18nPrompt |  |  |
 | prompt_i18n.en | 是 | string | maxLength: 4096 |  |
-| prompt_i18n.zh-Hant | 是 | string | maxLength: 4096 |  |
+| prompt_i18n.zh-Hant | 否 | string | maxLength: 4096 |  |
 | sort | 否 | integer | default: 0; min: 0 |  |
 
 ### 响应
@@ -146,10 +147,10 @@
 | id | 是 | integer | min: 1 |  |
 | label_i18n | 否 | AiPromptPresetI18nLabel |  |  |
 | label_i18n.en | 是 | string | maxLength: 64 |  |
-| label_i18n.zh-Hant | 是 | string | maxLength: 64 |  |
+| label_i18n.zh-Hant | 否 | string | maxLength: 64 |  |
 | prompt_i18n | 否 | AiPromptPresetI18nPrompt |  |  |
 | prompt_i18n.en | 是 | string | maxLength: 4096 |  |
-| prompt_i18n.zh-Hant | 是 | string | maxLength: 4096 |  |
+| prompt_i18n.zh-Hant | 否 | string | maxLength: 4096 |  |
 | sort | 否 | integer | min: 0 |  |
 
 ### 响应
