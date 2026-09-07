@@ -2258,7 +2258,6 @@ function ProviderDialog({ provider, onClose, onSave, onDeleteModel }) {
   const editing = Boolean(provider);
   const [form, setForm] = useState(() => ({
     name: provider?.name || "",
-    driver: provider?.driver || "openrouter",
     baseUrl: provider?.base_url || "",
     apiKey: "",
     status: provider?.status || "enabled",
@@ -2303,7 +2302,6 @@ function ProviderDialog({ provider, onClose, onSave, onDeleteModel }) {
     const payload = {
       ...(editing ? { id: Number(provider.id) } : {}),
       name: form.name.trim(),
-      driver: form.driver,
       base_url: form.baseUrl.trim(),
       status: form.status,
       connect_timeout: Number(form.connectTimeout),
@@ -2332,9 +2330,8 @@ function ProviderDialog({ provider, onClose, onSave, onDeleteModel }) {
     <div className="dialog-mask" onClick={onClose}>
       <div className="dialog" style={{ width: 560, maxHeight: "90vh", overflowY: "auto", textAlign: "left" }} onClick={(event) => event.stopPropagation()}>
         <h3 style={{ marginBottom: 16 }}>{editing ? "编辑中转站" : "新建中转站"}</h3>
-        <Field label="名称 *"><input className="input" value={form.name} onChange={(event) => update("name", event.target.value)} placeholder="如：主用中转站" /></Field>
-        <div className="grid-2" style={{ marginTop: 12 }}>
-          <Field label="Provider 类型 *"><select className="select" value={form.driver} onChange={(event) => update("driver", event.target.value)}><option value="openrouter">openrouter</option><option value="apimart">apimart</option><option value="deepseek">deepseek</option></select></Field>
+        <Field label="名称（driver）*"><input className="input" maxLength={128} value={form.name} onChange={(event) => update("name", event.target.value)} placeholder="如：主用中转站" /></Field>
+        <div style={{ marginTop: 12 }}>
           <Field label="状态"><select className="select" value={form.status} onChange={(event) => update("status", event.target.value)}><option value="enabled">启用</option><option value="disabled">停用</option></select></Field>
         </div>
         <div style={{ marginTop: 12 }}><Field label="API 地址 / 中转域名 *"><input className="input" value={form.baseUrl} onChange={(event) => update("baseUrl", event.target.value)} placeholder="https://api.example.com/v1" /></Field></div>
@@ -2479,7 +2476,7 @@ function ModelConfigPage({ toast, adminToken }) {
       <Card title="中转站列表" sub={`共 ${providers.length} 个 · 每个中转站可配置多个文本/图片/视频模型 · 配置即时生效`} actions={<button className="btn primary" onClick={() => setEditing(null)}>+ 新建中转站</button>}>
         {loading ? <div className="panel-loading">加载中…</div> : <div className="table-wrap"><table className="table compact"><thead><tr><th>名称</th><th>API 地址</th><th>API Key</th>{MODEL_PROFILES.map(({ label }) => <th key={label}>{label}模型</th>)}<th>操作</th></tr></thead><tbody>
           {providers.map((provider) => <tr key={provider.id}>
-            <td style={{ whiteSpace: "nowrap" }}><b>{provider.name}</b><div className="muted small">{provider.driver} · {provider.status === "enabled" ? "启用" : "停用"}</div></td>
+            <td style={{ whiteSpace: "nowrap" }}><b>{provider.name}</b><div className="muted small">{provider.status === "enabled" ? "启用" : "停用"}</div></td>
             <td className="muted mono" title={provider.base_url} style={{ maxWidth: 190, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{provider.base_url}</td>
             <td className="muted mono" style={{ whiteSpace: "nowrap" }}>{maskApiKey(provider.api_key)}</td>
             {MODEL_PROFILES.map((profile) => { const routes = getProviderRoutes(provider, profile.type); const active = routes.find((route) => route.enabled) || routes[0]; return <td key={profile.type}><div style={{ minWidth: 190 }}>{routes.length ? <select className="select" value={active?.id || ""} disabled={provider.status !== "enabled"} onClick={() => handleRouteSelect(provider, profile, active?.id, "click")} onChange={(event) => handleRouteSelect(provider, profile, event.target.value, "change")}>{routes.map((route) => <option key={route.id || route.model} value={route.id}>{route.model}{route.enabled ? "（当前启用）" : ""}</option>)}</select> : <span className="muted">—</span>}</div></td>; })}
