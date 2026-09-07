@@ -774,7 +774,6 @@ function CharacterEditorPage({ character, onBack, toast, onStatusChange }) {
   const [prompt, setPrompt] = useState({ zh: "", en: "" });
   const [platformSystemPrompt, setPlatformSystemPrompt] = useState(PLATFORM_SYSTEM_PROMPT);
   const [platformPromptLoading, setPlatformPromptLoading] = useState(true);
-  const [platformPromptSaving, setPlatformPromptSaving] = useState(false);
   const [greetings, setGreetings] = useState([]);
   const [mesExamples, setMesExamples] = useState([]);
   const [cover, setCover] = useState(character.cardImage || character.image || "");
@@ -891,24 +890,6 @@ function CharacterEditorPage({ character, onBack, toast, onStatusChange }) {
       .finally(() => setPlatformPromptLoading(false));
     return () => controller.abort();
   }, []);
-
-  const savePlatformPrompt = async () => {
-    const value = platformSystemPrompt.trim();
-    if (!value) {
-      toast("平台安全规则不能为空");
-      return;
-    }
-    setPlatformPromptSaving(true);
-    try {
-      const data = await adminApi.settings.saveDialogueRules({ prompt: value });
-      setPlatformSystemPrompt(String(data?.prompt || value));
-      toast("全局平台安全规则已保存，新对话请求立即生效");
-    } catch (error) {
-      toast(`保存全局对话规则失败：${error.message}`);
-    } finally {
-      setPlatformPromptSaving(false);
-    }
-  };
 
   const uploadAssets = async (files) => {
     const selectedFiles = [...files];
@@ -1059,8 +1040,12 @@ function CharacterEditorPage({ character, onBack, toast, onStatusChange }) {
       sort: index,
     })));
   const save = async (silent = false) => {
+    if (platformPromptLoading) {
+      toast("全局对话规则仍在加载，请稍后再保存");
+      return false;
+    }
     try {
-      await adminApi.characters.saveDraft({ char_id: Number(character.id), ver: profile.version, data: buildCharacterData(), assets: buildAssetBindings() });
+      await adminApi.characters.saveDraft({ char_id: Number(character.id), ver: profile.version, data: buildCharacterData(), assets: buildAssetBindings(), platform_system_prompt: platformSystemPrompt });
       setStage("草稿");
       onStatusChange(character.id, "草稿");
       if (!silent) toast("草稿已保存，当前线上版本继续生效");
@@ -1249,7 +1234,7 @@ function CharacterEditorPage({ character, onBack, toast, onStatusChange }) {
           {tab === "rules" && (
             <Card
               title="对话规则"
-              sub="system_prompt 全局可编辑并立即生效 · post_history_instructions 按角色保存到草稿"
+              sub="system_prompt 全局可编辑 · 与角色内容一起保存草稿并在上架后生效"
             >
               <div className="persona-block">
                 <header><b>平台安全规则 system_prompt</b><span className="muted small">全局统一维护</span><span className="order">可编辑</span></header>
@@ -1257,14 +1242,10 @@ function CharacterEditorPage({ character, onBack, toast, onStatusChange }) {
                   className="textarea prompt-textarea"
                   value={platformSystemPrompt}
                   maxLength={32000}
-                  disabled={platformPromptLoading || platformPromptSaving}
+                  disabled={platformPromptLoading}
                   onChange={(e) => setPlatformSystemPrompt(e.target.value)}
                 />
-                <div className="dialog-actions" style={{ marginTop: 10, justifyContent: "flex-end" }}>
-                  <button className="btn primary" type="button" disabled={platformPromptLoading || platformPromptSaving || !platformSystemPrompt.trim()} onClick={savePlatformPrompt}>
-                    {platformPromptSaving ? "保存中…" : "保存全局规则"}
-                  </button>
-                </div>
+                <div className="greeting-foot"><span>修改后请点击顶部“保存草稿”或“上架”提交</span></div>
               </div>
               <div className="persona-block" style={{ marginTop: 12 }}>
                 <header><b>历史后指令 post_history_instructions</b><span className="muted small">注入对话历史之后、生成回复之前的补充指令</span><span className="order">PROMPT SEGMENT 4</span></header>
@@ -1392,21 +1373,15 @@ function CharacterEditorPage({ character, onBack, toast, onStatusChange }) {
 
 function AddPresetDialog({ mode, onClose, onAdd }) {
   const [tag, setTag] = useState("");
-  const [tagEn, setTagEn] = useState("");
-  const [prompt, setPrompt] = useState("");
   const [promptEn, setPromptEn] = useState("");
   return (
     <div className="dialog-mask" onClick={onClose}>
       <div className="dialog" style={{ width: 440, textAlign: "left" }} onClick={(e) => e.stopPropagation()}>
         <h3 style={{ marginBottom: 16 }}>新增{mode === "photo" ? "照片" : "视频"}预设</h3>
-        <Field label="标签名 *"><input className="input" value={tag} onChange={(e) => setTag(e.target.value)} placeholder="如：胶片感" /></Field>
-        <div style={{ marginTop: 12 }}><Field label="English label *"><input className="input" value={tagEn} onChange={(e) => setTagEn(e.target.value)} placeholder="e.g. Film look" /></Field></div>
-        <div style={{ marginTop: 12 }}>
-          <Field label="繁中提示语 *"><textarea className="textarea" value={prompt} onChange={(e) => setPrompt(e.target.value)} /></Field>
-        </div>
-        <div style={{ marginTop: 12 }}><Field label="English prompt *"><textarea className="textarea" value={promptEn} onChange={(e) => setPromptEn(e.target.value)} /></Field></div>
+        <Field label="标签名 *"><input className="input" value={tag} maxLength={64} onChange={(e) => setTag(e.target.value)} placeholder="如：胶片感" /></Field>
+        <div style={{ marginTop: 12 }}><Field label="英文提示词 *"><textarea className="textarea" maxLength={4096} value={promptEn} onChange={(e) => setPromptEn(e.target.value)} /></Field></div>
         <div style={{ marginTop: 18, display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
-          <button className="btn primary" disabled={!tag.trim() || !tagEn.trim() || !prompt.trim() || !promptEn.trim()} onClick={() => onAdd(tag.trim(), tagEn.trim(), prompt.trim(), promptEn.trim())}>确认新增</button>
+          <button className="btn primary" disabled={!tag.trim() || !promptEn.trim()} onClick={() => onAdd(tag.trim(), promptEn.trim())}>确认新增</button>
           <button className="btn" onClick={onClose}>取消</button>
         </div>
       </div>
@@ -1422,9 +1397,7 @@ function PresetsPage({ toast, adminToken }) {
 
   const mapApiPreset = (preset) => ({
     id: preset.id,
-    tag: preset.label_i18n?.["zh-Hant"] || preset.label_i18n?.en || preset.preset_code,
-    tagEn: preset.label_i18n?.en || preset.label_i18n?.["zh-Hant"] || preset.preset_code,
-    prompt: preset.prompt_i18n?.["zh-Hant"] || preset.prompt_i18n?.en || "",
+    tag: preset.label_i18n?.en || preset.label_i18n?.["zh-Hant"] || preset.preset_code,
     promptEn: preset.prompt_i18n?.en || preset.prompt_i18n?.["zh-Hant"] || "",
     active: preset.state === "online",
     sort: preset.sort || 0,
@@ -1449,12 +1422,13 @@ function PresetsPage({ toast, adminToken }) {
 
   const updatePreset = (mode, id, key, value) =>
     setPresets((p) => ({ ...p, [mode]: p[mode].map((x) => (x.id === id ? { ...x, [key]: value } : x)) }));
-  const addPreset = async (tag, tagEn, prompt, promptEn) => {
+  const addPreset = async (tag, promptEn) => {
     try {
       const data = await adminApi.presets.create({
         response_type: showAdd === "video" ? "video" : "image",
-        label_i18n: { en: tagEn, "zh-Hant": tag },
-        prompt_i18n: { en: promptEn, "zh-Hant": prompt },
+        // 单标签和英文提示词统一提交到 en 字段，不再生成繁中副本。
+        label_i18n: { en: tag },
+        prompt_i18n: { en: promptEn },
         sort: presets[showAdd].length,
       });
       setPresets((current) => ({ ...current, [showAdd]: [...current[showAdd], mapApiPreset(data.preset)] }));
@@ -1489,8 +1463,9 @@ function PresetsPage({ toast, adminToken }) {
     try {
       await adminApi.presets.update({
         id: Number(preset.id),
-        label_i18n: { en: preset.tagEn, "zh-Hant": preset.tag },
-        prompt_i18n: { en: preset.promptEn, "zh-Hant": preset.prompt },
+        // 编辑与新增采用相同的单语言结构，由服务端兼容历史数据。
+        label_i18n: { en: preset.tag.trim() },
+        prompt_i18n: { en: preset.promptEn.trim() },
         sort: index,
       });
       toast(`「${preset.tag}」已保存`);
@@ -1504,15 +1479,15 @@ function PresetsPage({ toast, adminToken }) {
       actions={<button className="btn sm primary" onClick={() => setShowAdd(mode)}>+ 新增预设</button>}>
       <div className="table-wrap">
         <table className="table">
-          <thead><tr><th style={{ width: 46 }}>排序</th><th style={{ width: 170 }}>标签（繁中 / EN）</th><th>提示语（繁中 / EN）</th><th style={{ width: 76 }}>状态</th><th style={{ width: 132 }}>操作</th></tr></thead>
+          <thead><tr><th style={{ width: 46 }}>排序</th><th style={{ width: 170 }}>标签名</th><th>英文提示词</th><th style={{ width: 76 }}>状态</th><th style={{ width: 132 }}>操作</th></tr></thead>
           <tbody>
             {presets[mode].map((p, i) => (
               <tr key={p.id}>
                 <td className="muted num">{i + 1}</td>
-                <td><div className="stacked-inputs"><input className="input" value={p.tag} aria-label="繁中标签" onChange={(e) => updatePreset(mode, p.id, "tag", e.target.value)} /><input className="input" value={p.tagEn} aria-label="English label" onChange={(e) => updatePreset(mode, p.id, "tagEn", e.target.value)} /></div></td>
-                <td><div className="stacked-inputs"><input className="input" value={p.prompt} aria-label="繁中提示语" onChange={(e) => updatePreset(mode, p.id, "prompt", e.target.value)} /><input className="input" value={p.promptEn} aria-label="English prompt" onChange={(e) => updatePreset(mode, p.id, "promptEn", e.target.value)} /></div></td>
+                <td><input className="input" value={p.tag} maxLength={64} aria-label="标签名" onChange={(e) => updatePreset(mode, p.id, "tag", e.target.value)} /></td>
+                <td><input className="input" value={p.promptEn} maxLength={4096} aria-label="英文提示词" onChange={(e) => updatePreset(mode, p.id, "promptEn", e.target.value)} /></td>
                 <td><Switch checked={p.active} onChange={(value) => setPresetStatus(mode, p, value)} label={p.tag} /></td>
-                <td><div style={{ display: "flex", gap: 6 }}><button className="btn sm" onClick={() => savePreset(mode, p, i)}>保存</button><button className="btn sm danger-ghost" onClick={() => setConfirmDel({ mode, id: p.id, tag: p.tag })}>删除</button></div></td>
+                <td><div style={{ display: "flex", gap: 6 }}><button className="btn sm" disabled={!p.tag.trim() || !p.promptEn.trim()} onClick={() => savePreset(mode, p, i)}>保存</button><button className="btn sm danger-ghost" onClick={() => setConfirmDel({ mode, id: p.id, tag: p.tag })}>删除</button></div></td>
               </tr>
             ))}
           </tbody>
@@ -2774,7 +2749,7 @@ export default function Admin() {
         </main>
       </div>
 
-      {toastMsg && <div className={`admin-toast${isErrorToast ? " is-error" : ""}`} role={isErrorToast ? "alert" : "status"}>{isErrorToast && <WarningCircle weight="fill" />}{toastMsg}</div>}
+      {toastMsg && <div className={`admin-toast${isErrorToast ? " is-error" : ""}`} role={isErrorToast ? "alert" : "status"}>{isErrorToast ? <WarningCircle weight="fill" aria-hidden="true" /> : <Info weight="fill" aria-hidden="true" />}<span className="admin-toast-message">{toastMsg}</span></div>}
     </div>
   );
 }
