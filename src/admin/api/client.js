@@ -162,6 +162,8 @@ export const adminApi = {
     saveCommerceBenefits: (params, options) => adminPost("/admin/settings/commerce/benefits/save", params, options),
     dialogueRules: (params = {}, options) => adminPost("/admin/settings/dialogue-rules", params, options),
     saveDialogueRules: (params, options) => adminPost("/admin/settings/dialogue-rules/save", params, options),
+    mediaSystemPrompts: (params = {}, options) => adminPost("/admin/settings/media-system-prompts", params, options),
+    saveMediaSystemPrompt: (params, options) => adminPost("/admin/settings/media-system-prompts/save", params, options),
   },
   analytics: {
     query: (params, options) => adminPost("/admin/analytics/query", params, options),

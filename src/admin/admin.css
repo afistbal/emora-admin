@@ -190,6 +190,14 @@ button { color: inherit; cursor: pointer; }
 /* ---------- 通用元素 ---------- */
 .card { background: var(--surface); border: 1px solid var(--line); border-radius: 16px; padding: 18px; }
 .card + .card { margin-top: 16px; }
+/* 订阅网格由 gap 控制间距，取消纵向卡片规则造成的顶部偏移。 */
+.subscription-product-grid > .card { margin-top: 0; }
+.system-prompt-grid > .card { margin-top: 0; }
+/* 订阅类型和扩展配置是连续字段，单独增加纵向留白，避免标题紧贴上一项输入框。 */
+.subscription-product-card > .field { margin-top: 12px; }
+.subscription-meta-grid { gap: 10px; margin-top: 12px; }
+/* 每条优惠方案使用虚线边框，与订阅商品主体卡片形成清晰层级。 */
+.subscription-discount-item { margin-bottom: 10px; padding: 12px; border: 1px dashed #cfe0f5; border-radius: 10px; }
 .card-head { display: flex; align-items: center; gap: 10px; margin-bottom: 14px; }
 .card-head h2 { margin: 0; font-size: 15px; font-weight: 700; letter-spacing: -.01em; }
 .card-head .sub { color: var(--muted); font-size: 12px; }
@@ -591,6 +599,47 @@ table.table { width: 100%; border-collapse: collapse; font-size: 13px; }
 .token-contract-empty h3 { margin: 6px 0 0; font-size: 17px; }
 .token-contract-empty p { max-width: 560px; margin: 0; color: var(--muted); font-size: 12px; line-height: 1.7; }
 .token-contract-empty code { margin-top: 8px; padding: 8px 11px; border-radius: 8px; background: var(--surface-2); color: var(--accent); font-size: 11px; }
+/* 模型配置用浅色标题和留白区分类型，避免多层边框。 */
+.provider-model-group { --model-color: #2878ce; border-radius: 12px; background: var(--surface, #fff); overflow: hidden; }
+.provider-model-group--image { --model-color: #7a59c2; }
+.provider-model-group--video { --model-color: #178680; }
+.provider-model-heading { display: flex; align-items: center; gap: 10px; padding: 12px 16px; background: color-mix(in srgb, var(--model-color) 7%, white); }
+.provider-model-icon { display: grid; place-items: center; color: var(--model-color); width: 34px; height: 34px; border-radius: 10px; background: color-mix(in srgb, var(--model-color) 10%, white); }
+.provider-model-heading strong { font-size: 14px; color: var(--model-color); }
+.provider-model-count { margin-left: 10px; color: var(--muted); font-size: 11px; }
+.provider-model-heading > button { margin-left: auto; }
+.provider-model-list { padding: 0 16px; }
+.provider-model-item { padding: 18px 0; }
+.provider-model-item + .provider-model-item { border-top: 1px solid var(--line); }
+.provider-model-caption { display: flex; align-items: center; gap: 9px; margin-bottom: 14px; min-width: 0; }
+.provider-model-number { font-size: 11px; font-weight: 700; color: var(--model-color); background: color-mix(in srgb, var(--model-color) 8%, white); border-radius: 6px; padding: 4px 7px; }
+.provider-model-caption strong { font-size: 13px; overflow-wrap: anywhere; }
+.provider-model-status { flex-shrink: 0; margin-left: auto; color: var(--muted); font-size: 11px; }
+.provider-model-status.is-enabled { color: #16816a; }
+.provider-model-fields { display: grid; grid-template-columns: minmax(0, 1fr) 88px auto; gap: 12px; align-items: end; }
+.provider-model-actions { display: flex; gap: 12px; align-items: center; min-height: 38px; }
+
+/* 黑色主题降低标题区域的亮度和色彩刺激，同时保留文本、图片、视频的类型区分。 */
+:root[data-theme="dark"] .provider-model-group { --model-color: #82a8cc; }
+:root[data-theme="dark"] .provider-model-group--image { --model-color: #aa96ca; }
+:root[data-theme="dark"] .provider-model-group--video { --model-color: #79aaa5; }
+:root[data-theme="dark"] .provider-model-heading {
+  background: color-mix(in srgb, var(--model-color) 8%, #171717);
+  border-bottom: 1px solid color-mix(in srgb, var(--model-color) 14%, #242424);
+}
+:root[data-theme="dark"] .provider-model-icon {
+  background: color-mix(in srgb, var(--model-color) 12%, #1c1c1c);
+}
+:root[data-theme="dark"] .provider-model-heading strong { color: color-mix(in srgb, var(--model-color) 72%, #d8d8d8); }
+:root[data-theme="dark"] .provider-model-number {
+  background: color-mix(in srgb, var(--model-color) 10%, #1c1c1c);
+}
+:root[data-theme="dark"] .provider-model-status.is-enabled { color: #55b49a; }
+@media (max-width: 600px) {
+  .provider-model-fields { grid-template-columns: minmax(0, 1fr) 80px; }
+  .provider-model-actions { grid-column: 1 / -1; justify-content: flex-end; }
+  .provider-model-count { display: none; }
+}
 .token-trend-list { display: grid; gap: 13px; padding: 7px 0 4px; }
 .token-trend-row { display: grid; grid-template-columns: 86px minmax(0, 1fr) 92px; align-items: center; gap: 12px; font-size: 11px; }
 .token-trend-row > span { color: var(--muted); }

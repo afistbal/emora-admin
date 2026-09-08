@@ -285,7 +285,7 @@ function formatTokenNumber(value) {
 
 function formatTokenCost(value) {
   const number = Number(value);
-  return Number.isFinite(number) ? `¥${number.toLocaleString("zh-CN", { minimumFractionDigits: 2, maximumFractionDigits: 4 })}` : "—";
+  return Number.isFinite(number) ? `$${number.toLocaleString("zh-CN", { minimumFractionDigits: 2, maximumFractionDigits: 4 })}` : "—";
 }
 
 function TokenUsageValue({ value, cost = false }) {
@@ -1392,6 +1392,9 @@ function AddPresetDialog({ mode, onClose, onAdd }) {
 function PresetsPage({ toast, adminToken }) {
   const [tab, setTab] = useState("manage");
   const [presets, setPresets] = useState({ photo: [], video: [] });
+  const [systemPrompts, setSystemPrompts] = useState({ image: "", video: "" });
+  const [systemPromptsLoading, setSystemPromptsLoading] = useState(true);
+  const [savingSystemPrompt, setSavingSystemPrompt] = useState("");
   const [showAdd, setShowAdd] = useState(null); // "photo" | "video"
   const [confirmDel, setConfirmDel] = useState(null); // { mode, id, tag }
 
@@ -1419,6 +1422,38 @@ function PresetsPage({ toast, adminToken }) {
       });
     return () => controller.abort();
   }, [adminToken]);
+
+  useEffect(() => {
+    const controller = new AbortController();
+    setSystemPromptsLoading(true);
+    adminApi.settings.mediaSystemPrompts({}, { signal: controller.signal })
+      .then((data) => setSystemPrompts({
+        image: String(data?.prompts?.image || ""),
+        video: String(data?.prompts?.video || ""),
+      }))
+      .catch((error) => {
+        if (error.name !== "AbortError") toast(`系统预设加载失败：${error.message}`);
+      })
+      .finally(() => {
+        if (!controller.signal.aborted) setSystemPromptsLoading(false);
+      });
+    return () => controller.abort();
+  }, [adminToken]);
+
+  const saveSystemPrompt = async (type) => {
+    const prompt = systemPrompts[type].trim();
+    if (!prompt || savingSystemPrompt) return;
+    setSavingSystemPrompt(type);
+    try {
+      const data = await adminApi.settings.saveMediaSystemPrompt({ type, prompt });
+      setSystemPrompts((current) => ({ ...current, [type]: String(data?.prompt || prompt) }));
+      toast(`${type === "image" ? "图片" : "视频"}系统预设已保存`);
+    } catch (error) {
+      toast(`保存${type === "image" ? "图片" : "视频"}系统预设失败：${error.message}`);
+    } finally {
+      setSavingSystemPrompt("");
+    }
+  };
 
   const updatePreset = (mode, id, key, value) =>
     setPresets((p) => ({ ...p, [mode]: p[mode].map((x) => (x.id === id ? { ...x, [key]: value } : x)) }));
@@ -1500,7 +1535,7 @@ function PresetsPage({ toast, adminToken }) {
     <div className="section-gap">
       <div className="hint-bar"><Info />视觉资产（封面 / Gallery / 私密照片）已在「角色管理 → 角色编辑器 → 视觉资产」Tab 中管理。</div>
       <div className="tabs">
-        {[["manage", "预设管理"], ["price", "生成价格"], ["quota", "免费额度"], ["fallback", "兜底话术"]].map(([key, label]) => (
+        {[["manage", "预设管理"], ["system", "系统预设"], ["price", "生成价格"], ["quota", "免费额度"], ["fallback", "兜底话术"]].map(([key, label]) => (
           <button key={key} className={tab === key ? "is-active" : ""} onClick={() => setTab(key)}>{label}</button>
         ))}
       </div>
@@ -1510,6 +1545,26 @@ function PresetsPage({ toast, adminToken }) {
           {presetBlock("photo", "照片预设")}
           {presetBlock("video", "视频预设")}
         </>
+      )}
+
+      {tab === "system" && (
+        systemPromptsLoading ? <div className="empty-state">正在加载系统预设…</div> : (
+          <div className="grid-2 system-prompt-grid">
+            {[["image", "图片系统预设", "作为图片生成的全局系统预设，仅在客户端使用自定义提示词时自动加入。"], ["video", "视频系统预设", "作为视频生成的全局系统预设，仅在客户端使用自定义提示词时自动加入。"]].map(([type, title, description]) => (
+              <Card key={type} title={title} actions={
+                <button className="btn sm primary" disabled={!systemPrompts[type].trim() || Boolean(savingSystemPrompt)} onClick={() => saveSystemPrompt(type)}>
+                  {savingSystemPrompt === type ? "保存中…" : "保存"}
+                </button>
+              }>
+                <Field label="系统预设（System Prompt）">
+                  <textarea className="textarea" style={{ minHeight: 150 }} maxLength={32000} value={systemPrompts[type]}
+                    onChange={(event) => setSystemPrompts((current) => ({ ...current, [type]: event.target.value }))} />
+                </Field>
+                <p className="muted small" style={{ margin: "10px 0 0" }}>{description}</p>
+              </Card>
+            ))}
+          </div>
+        )
       )}
 
       {tab === "price" && (
@@ -1849,7 +1904,7 @@ function UsersPage({ toast, adminToken }) {
   );
 }
 
-/* ================= 商业化配置（平台 / 订阅 / 一次性商品） ================= */
+/* ================= 订阅配置（平台 / 订阅 / 一次性商品） ================= */
 
 // 读取与业务校验分开：历史订阅类型不合法时，仍允许通过下拉框修正，且不丢失其他配置。
 function readProductExtra(value) {
@@ -1860,8 +1915,24 @@ function readProductExtra(value) {
   return extra;
 }
 
+// 优惠后的 price 是后端运行时计算值，后台编辑器不展示也不持久化该字段。
+function cleanDiscountPrices(extra) {
+  if (!extra || typeof extra !== "object" || Array.isArray(extra)) return extra;
+  if (Array.isArray(extra.discounts)) {
+    return {
+      ...extra,
+      discounts: extra.discounts.map((discount) => {
+        if (!discount || typeof discount !== "object" || Array.isArray(discount)) return discount;
+        const { price, ...withoutPrice } = discount;
+        return withoutPrice;
+      }),
+    };
+  }
+  return extra;
+}
+
 function parseProductExtra(value) {
-  const extra = readProductExtra(value);
+  const extra = cleanDiscountPrices(readProductExtra(value));
   if (extra && Object.hasOwn(extra, "subscription_type")) {
     // 与后端一致：接受整数及纯数字字符串；下拉框新写入的值统一使用整数。
     const type = extra.subscription_type;
@@ -1880,7 +1951,29 @@ function parseProductExtra(value) {
   return extra;
 }
 
-function ProductSubscriptionType({ value, onChange }) {
+function ProductOriginalPrice({ value, onChange }) {
+  let extra = null;
+  let invalid = false;
+  try { extra = readProductExtra(value); } catch { invalid = true; }
+  // 划线价属于商品扩展配置，独立编辑时保留 extra 中已有的订阅类型和优惠方案。
+  const disabled = invalid || Array.isArray(extra);
+  const originalPrice = extra && typeof extra === "object" ? extra.original_price ?? "" : "";
+  const updateOriginalPrice = (nextValue) => {
+    if (disabled) return;
+    const nextExtra = { ...(extra || {}) };
+    if (nextValue === "") delete nextExtra.original_price;
+    else nextExtra.original_price = nextValue;
+    onChange(JSON.stringify(nextExtra, null, 2));
+  };
+
+  return <Field label="划线价（USD）">
+    <input className="input" type="number" min="0" step="0.01" value={originalPrice} disabled={disabled}
+      onChange={(event) => updateOriginalPrice(event.target.value)} placeholder="例如 39.00；留空则不显示" />
+    {disabled && <span className="muted small">请先将 extra 编辑为有效的 JSON 对象。</span>}
+  </Field>;
+}
+
+function ProductSubscriptionType({ value, onChange, defaultType }) {
   let extra = null;
   let invalid = false;
   try { extra = readProductExtra(value); } catch { invalid = true; }
@@ -1888,7 +1981,9 @@ function ProductSubscriptionType({ value, onChange }) {
   const disabled = invalid || Array.isArray(extra);
   const type = extra?.subscription_type;
   const selectedType = (Number.isInteger(type) || (typeof type === "string" && /^[0-9]+$/.test(type)))
-    && [1, 2, 3].includes(Number(type)) ? String(Number(type)) : "";
+    && [1, 2, 3].includes(Number(type))
+    ? String(Number(type))
+    : ([1, 2, 3].includes(Number(defaultType)) ? String(Number(defaultType)) : "");
   return <Field label="订阅类型">
     <select className="select" disabled={disabled} value={selectedType}
       onChange={(event) => onChange(JSON.stringify({ ...(extra || {}), subscription_type: Number(event.target.value) }, null, 2))}>
@@ -1896,6 +1991,74 @@ function ProductSubscriptionType({ value, onChange }) {
       <option value="1">周</option><option value="2">月</option><option value="3">年</option>
     </select>
     {disabled && <span className="muted small">请先将 extra 编辑为有效的 JSON 对象。</span>}
+  </Field>;
+}
+
+// 每个订阅商品独立维护优惠方案列表，最终写入该商品自己的 extra.discounts。
+function ProductDiscountConfig({ value, onChange, onSave }) {
+  let extra = null;
+  let invalid = false;
+  try { extra = readProductExtra(value); } catch { invalid = true; }
+
+  const disabled = invalid || extra === null || Array.isArray(extra);
+  const legacyDiscount = extra && typeof extra === "object" ? extra.discount : null;
+  const discounts = extra && typeof extra === "object" && Array.isArray(extra.discounts)
+    ? extra.discounts
+    : (legacyDiscount && typeof legacyDiscount === "object" && !Array.isArray(legacyDiscount) ? [legacyDiscount] : []);
+
+  const updateDiscounts = (nextDiscounts) => {
+    if (disabled) return;
+    const { discount, ...rest } = extra;
+    onChange(JSON.stringify({ ...rest, discounts: nextDiscounts }, null, 2));
+  };
+
+  return <Field label="优惠方案">
+    {discounts.map((discount, index) => {
+      const enabled = discount?.enabled === true || discount?.enabled === 1 || discount?.enabled === "1" || discount?.enabled === "true";
+      const method = discount?.method || "fixed_price";
+      return <div className="subscription-discount-item" key={`${discount?.offer_id || "discount"}-${index}`}>
+        <div className="grid-2" style={{ gap: 10, marginBottom: 8 }}>
+          <Field label="优惠 ID">
+            <input className="input" value={discount?.offer_id || ""} disabled={disabled}
+              onChange={(event) => updateDiscounts(discounts.map((item, itemIndex) => itemIndex === index ? { ...item, offer_id: event.target.value } : item))} placeholder="例如 first-sub-001" />
+          </Field>
+          <Field label="方案类型">
+            <select className="select" value={discount?.type || "first_subscription"} disabled={disabled}
+              onChange={(event) => updateDiscounts(discounts.map((item, itemIndex) => itemIndex === index ? { ...item, type: event.target.value } : item))}>
+              <option value="first_subscription">首次订阅</option>
+              <option value="first_retention">首次挽留</option>
+              <option value="second_retention">二次挽留</option>
+            </select>
+          </Field>
+        </div>
+        <div className="grid-2" style={{ gap: 10, marginBottom: 8 }}>
+          <Field label="优惠计算方式">
+            <select className="select" value={method} disabled={disabled}
+              onChange={(event) => updateDiscounts(discounts.map((item, itemIndex) => itemIndex === index ? { ...item, method: event.target.value } : item))}>
+              <option value="fixed_price">固定价格（优惠后价格）</option>
+              <option value="percentage">百分比优惠</option>
+            </select>
+          </Field>
+          <Field label={method === "percentage" ? "优惠百分比（%）" : "优惠后价格（USD）"}>
+            <input className="input" type="number" min="0" step="0.01" value={discount?.value ?? ""} disabled={disabled}
+              onChange={(event) => updateDiscounts(discounts.map((item, itemIndex) => itemIndex === index ? { ...item, value: event.target.value } : item))} placeholder={method === "percentage" ? "例如 50" : "例如 0.99"} />
+          </Field>
+        </div>
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12 }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+            <span className="muted small">启用方案</span>
+            <Switch checked={enabled} onChange={(checked) => updateDiscounts(discounts.map((item, itemIndex) => itemIndex === index ? { ...item, enabled: checked } : item))} label={`启用优惠方案 ${index + 1}`} disabled={disabled} />
+          </div>
+          <div style={{ display: "flex", gap: 8 }}>
+            <button className="btn sm primary" type="button" disabled={disabled} onClick={onSave}>保存更新</button>
+            <button className="btn sm danger-ghost" type="button" disabled={disabled} onClick={() => updateDiscounts(discounts.filter((_, itemIndex) => itemIndex !== index))}>删除</button>
+          </div>
+        </div>
+      </div>;
+    })}
+    <button className="btn sm" type="button" disabled={disabled} onClick={() => updateDiscounts([...discounts, { enabled: false, offer_id: "", type: "first_subscription", method: "fixed_price", value: "" }])}>+ 添加优惠方案</button>
+    {disabled && <span className="muted small">请先将 extra 编辑为有效的 JSON 对象。</span>}
+    {!disabled && <span className="muted small">每一行都是当前商品独立的优惠方案，保存到 extra.discounts。</span>}
   </Field>;
 }
 
@@ -1951,7 +2114,7 @@ function AddProductDialog({ kind, platform, onClose, onCreate }) {
           <Field label="包名 *"><input className="input" value={pkgName} onChange={(event) => setPkgName(event.target.value)} placeholder="com.example.app" /></Field>
           <Field label="商品 ID *"><input className="input" value={productId} onChange={(event) => setProductId(event.target.value)} /></Field>
           <Field label="商品名称 *"><input className="input" value={name} onChange={(event) => setName(event.target.value)} /></Field>
-          <Field label="价格 *"><input className="input" type="number" min={0} step="0.01" value={price} onChange={(event) => setPrice(event.target.value)} /></Field>
+          <Field label="价格（USD）*"><input className="input" type="number" min={0} step="0.01" value={price} onChange={(event) => setPrice(event.target.value)} /></Field>
           {isCoin ? (
             <>
               <Field label="基础金币 *"><input className="input" type="number" min={1} value={coin} onChange={(event) => setCoin(event.target.value)} /></Field>
@@ -1960,7 +2123,7 @@ function AddProductDialog({ kind, platform, onClose, onCreate }) {
           ) : (
             <>
               <Field label="Base Plan ID"><input className="input" value={basePlanId} onChange={(event) => setBasePlanId(event.target.value)} /></Field>
-              <Field label="首次优惠价"><input className="input" type="number" min={0} step="0.01" value={firstPrice} onChange={(event) => setFirstPrice(event.target.value)} /></Field>
+              <Field label="首次优惠价（USD）"><input className="input" type="number" min={0} step="0.01" value={firstPrice} onChange={(event) => setFirstPrice(event.target.value)} /></Field>
             </>
           )}
         </div>
@@ -1979,7 +2142,8 @@ function AddProductDialog({ kind, platform, onClose, onCreate }) {
 
 function CommercePage({ toast, adminToken }) {
   const [tab, setTab] = useState("plans");
-  const [platform, setPlatform] = useState(2);
+  // 订阅配置默认面向 Android 商品，Android 在平台切换中排在第一位。
+  const [platform, setPlatform] = useState(1);
   const [productPage, setProductPage] = useState(1);
   const [productTotal, setProductTotal] = useState(0);
   const [productsLoading, setProductsLoading] = useState(false);
@@ -1995,7 +2159,7 @@ function CommercePage({ toast, adminToken }) {
     const memberItems = items.filter((item) => Number(item.type) === 2);
     setPacks(coinItems.map((item) => ({
       id: item.id,
-      extra: item.extra == null ? "" : JSON.stringify(item.extra, null, 2),
+      extra: item.extra == null ? "" : JSON.stringify(cleanDiscountPrices(item.extra), null, 2),
       productId: item.product_id,
       name: item.name,
       base: Number(item.coin || 0),
@@ -2005,11 +2169,13 @@ function CommercePage({ toast, adminToken }) {
     })));
     setPlans(memberItems.map((item) => ({
       id: item.id,
-      extra: item.extra == null ? "" : JSON.stringify(item.extra, null, 2),
+      extra: item.extra == null ? "" : JSON.stringify(cleanDiscountPrices(item.extra), null, 2),
       name: item.name,
+      productId: String(item.product_id || ""),
+      basePlanId: String(item.base_plan_id || ""),
       price: Number(item.price || 0),
       renewPrice: Number(item.first_price || 0),
-      struck: item.first_price && Number(item.first_price) > 0 ? `¥${item.first_price}` : "—",
+      subscriptionType: item.subscription_type,
       active: Number(item.status) === 1,
     })));
   };
@@ -2084,6 +2250,8 @@ function CommercePage({ toast, adminToken }) {
         id: Number(plan.id),
         extra: parseProductExtra(plan.extra),
         name: plan.name,
+        product_id: String(plan.productId || "").trim(),
+        base_plan_id: String(plan.basePlanId || "").trim(),
         price: String(plan.price),
         first_price: String(plan.renewPrice || 0),
       });
@@ -2104,7 +2272,7 @@ function CommercePage({ toast, adminToken }) {
   return (
     <div className="section-gap">
       <div className="tabs" aria-label="商品平台">
-        {[[2, "iOS"], [1, "安卓"]].map(([value, label]) => (
+        {[[1, "安卓"], [2, "iOS"]].map(([value, label]) => (
           <button key={value} className={platform === value ? "is-active" : ""}
             onClick={() => { setPlatform(value); setProductPage(1); }}>{label}</button>
         ))}
@@ -2124,7 +2292,7 @@ function CommercePage({ toast, adminToken }) {
         >
           <div className="table-wrap">
             <table className="table">
-              <thead><tr><th>档位</th><th>基础金币</th><th>赠送金币</th><th>价格（CNY）</th><th>C 端展示</th><th>扩展配置 extra（JSON）</th><th>上架</th></tr></thead>
+              <thead><tr><th>档位</th><th>基础金币</th><th>赠送金币</th><th>价格（USD）</th><th>C 端展示</th><th>扩展配置 extra（JSON）</th><th>上架</th></tr></thead>
               <tbody>
                 {packs.length === 0 && <tr><td colSpan={7} className="empty-state">当前平台暂无一次性商品。</td></tr>}
                 {packs.map((p) => (
@@ -2133,7 +2301,7 @@ function CommercePage({ toast, adminToken }) {
                     <td><input className="input" style={{ width: 100, height: 32 }} type="number" value={p.base} onChange={(e) => updatePack(p.id, "base", Number(e.target.value))} /></td>
                     <td><input className="input" style={{ width: 100, height: 32 }} type="number" value={p.bonus} onChange={(e) => updatePack(p.id, "bonus", Number(e.target.value))} /></td>
                     <td><input className="input" style={{ width: 90, height: 32 }} type="number" value={p.price} onChange={(e) => updatePack(p.id, "price", Number(e.target.value))} /></td>
-                    <td className="muted small">额外赠送 +{p.bonus} · ¥{p.price}</td>
+                    <td className="muted small">额外赠送 +{p.bonus} · ${p.price}</td>
                     <td><textarea className="textarea" style={{ minWidth: 200 }} value={p.extra} onChange={(e) => updatePack(p.id, "extra", e.target.value)} placeholder="留空保存为 null" /></td>
                     <td><Switch checked={p.active} onChange={(value) => setProductStatus("pack", p.id, value)} label={`pack_${p.id}`} /></td>
                   </tr>
@@ -2146,26 +2314,36 @@ function CommercePage({ toast, adminToken }) {
 
       {tab === "plans" && !productsLoading && (
         <>
-          <div className="filter-bar" style={{ justifyContent: "space-between" }}>
-            <b>{platformName} · 订阅 · 共 {productTotal} 个</b>
+          <div className="filter-bar" style={{ justifyContent: "flex-end" }}>
             <button className="btn primary" onClick={() => setShowAddProduct("plan")}>+ 新增订阅套餐</button>
           </div>
           {plans.length === 0 ? <div className="empty-state">当前平台暂无订阅商品。</div> : (
-            <div className="grid-3">
+            <div className="grid-3 subscription-product-grid">
               {plans.map((p) => (
-                <Card key={p.id || p.name} title={p.name} actions={<button className="btn sm primary" onClick={() => savePlan(p)}>保存</button>}>
+                <Card className="subscription-product-card" key={p.id || p.name} title={p.name} actions={<button className="btn sm primary" onClick={() => savePlan(p)}>保存</button>}>
                   <div className="grid-2" style={{ gap: 10 }}>
-                    <Field label="价格（CNY）">
+                    <Field label="Product ID">
+                      <input className="input" value={p.productId} onChange={(e) => updatePlan(p.id, "productId", e.target.value)} />
+                    </Field>
+                    <Field label="Base Plan ID">
+                      <input className="input" value={p.basePlanId} onChange={(e) => updatePlan(p.id, "basePlanId", e.target.value)} />
+                    </Field>
+                  </div>
+                  <div className="grid-2" style={{ gap: 10 }}>
+                    <Field label="价格（USD）">
                       <input className="input" type="number" value={p.price} onChange={(e) => updatePlan(p.id, "price", Number(e.target.value))} />
                     </Field>
-                    <Field label="首次优惠价（CNY）">
+                    <Field label="首次优惠价（USD）">
                       <input className="input" type="number" value={p.renewPrice} onChange={(e) => updatePlan(p.id, "renewPrice", Number(e.target.value))} />
                     </Field>
                   </div>
-                  <ProductSubscriptionType value={p.extra} onChange={(value) => updatePlan(p.id, "extra", value)} />
+                  <div className="grid-2 subscription-meta-grid">
+                    <ProductOriginalPrice value={p.extra} onChange={(value) => updatePlan(p.id, "extra", value)} />
+                    <ProductSubscriptionType value={p.extra} defaultType={p.subscriptionType} onChange={(value) => updatePlan(p.id, "extra", value)} />
+                  </div>
                   <Field label="扩展配置 extra（JSON，可留空）"><textarea className="textarea" value={p.extra} onChange={(e) => updatePlan(p.id, "extra", e.target.value)} /></Field>
                   {p.id && <ToggleRow label="商品状态" checked={p.active !== false} onChange={(value) => setProductStatus("plan", p.id, value)} />}
-                  <p className="muted small" style={{ margin: "10px 0 0" }}>划线价 {p.struck} · 续费自「当前时间与当前到期日较晚者」起顺延</p>
+                  <ProductDiscountConfig value={p.extra} onChange={(value) => updatePlan(p.id, "extra", value)} onSave={() => savePlan(p)} />
                 </Card>
               ))}
             </div>
@@ -2274,6 +2452,50 @@ function maskApiKey(value) {
   return value.length > 10 ? `${value.slice(0, 5)}****${value.slice(-4)}` : "••••••••";
 }
 
+// 兼容旧视频路由的 parameters 嵌套配置，编辑时同步已有嵌套值，避免其覆盖新值。
+function videoModelOption(options, key) {
+  return options?.parameters?.[key] ?? options?.[key] ?? "";
+}
+
+function withVideoModelOption(options, key, value) {
+  const next = { ...(options || {}) };
+  const hasNested = next.parameters && typeof next.parameters === "object" && !Array.isArray(next.parameters);
+  if (hasNested) next.parameters = { ...next.parameters };
+  const cleaned = String(value).trim();
+  if (!cleaned) {
+    delete next[key];
+    if (hasNested) delete next.parameters[key];
+  } else {
+    next[key] = key === "duration" ? Number(cleaned) : cleaned;
+    if (hasNested && Object.hasOwn(next.parameters, key)) next.parameters[key] = next[key];
+  }
+  return next;
+}
+
+function defaultMediaModelOptions(type) {
+  if (type === "image") return { quality: "low", aspect_ratio: "4:3" };
+  if (type === "video") return { duration: 10, ratio: "4:3", resolution: "480P" };
+  return {};
+}
+
+function withDefaultMediaModelOptions(type, options) {
+  const next = { ...(options || {}) };
+  for (const [key, value] of Object.entries(defaultMediaModelOptions(type))) {
+    if (videoModelOption(next, key) === "") next[key] = value;
+  }
+  return next;
+}
+
+// 历史值单独显示并保留，只有用户选择新值时才覆盖；留空不会强制改写 Provider 默认行为。
+function MediaModelSelect({ label, options, optionKey, values, onChange }) {
+  const value = String(videoModelOption(options, optionKey));
+  return <Field label={label}><select className="select" value={value} onChange={(event) => onChange(withVideoModelOption(options, optionKey, event.target.value))}>
+    <option value="">默认（不指定）</option>
+    {value && !values.includes(value) && <option value={value}>{value}（历史配置）</option>}
+    {values.map((choice) => <option key={choice} value={choice}>{choice}</option>)}
+  </select></Field>;
+}
+
 function ProviderDialog({ provider, onClose, onSave, onDeleteModel }) {
   const editing = Boolean(provider);
   const [form, setForm] = useState(() => ({
@@ -2292,13 +2514,13 @@ function ProviderDialog({ provider, onClose, onSave, onDeleteModel }) {
       model: route.model || "",
       enabled: route.enabled !== false,
       sort: route.sort || 0,
-      provider_options: route.provider_options || {},
+      provider_options: withDefaultMediaModelOptions(type, route.provider_options),
     }))])),
   }));
   const update = (key, value) => setForm((current) => ({ ...current, [key]: value }));
   const updateModel = (type, index, key, value) => setForm((current) => ({ ...current, models: { ...current.models, [type]: current.models[type].map((item, itemIndex) => itemIndex === index ? { ...item, [key]: value } : item) } }));
   // 新增模型默认停用，避免保存时触发同类型默认模型的自动切换；需要使用时再明确启用。
-  const addModel = (type) => setForm((current) => ({ ...current, models: { ...current.models, [type]: [...current.models[type], { model: "", enabled: false, sort: current.models[type].length * 10, provider_options: {} }] } }));
+  const addModel = (type) => setForm((current) => ({ ...current, models: { ...current.models, [type]: [...current.models[type], { model: "", enabled: false, sort: current.models[type].length * 10, provider_options: defaultMediaModelOptions(type) }] } }));
   const [deletingModel, setDeletingModel] = useState(null);
   const removeModel = async (type, index) => {
     const model = form.models[type][index];
@@ -2317,7 +2539,12 @@ function ProviderDialog({ provider, onClose, onSave, onDeleteModel }) {
   };
   const [saving, setSaving] = useState(false);
   // 中转站只需提供任意一种能力的有效模型；未填写的类型不参与保存资格判断。
-  const ready = form.name.trim() && form.baseUrl.trim() && (editing || form.apiKey.trim()) && MODEL_PROFILES.some(({ type }) => form.models[type].some((item) => item.model.trim()));
+  const validVideoOptions = form.models.video.filter((item) => item.model.trim()).every((item) => {
+    const duration = videoModelOption(item.provider_options, "duration");
+    const original = getProviderRoutes(provider || {}, "video").find((route) => route.id === item.id);
+    return duration === "" || (original && duration === videoModelOption(original.provider_options, "duration")) || (Number.isInteger(Number(duration)) && Number(duration) >= 2 && Number(duration) <= 30);
+  });
+  const ready = form.name.trim() && form.baseUrl.trim() && (editing || form.apiKey.trim()) && validVideoOptions && MODEL_PROFILES.some(({ type }) => form.models[type].some((item) => item.model.trim()));
   const submit = async () => {
     if (!ready) return;
     const payload = {
@@ -2349,33 +2576,48 @@ function ProviderDialog({ provider, onClose, onSave, onDeleteModel }) {
   };
   return (
     <div className="dialog-mask" onClick={onClose}>
-      <div className="dialog" style={{ width: 560, maxHeight: "90vh", overflowY: "auto", textAlign: "left" }} onClick={(event) => event.stopPropagation()}>
+      <div className="dialog" style={{ width: 860, maxWidth: "calc(100vw - 32px)", maxHeight: "90vh", overflowY: "auto", textAlign: "left" }} onClick={(event) => event.stopPropagation()}>
         <h3 style={{ marginBottom: 16 }}>{editing ? "编辑中转站" : "新建中转站"}</h3>
         <Field label="名称（driver）*"><input className="input" maxLength={128} value={form.name} onChange={(event) => update("name", event.target.value)} placeholder="如：主用中转站" /></Field>
         <div style={{ marginTop: 12 }}>
           <Field label="状态"><select className="select" value={form.status} onChange={(event) => update("status", event.target.value)}><option value="enabled">启用</option><option value="disabled">停用</option></select></Field>
         </div>
         <div style={{ marginTop: 12 }}><Field label="API 地址 / 中转域名 *"><input className="input" value={form.baseUrl} onChange={(event) => update("baseUrl", event.target.value)} placeholder="https://api.example.com/v1" /></Field></div>
-        <div style={{ marginTop: 12 }}><Field label={`API Key ${editing ? "（留空则保留原 Key）" : "*"}`}><input className="input" type="password" value={form.apiKey} onChange={(event) => update("apiKey", event.target.value)} placeholder={editing ? `当前：${maskApiKey(provider.api_key)}` : "sk-..."} autoComplete="new-password" /></Field></div>
+        <div style={{ marginTop: 12 }}><Field label={`API Key ${editing ? "（留空则保留原 Key）" : "*"}`}><input className="input" type="text" value={form.apiKey} onChange={(event) => update("apiKey", event.target.value)} placeholder={editing ? `当前：${maskApiKey(provider.api_key)}` : "sk-..."} autoComplete="new-password" /></Field></div>
         <div style={{ marginTop: 12 }}>
           <Field label="模型（可添加多个，类型：文本 / 图片 / 视频）">
             <div style={{ display: "grid", gap: 10 }}>
-              {MODEL_PROFILES.map(({ type, label }) => <div key={type} style={{ border: "1px solid var(--line)", borderRadius: 8, padding: 10 }}><div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8 }}><span className="muted small">{label}模型</span><button className="btn sm" type="button" onClick={() => addModel(type)}>+ 添加模型</button></div><div style={{ display: "grid", gap: 8 }}>{form.models[type].map((item, index) => <div key={`${type}-${index}`} style={{ display: "grid", gridTemplateColumns: "1fr 72px 48px auto", gap: 6, alignItems: "center" }}><input className="input" value={item.model} onChange={(event) => updateModel(type, index, "model", event.target.value)} placeholder={`输入${label}模型名`} /><input className="input" type="number" value={item.sort} onChange={(event) => updateModel(type, index, "sort", event.target.value)} title="优先级" /><label className="muted small" style={{ display: "inline-flex", alignItems: "center", gap: 3, cursor: "pointer" }}><input type="checkbox" checked={item.enabled !== false} onChange={(event) => updateModel(type, index, "enabled", event.target.checked)} />启用</label><button className="btn sm danger-ghost" type="button" disabled={Boolean(item.id && item.enabled) || deletingModel === item.id} title={item.id && item.enabled ? "启用中的模型不可删除，请先停用" : "删除模型"} onClick={() => removeModel(type, index)}>{deletingModel === item.id ? "删除中…" : "删除"}</button></div>)}</div></div>)}
+              {MODEL_PROFILES.map(({ type, label }) => <section key={type} className={`provider-model-group provider-model-group--${type}`}>
+                <header className="provider-model-heading">
+                  <span className="provider-model-icon">{type === "video" ? <VideoCamera size={20} /> : type === "image" ? <ImageSquare size={20} /> : <ChatCircleDots size={20} />}</span>
+                  <div><strong>{label}模型</strong><span className="provider-model-count">{form.models[type].length} 个模型</span></div>
+                  <button className="btn sm" type="button" onClick={() => addModel(type)}>+ 添加模型</button>
+                </header>
+                <div className="provider-model-list">{form.models[type].map((item, index) => <div key={`${type}-${index}`} className="provider-model-item">
+                  <div className="provider-model-caption"><span className="provider-model-number">{String(index + 1).padStart(2, "0")}</span><strong>{item.model.trim() || "待配置模型"}</strong><span className={`provider-model-status ${item.enabled !== false ? "is-enabled" : ""}`}>{item.enabled !== false ? "已启用" : "未启用"}</span></div>
+                  <div className="provider-model-fields">
+                    <Field label="模型名称"><input className="input" value={item.model} onChange={(event) => updateModel(type, index, "model", event.target.value)} placeholder={`输入${label}模型名`} /></Field>
+                    <Field label="优先级"><input className="input" type="number" value={item.sort} onChange={(event) => updateModel(type, index, "sort", event.target.value)} /></Field>
+                    <div className="provider-model-actions"><Switch checked={item.enabled !== false} onChange={(checked) => updateModel(type, index, "enabled", checked)} label={`启用${label}模型 ${index + 1}`} /><button className="btn sm danger-ghost" type="button" disabled={Boolean(item.id && item.enabled) || deletingModel === item.id} title={item.id && item.enabled ? "启用中的模型不可删除，请先停用" : "删除模型"} onClick={() => removeModel(type, index)}>{deletingModel === item.id ? "删除中…" : "删除"}</button></div>
+                  </div>
+                {type === "video" && <div style={{ display: "grid", gridTemplateColumns: "repeat(3, minmax(0, 1fr))", gap: 10, marginTop: 8 }}>
+                  <Field label="生成时长（2-30 秒）"><input className="input" type="number" min={2} max={30} step={1} value={videoModelOption(item.provider_options, "duration")} placeholder="留空使用默认值" onChange={(event) => updateModel(type, index, "provider_options", withVideoModelOption(item.provider_options, "duration", event.target.value))} /></Field>
+                  <MediaModelSelect label="画面比例（ratio）" options={item.provider_options} optionKey="ratio" values={["16:9", "9:16", "1:1", "4:3", "3:4"]} onChange={(options) => updateModel(type, index, "provider_options", options)} />
+                  <MediaModelSelect label="输出分辨率" options={item.provider_options} optionKey="resolution" values={["480P", "720P", "1080P"]} onChange={(options) => updateModel(type, index, "provider_options", options)} />
+                </div>}
+                {type === "image" && <div className="grid-2" style={{ marginTop: 8 }}>
+                  <MediaModelSelect label="图片分辨率（resolution）" options={item.provider_options} optionKey="resolution" values={["512", "1k", "2k", "4k"]} onChange={(options) => updateModel(type, index, "provider_options", options)} />
+                  <MediaModelSelect label="生成质量（quality）" options={item.provider_options} optionKey="quality" values={["auto", "low", "medium", "high"]} onChange={(options) => updateModel(type, index, "provider_options", options)} />
+                  <MediaModelSelect label="图片比例（aspect_ratio）" options={item.provider_options} optionKey="aspect_ratio" values={["16:9", "9:16", "1:1", "4:3", "3:4"]} onChange={(options) => updateModel(type, index, "provider_options", options)} />
+                </div>}
+              </div>)}</div></section>)}
             </div>
           </Field>
         </div>
-        <div className="grid-3" style={{ marginTop: 12 }}>
-          <Field label="连接超时（秒）"><input className="input" type="number" min="1" value={form.connectTimeout} onChange={(event) => update("connectTimeout", event.target.value)} /></Field>
-          <Field label="请求超时（秒）"><input className="input" type="number" min="1" value={form.requestTimeout} onChange={(event) => update("requestTimeout", event.target.value)} /></Field>
-          <Field label="媒体超时（秒）"><input className="input" type="number" min="1" value={form.mediaTimeout} onChange={(event) => update("mediaTimeout", event.target.value)} /></Field>
-        </div>
-        <div className="grid-2" style={{ marginTop: 12 }}>
-          <Field label="HTTP Referer"><input className="input" value={form.httpReferer} onChange={(event) => update("httpReferer", event.target.value)} /></Field>
-          <Field label="X-Title"><input className="input" value={form.xTitle} onChange={(event) => update("xTitle", event.target.value)} /></Field>
-        </div>
         <div style={{ marginTop: 12 }}><Field label="备注"><textarea className="textarea" value={form.remark} onChange={(event) => update("remark", event.target.value)} /></Field></div>
         <div className="dialog-actions" style={{ marginTop: 18, gridTemplateColumns: "1fr 1fr" }}><button className="btn primary" disabled={!ready || deletingModel !== null || saving} onClick={submit}>{saving ? "保存中…" : "保存"}</button><button className="btn" disabled={saving || deletingModel !== null} onClick={onClose}>取消</button></div>
-        {!ready && <p className="muted small" style={{ margin: "10px 0 0", textAlign: "center" }}>请填写名称、API 地址和 API Key（新建时），并至少添加一个模型（文本、图片、视频任选一种）</p>}
+        {!validVideoOptions && <p className="login-error">视频生成时长必须是 2-30 秒的整数，或留空使用默认值。</p>}
+        {!ready && validVideoOptions && <p className="muted small" style={{ margin: "10px 0 0", textAlign: "center" }}>请填写名称、API 地址和 API Key（新建时），并至少添加一个模型（文本、图片、视频任选一种）</p>}
       </div>
     </div>
   );
@@ -2531,7 +2773,7 @@ const NAV = [
   { id: "presets", path: "/presets", label: "生成预设", icon: ImageSquare },
   { id: "models", path: "/models", label: "模型配置", icon: GearSix },
   { id: "users", path: "/users", label: "用户管理", icon: Users },
-  { id: "commerce", path: "/commerce", label: "商业化配置", icon: Coins },
+  { id: "commerce", path: "/commerce", label: "订阅配置", icon: Coins },
   { id: "analytics", path: "/analytics", label: "数据看板", icon: ChartLineUp },
   { id: "token-usage", path: "/token-usage", label: "Token 统计", icon: ChartBar },
   { id: "settings", path: "/settings", label: "系统设置", icon: GearSix },
