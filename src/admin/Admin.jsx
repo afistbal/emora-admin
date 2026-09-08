@@ -1851,14 +1851,31 @@ function UsersPage({ toast, adminToken }) {
 
 /* ================= 商业化配置（平台 / 订阅 / 一次性商品） ================= */
 
-// 扩展配置沿用后端数组/对象结构；先统一校验，再发起保存，避免批量更新半途遇到非法 JSON。
-function parseProductExtra(value) {
+// 读取与业务校验分开：历史订阅类型不合法时，仍允许通过下拉框修正，且不丢失其他配置。
+function readProductExtra(value) {
   if (!value.trim()) return null;
   let extra;
   try { extra = JSON.parse(value); } catch { throw new Error("扩展配置必须是有效的 JSON 对象或数组"); }
   if (extra !== null && typeof extra !== "object") throw new Error("扩展配置必须是 JSON 对象、数组或 null");
-  if (extra && Object.hasOwn(extra, "subscription_type") && !["周", "年"].includes(extra.subscription_type)) {
-    throw new Error("订阅类型只能为周或年");
+  return extra;
+}
+
+function parseProductExtra(value) {
+  const extra = readProductExtra(value);
+  if (extra && Object.hasOwn(extra, "subscription_type")) {
+    // 与后端一致：接受整数及纯数字字符串；下拉框新写入的值统一使用整数。
+    const type = extra.subscription_type;
+    const valid = (Number.isInteger(type) || (typeof type === "string" && /^[0-9]+$/.test(type)))
+      && [1, 2, 3].includes(Number(type));
+    if (!valid) throw new Error("订阅类型只能为 1（周）、2（月）或 3（年）。");
+    if (Object.hasOwn(extra, "original_price")) {
+      const price = extra.original_price;
+      const numeric = typeof price === "number" || (typeof price === "string"
+        && /^[+-]?(?:[0-9]+\.?[0-9]*|\.[0-9]+)(?:[eE][+-]?[0-9]+)?$/.test(price.trim()));
+      if (!numeric || !Number.isFinite(Number(price)) || Number(price) < 0) {
+        throw new Error("划线价必须是大于或等于 0 的数字。");
+      }
+    }
   }
   return extra;
 }
@@ -1866,14 +1883,17 @@ function parseProductExtra(value) {
 function ProductSubscriptionType({ value, onChange }) {
   let extra = null;
   let invalid = false;
-  try { extra = parseProductExtra(value); } catch { invalid = true; }
+  try { extra = readProductExtra(value); } catch { invalid = true; }
   // 历史数组及非法 JSON 不自动转换，避免选择订阅类型时丢失原有扩展配置。
   const disabled = invalid || Array.isArray(extra);
+  const type = extra?.subscription_type;
+  const selectedType = (Number.isInteger(type) || (typeof type === "string" && /^[0-9]+$/.test(type)))
+    && [1, 2, 3].includes(Number(type)) ? String(Number(type)) : "";
   return <Field label="订阅类型">
-    <select className="select" disabled={disabled} value={extra?.subscription_type || ""}
-      onChange={(event) => onChange(JSON.stringify({ ...(extra || {}), subscription_type: event.target.value }, null, 2))}>
+    <select className="select" disabled={disabled} value={selectedType}
+      onChange={(event) => onChange(JSON.stringify({ ...(extra || {}), subscription_type: Number(event.target.value) }, null, 2))}>
       <option value="" disabled>请选择</option>
-      <option value="周">周</option><option value="年">年</option>
+      <option value="1">周</option><option value="2">月</option><option value="3">年</option>
     </select>
     {disabled && <span className="muted small">请先将 extra 编辑为有效的 JSON 对象。</span>}
   </Field>;
@@ -2296,7 +2316,8 @@ function ProviderDialog({ provider, onClose, onSave, onDeleteModel }) {
     setForm((current) => ({ ...current, models: { ...current.models, [type]: current.models[type].filter((_, itemIndex) => itemIndex !== index) } }));
   };
   const [saving, setSaving] = useState(false);
-  const ready = form.name.trim() && form.baseUrl.trim() && (editing || form.apiKey.trim()) && MODEL_PROFILES.every(({ type }) => form.models[type].some((item) => item.model.trim()));
+  // 中转站只需提供任意一种能力的有效模型；未填写的类型不参与保存资格判断。
+  const ready = form.name.trim() && form.baseUrl.trim() && (editing || form.apiKey.trim()) && MODEL_PROFILES.some(({ type }) => form.models[type].some((item) => item.model.trim()));
   const submit = async () => {
     if (!ready) return;
     const payload = {
@@ -2354,7 +2375,7 @@ function ProviderDialog({ provider, onClose, onSave, onDeleteModel }) {
         </div>
         <div style={{ marginTop: 12 }}><Field label="备注"><textarea className="textarea" value={form.remark} onChange={(event) => update("remark", event.target.value)} /></Field></div>
         <div className="dialog-actions" style={{ marginTop: 18, gridTemplateColumns: "1fr 1fr" }}><button className="btn primary" disabled={!ready || deletingModel !== null || saving} onClick={submit}>{saving ? "保存中…" : "保存"}</button><button className="btn" disabled={saving || deletingModel !== null} onClick={onClose}>取消</button></div>
-        {!ready && <p className="muted small" style={{ margin: "10px 0 0", textAlign: "center" }}>名称、API 地址、API Key（新建时）以及至少一个文本、图片、视频模型均为必填</p>}
+        {!ready && <p className="muted small" style={{ margin: "10px 0 0", textAlign: "center" }}>请填写名称、API 地址和 API Key（新建时），并至少添加一个模型（文本、图片、视频任选一种）</p>}
       </div>
     </div>
   );
