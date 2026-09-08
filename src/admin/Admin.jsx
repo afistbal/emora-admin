@@ -1,3 +1,4 @@
+import MessagesPage from "./MessagesPage.jsx";
 import { useEffect, useRef, useState } from "react";
 import {
   ArrowLeft,
@@ -2773,6 +2774,7 @@ const NAV = [
   { id: "presets", path: "/presets", label: "生成预设", icon: ImageSquare },
   { id: "models", path: "/models", label: "模型配置", icon: GearSix },
   { id: "users", path: "/users", label: "用户管理", icon: Users },
+  { id: "messages", path: "/messages", label: "消息列表", icon: ChatCircleDots },
   { id: "commerce", path: "/commerce", label: "订阅配置", icon: Coins },
   { id: "analytics", path: "/analytics", label: "数据看板", icon: ChartLineUp },
   { id: "token-usage", path: "/token-usage", label: "Token 统计", icon: ChartBar },
@@ -2993,6 +2995,7 @@ export default function Admin() {
           {page === "presets" && <PresetsPage toast={toast} adminToken={adminToken} />}
           {page === "models" && <ModelConfigPage toast={toast} adminToken={adminToken} />}
           {page === "users" && <UsersPage toast={toast} adminToken={adminToken} />}
+          {page === "messages" && <MessagesPage adminToken={adminToken} />}
           {page === "commerce" && <CommercePage toast={toast} adminToken={adminToken} />}
           {page === "analytics" && <AnalyticsPage toast={toast} adminToken={adminToken} />}
           {page === "token-usage" && <TokenUsagePage toast={toast} adminToken={adminToken} />}
