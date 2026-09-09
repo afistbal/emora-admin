@@ -4,14 +4,6 @@
 .message-heading h2 { font-size:23px; margin:0 0 5px; letter-spacing:-.5px; }
 .message-heading p { margin:0; color:var(--muted); font-size:13px; }
 .message-heading > .btn { margin-left:auto; display:flex; gap:8px; align-items:center; }
-.message-metrics { display:grid; grid-template-columns:repeat(4,minmax(0,1fr)); gap:16px; }
-.message-metric { display:flex; align-items:center; justify-content:space-between; border:1px solid var(--line); border-radius:15px; padding:18px 22px; background:linear-gradient(120deg,var(--surface),var(--message-wash)); }
-.message-metric span { display:block; font-size:12px; color:var(--muted); margin-bottom:8px; }
-.message-metric strong { font-size:28px; font-weight:650; line-height:1; font-variant-numeric:tabular-nums; }
-.message-metric > svg { opacity:.75; }
-.message-metric.success > svg { color:var(--success); }
-.message-metric.generating > svg { color:#c08a1b; }
-.message-metric.failed > svg { color:var(--danger); }
 .messages-page > .card { padding:22px; box-shadow:0 4px 22px rgba(25,62,100,.035); }
 .message-filter-title { display:flex; align-items:center; gap:8px; font-size:13px; }
 .message-filter-title span { margin-left:6px; color:var(--muted); font-size:12px; }
@@ -49,7 +41,7 @@
 .message-empty { color:var(--muted); font-size:12px; }
 .message-pagination { display:flex; gap:10px; justify-content:flex-end; align-items:center; margin-top:20px; font-size:12px; }
 .message-pagination > span { margin-right:auto; color:var(--muted); }
-@media(max-width:1400px) { .message-metrics { gap:10px; } .message-metric { padding:16px; } .message-filters { gap:10px; } }
+@media(max-width:1400px) { .message-filters { gap:10px; } }
 /* 对话卡片把问答与异常放在同一阅读区域，避免正常消息占用空的错误列。 */
 .message-feed { display:grid; gap:18px; }
 .message-record { border:1px solid var(--line); border-radius:14px; background:var(--surface); overflow:hidden; transition:border-color .18s,box-shadow .18s; }

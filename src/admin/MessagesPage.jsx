@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { ChatCircleDots, ArrowsClockwise, MagnifyingGlass, CheckCircle, Clock, WarningCircle } from "@phosphor-icons/react";
+import { ChatCircleDots, ArrowsClockwise, MagnifyingGlass, Clock, WarningCircle } from "@phosphor-icons/react";
 import { adminApi } from "./api/client.js";
 import "./messages.css";
 
@@ -53,7 +53,7 @@ export default function MessagesPage({ adminToken }) {
     setError("");
     setResult(null);
     // 切换筛选或离开页面时取消旧请求，避免慢响应覆盖当前列表。
-    adminApi.messages.list({ ...filters, page_size: 30, ...(cursor ? { before_id: cursor } : {}) }, { signal: controller.signal })
+    adminApi.messages.list({ ...filters, page_size: 10, ...(cursor ? { before_id: cursor } : {}) }, { signal: controller.signal })
       .then((data) => { if (active) setResult(data); })
       .catch((e) => { if (active) setError(e.message || "加载消息失败"); })
       .finally(() => { if (active) setLoading(false); });
@@ -65,16 +65,8 @@ export default function MessagesPage({ adminToken }) {
     setFilters(Object.fromEntries(Object.entries(draft).filter(([, value]) => value !== "")));
     setCursors([null]);
   };
-  const items = result?.items || [];
-  const metrics = [
-    ["本页消息", items.length, ChatCircleDots, "all"],
-    ["本页成功", items.filter((item) => item.status === "success").length, CheckCircle, "success"],
-    ["本页生成中", items.filter((item) => item.status === "generating").length, Clock, "generating"],
-    ["本页失败", items.filter((item) => item.status === "failed").length, WarningCircle, "failed"],
-  ];
   return <div className="section-gap messages-page">
     <div className="message-heading"><div className="message-heading-icon"><ChatCircleDots size={26} weight="duotone" /></div><div><h2>消息列表</h2><p>追踪每一次对话，快速定位生成异常</p></div><button className="btn" disabled={loading} onClick={() => setRefresh((v) => v + 1)}><ArrowsClockwise size={16} />刷新列表</button></div>
-    <div className="message-metrics">{metrics.map(([label, count, Icon, tone]) => <div className={`message-metric ${tone}`} key={tone}><div><span>{label}</span><strong>{loading || error ? "—" : count}</strong></div><Icon size={25} weight="duotone" /></div>)}</div>
     <section className="card">
       <div className="message-filter-title"><MagnifyingGlass size={17} /><strong>筛选消息</strong><span>按消息、用户或会话快速查找</span></div>
       <form className="message-filters" onSubmit={search}>

@@ -4,7 +4,7 @@
 
 ## 公共筛选与分页
 
-`user_id` 正整数；`page_size` 默认30、1–100；`before_id` 正整数用于下一页。`date_from`、`date_to` 为 YYYY-MM-DD，按记录 created_at 筛选，结束日期包含整天，按应用数据库时间约定，不做浏览器时区转换。分页按 ID 降序，响应含 items、has_more、next_before_id、page_size。校验失败 HTTP 422，非管理员 HTTP 403。
+`user_id` 正整数；`page_size` 默认 10、范围 1–100；`before_id` 正整数用于下一页。`date_from`、`date_to` 为 YYYY-MM-DD，按记录 created_at 筛选，结束日期包含整天，按应用数据库时间约定，不做浏览器时区转换。分页按 ID 降序，响应含 items、has_more、next_before_id、page_size。校验失败 HTTP 422，非管理员 HTTP 403。
 
 ## 订单
 

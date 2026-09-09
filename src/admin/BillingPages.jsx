@@ -27,7 +27,7 @@ export default function BillingPage({ subscription = false, adminToken }) {
     let active = true;
     setLoading(true); setError(""); setData(null);
     const method = subscription ? adminApi.billing.subscriptions : adminApi.billing.orders;
-    method({ ...filters, page_size: 30, ...(cursor ? { before_id: cursor } : {}) }, { signal: controller.signal })
+    method({ ...filters, page_size: 10, ...(cursor ? { before_id: cursor } : {}) }, { signal: controller.signal })
       .then((result) => { if (active) setData(result); })
       .catch((e) => { if (active) setError(e.message || "加载失败"); })
       .finally(() => { if (active) setLoading(false); });
@@ -36,7 +36,6 @@ export default function BillingPage({ subscription = false, adminToken }) {
   const field = (key, value) => setDraft((old) => ({ ...old, [key]: value }));
   const input = (key, label, type = "text") => <label>{label}<input className="input" type={type} min={type === "number" ? 1 : undefined} maxLength={type === "text" ? 255 : undefined} value={draft[key] || ""} onChange={(e) => field(key, e.target.value)} /></label>;
   const select = (key, label, options, all = true) => <label>{label}<select className="select" value={draft[key] ?? ""} onChange={(e) => field(key, e.target.value)}>{all && <option value="">全部</option>}{Object.entries(options).map(([value, title]) => <option value={value} key={value}>{title}</option>)}</select></label>;
-  const stats = subscription ? [["订阅记录", data?.summary?.total], ["去重用户", data?.summary?.users], ...Object.entries(SUB_STATUS).map(([status, label]) => [label, data?.summary?.statuses?.[status] || 0])] : [];
   return <div className="section-gap billing-page">
     <header className="billing-heading"><div><h2>{subscription ? "订阅统计" : "订单列表"}</h2><p>{subscription ? "按平台查看订阅状态与有效期" : "查看商品订单、支付平台与处理状态"}</p></div><button className="btn" disabled={loading} onClick={() => setVersion((v) => v + 1)}>刷新</button></header>
     {subscription && <div className="billing-platforms">{[99, 98].map((platform) => <button className={`btn ${Number(filters.platform) === platform ? "primary" : ""}`} key={platform} onClick={() => { setDraft((v) => ({ ...v, platform: String(platform) })); setFilters((v) => ({ ...v, platform: String(platform) })); setCursors([null]); }}>{PLATFORMS[platform]}</button>)}</div>}
@@ -50,7 +49,6 @@ export default function BillingPage({ subscription = false, adminToken }) {
       {input("date_from", "记录创建日期 · 起", "date")}{input("date_to", "记录创建日期 · 止", "date")}
       <button className="btn primary" type="submit">查询</button><button className="btn" type="button" onClick={() => { setDraft(initial); setFilters(initial); setCursors([null]); }}>重置</button>
     </form></section>
-    {subscription && <><div className="billing-stats">{stats.map(([label, count]) => <div key={label}><span>{label}</span><strong>{loading || error ? "—" : count}</strong></div>)}</div><p className="billing-note">统计当前筛选的全部订阅记录，排除已删除记录；状态按支付平台最近同步结果展示，不代表实时续费结果。</p></>}
     <section className="card"><div aria-live="polite">{loading ? <div className="empty-state">正在加载…</div> : error ? <div className="empty-state" role="alert">{error}<button className="btn" onClick={() => setVersion((v) => v + 1)}>重试</button></div> : !data?.items?.length ? <div className="empty-state">没有符合条件的记录</div> : <div className="table-wrap"><table className="table billing-table"><thead>{subscription ? <tr><th>订阅 / 用户</th><th>商品 / 平台</th><th>状态</th><th>周期 / 续订</th><th>时间</th><th>金额</th><th>交易追踪</th></tr> : <tr><th>订单 / 用户</th><th>商品</th><th>平台 / 类型</th><th>状态</th><th>金额 / 退款</th><th>平台订单号</th><th>时间</th></tr>}</thead><tbody>{data.items.map((item) => subscription ? <tr key={item.id}>
       <td><strong>#{item.id}</strong><div>用户 #{item.user_id}</div></td><td><strong>{show(item.product_name)}</strong><div>{item.store_product_id}</div><small>{PLATFORMS[item.platform]}</small><div>{show(item.base_plan_id)}</div></td>
       <td><State value={item.status} subscription /><div className="billing-muted">{show(item.subscription_state)}</div></td><td>{PERIOD[item.subscription_type] || "未配置"}<div>自动续订：{Number(item.auto_renewing) === 1 ? "开启" : "关闭"}</div></td>

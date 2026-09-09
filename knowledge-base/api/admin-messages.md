@@ -2,7 +2,7 @@
 
 POST `/api/admin/messages/list`，需要管理员 Bearer Token。只读接口。
 
-所有参数可选：`message_id`、`user_id`、`conversation_id`、`before_id` 为正整数；`page_size` 默认 30，范围 1–100；`message_type` 为 text/image/video/private_photo；`status` 为 generating/success/failed。空筛选不传。参数错误 HTTP 422，非管理员 HTTP 403。
+所有参数可选：`message_id`、`user_id`、`conversation_id`、`before_id` 为正整数；`page_size` 默认 10，范围 1–100；`message_type` 为 text/image/video/private_photo；`status` 为 generating/success/failed。空筛选不传。参数错误 HTTP 422，非管理员 HTTP 403。
 
 响应包络 `{c,m,d}`，`d` 包含 `items`、`has_more`、`next_before_id`、`page_size`。按消息 ID 降序；下一页传 `before_id=next_before_id`，不计算总数。
 
