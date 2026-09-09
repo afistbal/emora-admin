@@ -2,7 +2,44 @@
 
 > 基址：`https://testapi.weshow.cc/api`  
 > 鉴权：`Authorization: Bearer <admin-token>`  
-> 本页当前登记 2 个接口；全部使用 JSON POST。
+> 本页当前登记 4 个接口；全部使用 JSON POST。
+
+## 查询系统配置列表
+
+- **请求**：`POST https://testapi.weshow.cc/api/admin/settings/list`
+- **说明**：分页查询 `settings` 表中的现有记录。配置键只读，页面不会创建或删除业务配置。
+
+| 字段 | 必填 | 类型 | 说明 |
+|---|---:|---|---|
+| keyword | 否 | string | 按 `config_key` 模糊筛选，最长 128 个字符。 |
+| status | 否 | integer | `1` 启用，`0` 停用。 |
+| page | 否 | integer | 页码，默认 1。 |
+| page_size | 否 | integer | 每页数量，默认 10，范围 1–100。 |
+
+响应 `d` 包含 `items`、`page`、`page_size`、`total`。每条记录包含 `id`、`config_key`、`value`、`status`、`version`、创建/更新人和创建/更新时间。
+
+## 更新系统配置
+
+- **请求**：`POST https://testapi.weshow.cc/api/admin/settings/update`
+- **说明**：更新现有配置的 JSON 值和状态。必须传入读取时获得的 `version`；版本过期返回 HTTP 409，防止覆盖其他管理员刚保存的内容。保存成功后版本递增，并清理对应业务缓存。
+
+| 字段 | 必填 | 类型 | 说明 |
+|---|---:|---|---|
+| id | 是 | integer | settings 主键。 |
+| value | 是 | JSON | 字符串、数字、布尔值、数组或对象；不能为 JSON null。 |
+| status | 是 | integer | `1` 启用，`0` 停用。 |
+| version | 是 | integer | 当前版本号，用于并发校验。 |
+
+```json
+{
+  "id": 1,
+  "value": 10,
+  "status": 1,
+  "version": 1
+}
+```
+
+已知业务配置继续执行原有范围校验，例如上下文 `top_k` 为 1–50、系统提示词最长 32000 字符、会员权益保持既有数据结构。未知历史配置允许保存有效 JSON，但配置值不能超过 1 MB。
 
 ## 查询后台会员权益配置
 

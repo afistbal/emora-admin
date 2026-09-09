@@ -2,9 +2,9 @@
 
 POST `/api/admin/messages/list`，需要管理员 Bearer Token。只读接口。
 
-所有参数可选：`message_id`、`user_id`、`conversation_id`、`before_id` 为正整数；`page_size` 默认 10，范围 1–100；`message_type` 为 text/image/video/private_photo；`status` 为 generating/success/failed。空筛选不传。参数错误 HTTP 422，非管理员 HTTP 403。
+所有参数可选：`message_id`、`user_id`、`conversation_id`、`before_id`、`page` 为正整数；`page_size` 默认 10，范围 1–100；`message_type` 为 text/image/video/private_photo；`status` 为 generating/success/failed。空筛选不传。参数错误 HTTP 422，非管理员 HTTP 403。
 
-响应包络 `{c,m,d}`，`d` 包含 `items`、`has_more`、`next_before_id`、`page_size`。按消息 ID 降序；下一页传 `before_id=next_before_id`，不计算总数。
+响应包络 `{c,m,d}`，`d` 包含 `items`、`has_more`、`next_before_id`、`page_size`。按消息 ID 降序。传 `page` 时使用页码分页并增加 `page`、`total`；不传 `page` 时保留原游标方式，下一页传 `before_id=next_before_id` 且不计算总数。
 
 每项字段：`id`、`user_id`、`conversation_id`、`conversation_seq`、`message_type`、`status`、`question`、`answer`、`generation_run_id`、`error_code`、`error_message`、`created_at`、`completed_at`。时间为 ISO 8601 或 null，前端按浏览器时区展示。
 

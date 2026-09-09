@@ -165,6 +165,8 @@ export const adminApi = {
     remove: (params, options) => adminPost("/admin/products/delete", params, options),
   },
   settings: {
+    list: (params = {}, options) => adminPost("/admin/settings/list", params, options),
+    update: (params, options) => adminPost("/admin/settings/update", params, options),
     commerceBenefits: (params = {}, options) => adminPost("/admin/settings/commerce/benefits", params, options),
     saveCommerceBenefits: (params, options) => adminPost("/admin/settings/commerce/benefits/save", params, options),
     dialogueRules: (params = {}, options) => adminPost("/admin/settings/dialogue-rules", params, options),

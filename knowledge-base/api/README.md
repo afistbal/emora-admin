@@ -6,7 +6,7 @@
 - **文档版本**：0.2.0
 - **源文件 SHA-256**：`16a86fce8814a88ca49d47a86b9656d19434cac122e561a301d1079b1742e256`
 - **筛选规则**：仅保留路径以 `/admin/` 开头的接口；忽略路径以 `/ai/` 开头的 C 端聊天接口。
-- **接口数量**：34
+- **接口数量**：36
 
 ## 通用约定
 
@@ -26,7 +26,7 @@
 | 用户与金币 | 5 | [admin-user.md](./admin-user.md) |
 | 用户反馈 | 1 | [admin-feedback.md](./admin-feedback.md) |
 | 商品与商业化 | 5 | [admin-product.md](./admin-product.md) |
-| 后台设置 | 2 | [admin-settings.md](./admin-settings.md) |
+| 后台设置 | 4 | [admin-settings.md](./admin-settings.md) |
 | 后台统计 | 1 | [admin-analytics.md](./admin-analytics.md) |
 
 ## 完整接口索引
@@ -69,3 +69,5 @@
 
 | 33 | POST | `/admin/orders/list` | 订单列表 | [查看](./admin-billing.md) |
 | 34 | POST | `/admin/subscriptions/list` | 订阅统计与明细 | [查看](./admin-billing.md) |
+| 35 | POST | `/admin/settings/list` | 查询系统配置列表 | [查看](./admin-settings.md#查询系统配置列表) |
+| 36 | POST | `/admin/settings/update` | 更新系统配置 | [查看](./admin-settings.md#更新系统配置) |

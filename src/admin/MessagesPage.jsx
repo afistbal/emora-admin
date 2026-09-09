@@ -1,4 +1,5 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useState } from "react";
+import { Button, Card, Empty, Form, Image, InputNumber, Modal, Pagination, Select, Space, Spin, Tag } from "antd";
 import { ChatCircleDots, ArrowsClockwise, MagnifyingGlass, Clock, WarningCircle } from "@phosphor-icons/react";
 import { adminApi } from "./api/client.js";
 import "./messages.css";
@@ -20,32 +21,26 @@ function MessageMedia({ assets = [] }) {
 function MediaItem({ asset }) {
   const [failed, setFailed] = useState(false);
   const [expanded, setExpanded] = useState(false);
-  const dialog = useRef(null);
   const safeUrl = typeof asset.url === "string" && /^https?:\/\//i.test(asset.url);
-  useEffect(() => {
-    if (expanded) dialog.current?.showModal();
-    else dialog.current?.close();
-  }, [expanded]);
   if (!safeUrl || !["image", "video"].includes(asset.type)) return null;
   return <figure className="message-media-item">
-    {failed ? <div className="message-media-failed">资源加载失败，地址可能已过期<button className="btn" onClick={() => setFailed(false)}>重新加载</button></div>
+    {failed ? <div className="message-media-failed">资源加载失败，地址可能已过期<Button onClick={() => setFailed(false)}>重新加载</Button></div>
       : asset.type === "video" ? <video controls preload="none" playsInline src={asset.url} onError={() => setFailed(true)} />
-      : <button className="message-image-button" onClick={() => setExpanded(true)} aria-label="放大图片"><img src={asset.url} alt="消息图片" loading="lazy" onError={() => setFailed(true)} /><span>点击放大</span></button>}
+      : <Button type="text" className="message-image-button" onClick={() => setExpanded(true)} aria-label="放大图片"><img src={asset.url} alt="消息图片" loading="lazy" onError={() => setFailed(true)} /><span>点击放大</span></Button>}
     <figcaption>{asset.type === "video" ? "视频" : "图片"}{asset.asset_id ? ` · 资源 #${asset.asset_id}` : ""}</figcaption>
-    {asset.type === "image" && <dialog className="message-image-dialog" ref={dialog} onCancel={() => setExpanded(false)} onClose={() => setExpanded(false)} onClick={(event) => { if (event.target === event.currentTarget) setExpanded(false); }}><button className="btn" autoFocus onClick={() => setExpanded(false)}>关闭</button>{expanded && <img src={asset.url} alt="消息图片大图" />}</dialog>}
+    {asset.type === "image" && <Modal open={expanded} title="消息图片" footer={null} width="min(920px, calc(100vw - 48px))" onCancel={() => setExpanded(false)} destroyOnHidden>{expanded && <Image preview={false} src={asset.url} alt="消息图片大图" style={{ width: "100%" }} />}</Modal>}
   </figure>;
 }
 
 export default function MessagesPage({ adminToken }) {
   const [draft, setDraft] = useState(EMPTY);
   const [filters, setFilters] = useState({});
-  const [cursors, setCursors] = useState([null]);
+  const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(10);
   const [refresh, setRefresh] = useState(0);
   const [result, setResult] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
-  const cursor = cursors[cursors.length - 1];
-
   useEffect(() => {
     const controller = new AbortController();
     let active = true;
@@ -53,36 +48,35 @@ export default function MessagesPage({ adminToken }) {
     setError("");
     setResult(null);
     // 切换筛选或离开页面时取消旧请求，避免慢响应覆盖当前列表。
-    adminApi.messages.list({ ...filters, page_size: 10, ...(cursor ? { before_id: cursor } : {}) }, { signal: controller.signal })
+    adminApi.messages.list({ ...filters, page, page_size: pageSize }, { signal: controller.signal })
       .then((data) => { if (active) setResult(data); })
       .catch((e) => { if (active) setError(e.message || "加载消息失败"); })
       .finally(() => { if (active) setLoading(false); });
     return () => { active = false; controller.abort(); };
-  }, [adminToken, filters, cursor, refresh]);
+  }, [adminToken, filters, page, pageSize, refresh]);
 
-  const search = (event) => {
-    event.preventDefault();
+  const search = () => {
     setFilters(Object.fromEntries(Object.entries(draft).filter(([, value]) => value !== "")));
-    setCursors([null]);
+    setPage(1);
   };
   return <div className="section-gap messages-page">
-    <div className="message-heading"><div className="message-heading-icon"><ChatCircleDots size={26} weight="duotone" /></div><div><h2>消息列表</h2><p>追踪每一次对话，快速定位生成异常</p></div><button className="btn" disabled={loading} onClick={() => setRefresh((v) => v + 1)}><ArrowsClockwise size={16} />刷新列表</button></div>
-    <section className="card">
+    <div className="message-heading"><div className="message-heading-icon"><ChatCircleDots size={26} weight="duotone" /></div><div><h2>消息列表</h2><p>追踪每一次对话，快速定位生成异常</p></div><Button disabled={loading} icon={<ArrowsClockwise size={16} />} onClick={() => setRefresh((v) => v + 1)}>刷新列表</Button></div>
+    <Card>
       <div className="message-filter-title"><MagnifyingGlass size={17} /><strong>筛选消息</strong><span>按消息、用户或会话快速查找</span></div>
-      <form className="message-filters" onSubmit={search}>
-        {[['message_id', '消息 ID'], ['user_id', '用户 ID'], ['conversation_id', '会话 ID']].map(([key, label]) => <label key={key}>{label}<input className="input" type="number" min="1" step="1" value={draft[key]} placeholder={label} onChange={(e) => setDraft({ ...draft, [key]: e.target.value })} /></label>)}
-        <label>消息类型<select className="select" value={draft.message_type} onChange={(e) => setDraft({ ...draft, message_type: e.target.value })}><option value="">全部类型</option>{Object.entries(TYPES).map(([value, label]) => <option key={value} value={value}>{label}</option>)}</select></label>
-        <label>消息状态<select className="select" value={draft.status} onChange={(e) => setDraft({ ...draft, status: e.target.value })}><option value="">全部状态</option>{Object.entries(STATUS).map(([value, [label]]) => <option key={value} value={value}>{label}</option>)}</select></label>
-        <button className="btn primary" type="submit">查询</button><button className="btn" type="button" onClick={() => { setDraft(EMPTY); setFilters({}); setCursors([null]); }}>重置</button>
-      </form>
+      <Form className="message-filters" layout="vertical" onFinish={search}>
+        {[["message_id", "消息 ID"], ["user_id", "用户 ID"], ["conversation_id", "会话 ID"]].map(([key, label]) => <Form.Item label={label} key={key}><InputNumber min={1} precision={0} value={draft[key] || null} placeholder={label} onChange={(value) => setDraft({ ...draft, [key]: value ?? "" })} /></Form.Item>)}
+        <Form.Item label="消息类型"><Select value={draft.message_type || undefined} placeholder="全部类型" allowClear options={Object.entries(TYPES).map(([value, label]) => ({ value, label }))} onChange={(value) => setDraft({ ...draft, message_type: value || "" })} /></Form.Item>
+        <Form.Item label="消息状态"><Select value={draft.status || undefined} placeholder="全部状态" allowClear options={Object.entries(STATUS).map(([value, [label]]) => ({ value, label }))} onChange={(value) => setDraft({ ...draft, status: value || "" })} /></Form.Item>
+        <Form.Item><Space><Button type="primary" htmlType="submit">查询</Button><Button onClick={() => { setDraft(EMPTY); setFilters({}); setPage(1); }}>重置</Button></Space></Form.Item>
+      </Form>
       <div aria-live="polite">
-        {loading ? <div className="empty-state">正在加载消息…</div> : error ? <div className="empty-state" role="alert">{error}<button className="btn" onClick={() => setRefresh((v) => v + 1)}>重试</button></div> : !result?.items?.length ? <div className="empty-state">没有符合条件的消息</div> : <div className="message-feed">
+        {loading ? <div className="empty-state"><Spin description="正在加载消息…" /></div> : error ? <div className="empty-state" role="alert">{error}<Button onClick={() => setRefresh((v) => v + 1)}>重试</Button></div> : !result?.items?.length ? <Empty description="没有符合条件的消息" /> : <div className="message-feed">
           {result.items.map((item) => <article className={`message-record ${item.status}`} key={item.id}>
             <header className="message-record-header">
               <span className="message-record-icon"><ChatCircleDots size={19} weight="duotone" /></span>
               <strong>#{item.id}</strong>
               <span className="message-type">{TYPES[item.message_type] || item.message_type}</span>
-              <span className={`message-status badge ${STATUS[item.status]?.[1] || "gray"}`}>{STATUS[item.status]?.[0] || item.status}</span>
+              <Tag className="message-status" color={{ yellow: "warning", green: "success", red: "error" }[STATUS[item.status]?.[1]] || "default"}>{STATUS[item.status]?.[0] || item.status}</Tag>
               <span className="message-record-date"><Clock size={14} />{time(item.created_at)}</span>
             </header>
             <div className="message-record-body">
@@ -98,7 +92,7 @@ export default function MessagesPage({ adminToken }) {
           </article>)}
         </div>}
       </div>
-      <div className="message-pagination"><span>第 {cursors.length} 页 · 本页 {result?.items?.length || 0} 条</span><button className="btn" disabled={loading || cursors.length === 1} onClick={() => setCursors((v) => v.slice(0, -1))}>上一页</button><button className="btn" disabled={loading || !result?.has_more} onClick={() => setCursors((v) => [...v, result.next_before_id])}>下一页</button></div>
-    </section>
+      {!error && Number(result?.total || 0) > 0 && <div className="admin-pagination"><Pagination current={page} pageSize={pageSize} total={Number(result.total)} showSizeChanger pageSizeOptions={[10, 20, 50, 100]} showTotal={(total) => `共 ${total} 条`} onChange={(nextPage, nextPageSize) => { setPageSize(nextPageSize); setPage(nextPageSize !== pageSize ? 1 : nextPage); }} /></div>}
+    </Card>
   </div>;
 }
