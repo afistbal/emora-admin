@@ -3,7 +3,7 @@ import { Alert, App as AntApp, Button, Card, Empty, Form, Input, Modal, Paginati
 import { adminApi } from "./api/client.js";
 import "./settings.css";
 
-const EMPTY_FILTERS = { keyword: "", status: undefined };
+const EMPTY_FILTERS = { keyword: "", status: undefined, is_public: undefined };
 const VALUE_TYPE_OPTIONS = [
   { value: "string", label: "字符串" },
   { value: "integer", label: "整数" },
@@ -13,7 +13,7 @@ const VALUE_TYPE_OPTIONS = [
   { value: "object", label: "对象" },
 ];
 const VALUE_TYPE_LABELS = Object.fromEntries(VALUE_TYPE_OPTIONS.map((item) => [item.value, item.label]));
-const EMPTY_SETTING = { configKey: "", description: "", valueType: "string", valueText: "", status: true };
+const EMPTY_SETTING = { configKey: "", description: "", valueType: "string", valueText: "", isPublic: false, status: true };
 
 function formatJson(value) {
   const formatted = JSON.stringify(value, null, 2);
@@ -71,6 +71,7 @@ export default function SettingsPage({ adminToken }) {
   const [error, setError] = useState("");
   const [refresh, setRefresh] = useState(0);
   const [savingId, setSavingId] = useState(null);
+  const [savingField, setSavingField] = useState(null);
   const [creating, setCreating] = useState(null);
   const [createSaving, setCreateSaving] = useState(false);
   const [editing, setEditing] = useState(null);
@@ -103,8 +104,9 @@ export default function SettingsPage({ adminToken }) {
 
   const toggleStatus = async (item, checked) => {
     setSavingId(item.id);
+    setSavingField("status");
     try {
-      const updated = await adminApi.settings.update({ id: item.id, value_type: item.value_type, value: item.value, status: checked ? 1 : 0, version: item.version });
+      const updated = await adminApi.settings.update({ id: item.id, value_type: item.value_type, value: item.value, is_public: Number(item.is_public) === 1 ? 1 : 0, status: checked ? 1 : 0, version: item.version });
       if (filters.status === undefined) replaceItem(updated);
       else {
         setPage(1);
@@ -116,6 +118,35 @@ export default function SettingsPage({ adminToken }) {
       if (requestError.status === 409) setRefresh((value) => value + 1);
     } finally {
       setSavingId(null);
+      setSavingField(null);
+    }
+  };
+
+  const togglePublic = async (item, checked) => {
+    setSavingId(item.id);
+    setSavingField("is_public");
+    try {
+      // 更新接口要求同时提交配置值、状态和版本；切换公开范围时保留其余业务字段不变。
+      const updated = await adminApi.settings.update({
+        id: item.id,
+        value_type: item.value_type,
+        value: item.value,
+        is_public: checked ? 1 : 0,
+        status: Number(item.status) === 1 ? 1 : 0,
+        version: item.version,
+      });
+      if (filters.is_public === undefined) replaceItem(updated);
+      else {
+        setPage(1);
+        setRefresh((value) => value + 1);
+      }
+      message.success(`${item.config_key} 已设为${checked ? "公开" : "内部"}配置`);
+    } catch (requestError) {
+      message.error(requestError.message || "公开范围更新失败");
+      if (requestError.status === 409) setRefresh((value) => value + 1);
+    } finally {
+      setSavingId(null);
+      setSavingField(null);
     }
   };
 
@@ -129,12 +160,14 @@ export default function SettingsPage({ adminToken }) {
     }
 
     setSavingId(editing.id);
+    setSavingField("edit");
     try {
       const updated = await adminApi.settings.update({
         id: editing.id,
         description: editing.description?.trim() || null,
         value_type: editing.valueType,
         value,
+        is_public: editing.isPublic ? 1 : 0,
         status: editing.status ? 1 : 0,
         version: editing.version,
       });
@@ -149,6 +182,7 @@ export default function SettingsPage({ adminToken }) {
       }
     } finally {
       setSavingId(null);
+      setSavingField(null);
     }
   };
 
@@ -174,6 +208,7 @@ export default function SettingsPage({ adminToken }) {
         description: creating.description.trim() || null,
         value_type: creating.valueType,
         value,
+        is_public: creating.isPublic ? 1 : 0,
         status: creating.status ? 1 : 0,
       });
       setCreating(null);
@@ -195,10 +230,11 @@ export default function SettingsPage({ adminToken }) {
     { title: "配置键", dataIndex: "config_key", key: "config_key", width: 320, render: (value, item) => <div className="settings-key"><Typography.Text code copyable>{value}</Typography.Text><small>ID {item.id}</small></div> },
     { title: "配置说明", dataIndex: "description", key: "description", width: 260, render: (value) => value || "—" },
     { title: "配置值", dataIndex: "value", key: "value", render: (value, item) => <div className="settings-value"><Tag>{VALUE_TYPE_LABELS[item.value_type] || item.value_type || "未知"}</Tag><pre>{formatJson(value)}</pre></div> },
-    { title: "状态", dataIndex: "status", key: "status", width: 110, render: (status, item) => <Switch checked={Number(status) === 1} loading={savingId === item.id} checkedChildren="启用" unCheckedChildren="停用" onChange={(checked) => toggleStatus(item, checked)} /> },
+    { title: "公开范围", dataIndex: "is_public", key: "is_public", width: 110, render: (value, item) => <Switch checked={Number(value) === 1} loading={savingId === item.id && savingField === "is_public"} disabled={savingId !== null} checkedChildren="公开" unCheckedChildren="内部" aria-label={`${item.config_key} 公开范围`} onChange={(checked) => togglePublic(item, checked)} /> },
+    { title: "状态", dataIndex: "status", key: "status", width: 110, render: (status, item) => <Switch checked={Number(status) === 1} loading={savingId === item.id && savingField === "status"} disabled={savingId !== null} checkedChildren="启用" unCheckedChildren="停用" onChange={(checked) => toggleStatus(item, checked)} /> },
     { title: "版本", dataIndex: "version", key: "version", width: 90, render: (value) => <Tag color="blue">v{value}</Tag> },
     { title: "最后更新", key: "updated", width: 190, render: (_, item) => <div className="settings-meta"><span>{item.updated_at || "—"}</span><small>操作人：{item.updated_by || "—"}</small></div> },
-    { title: "操作", key: "action", width: 80, render: (_, item) => <Button size="small" type="link" onClick={() => { const itemValueType = item.value_type || inferValueType(item.value); setEditing({ ...item, valueType: itemValueType, status: Number(item.status) === 1, valueText: formatSettingEditorValue(item.value, itemValueType) }); }}>编辑</Button> },
+    { title: "操作", key: "action", width: 80, render: (_, item) => <Button size="small" type="link" disabled={savingId !== null} onClick={() => { const itemValueType = item.value_type || inferValueType(item.value); setEditing({ ...item, valueType: itemValueType, isPublic: Number(item.is_public) === 1, status: Number(item.status) === 1, valueText: formatSettingEditorValue(item.value, itemValueType) }); }}>编辑</Button> },
   ];
 
   return <div className="section-gap settings-page">
@@ -214,6 +250,7 @@ export default function SettingsPage({ adminToken }) {
       <Form className="settings-filters" layout="inline" onFinish={applyFilters}>
         <Form.Item label="配置键"><Input allowClear placeholder="输入配置键关键词" value={draft.keyword} onChange={(event) => setDraft((current) => ({ ...current, keyword: event.target.value }))} /></Form.Item>
         <Form.Item label="状态"><Select allowClear placeholder="全部状态" value={draft.status} options={[{ value: 1, label: "启用" }, { value: 0, label: "停用" }]} onChange={(status) => setDraft((current) => ({ ...current, status }))} /></Form.Item>
+        <Form.Item label="公开范围"><Select allowClear placeholder="全部范围" value={draft.is_public} options={[{ value: 1, label: "公开" }, { value: 0, label: "内部" }]} onChange={(isPublic) => setDraft((current) => ({ ...current, is_public: isPublic }))} /></Form.Item>
         <Form.Item><Space><Button type="primary" htmlType="submit">查询</Button><Button onClick={resetFilters}>重置</Button></Space></Form.Item>
       </Form>
     </Card>
@@ -222,7 +259,7 @@ export default function SettingsPage({ adminToken }) {
       {error && <Alert type="error" showIcon message={error} action={<Button onClick={() => setRefresh((value) => value + 1)}>重试</Button>} />}
       {!error && loading && <div className="empty-state"><Spin description="正在加载配置…" /></div>}
       {!error && !loading && !result?.items?.length && <Empty description="没有符合条件的配置" />}
-      {!error && !loading && Boolean(result?.items?.length) && <Table rowKey="id" columns={columns} dataSource={result.items} pagination={false} scroll={{ x: 1360 }} />}
+      {!error && !loading && Boolean(result?.items?.length) && <Table rowKey="id" columns={columns} dataSource={result.items} pagination={false} scroll={{ x: 1460 }} />}
       {!error && Number(result?.total || 0) > 0 && <div className="admin-pagination"><Pagination current={page} pageSize={pageSize} total={Number(result.total)} showSizeChanger pageSizeOptions={[10, 20, 50, 100]} showTotal={(total) => `共 ${total} 条`} onChange={(nextPage, nextPageSize) => { setPageSize(nextPageSize); setPage(nextPageSize !== pageSize ? 1 : nextPage); }} /></div>}
     </Card>
 
@@ -240,8 +277,11 @@ export default function SettingsPage({ adminToken }) {
         <Form.Item label="配置值" required extra={creating.valueType === "string" ? "字符串按原文保存，不需要添加双引号。" : `请填写有效的${VALUE_TYPE_LABELS[creating.valueType]}值，不支持 null。`}>
           <Input.TextArea className="settings-editor" rows={14} value={creating.valueText} onChange={(event) => setCreating((current) => ({ ...current, valueText: event.target.value }))} />
         </Form.Item>
+        <Form.Item label="公开配置" extra="打开后，启用状态下会通过无需登录的公共配置接口返回给客户端。">
+          <Switch checked={creating.isPublic} checkedChildren="公开" unCheckedChildren="内部" onChange={(isPublic) => setCreating((current) => ({ ...current, isPublic }))} />
+        </Form.Item>
         <Form.Item label="状态"><Switch checked={creating.status} checkedChildren="启用" unCheckedChildren="停用" onChange={(status) => setCreating((current) => ({ ...current, status }))} /></Form.Item>
-        <Alert type="warning" showIcon message="新增配置可能立即影响读取该配置键的业务，请确认键名和值的类型正确。" />
+        <Alert type="warning" showIcon message={creating.isPublic ? "该配置将对未登录客户端公开，请确认值中不含密钥、提示词或内部信息。" : "新增配置可能立即影响读取该配置键的业务，请确认键名和值的类型正确。"} />
       </Form>}
     </Modal>
 
@@ -253,8 +293,9 @@ export default function SettingsPage({ adminToken }) {
         </Form.Item>
         <Form.Item label="配置值类型" required><Select options={VALUE_TYPE_OPTIONS} value={editing.valueType} onChange={(valueType) => setEditing((current) => ({ ...current, valueType }))} /></Form.Item>
         <Form.Item label="配置值" extra={editing.valueType === "string" ? "字符串按原文保存，不需要添加双引号。" : `请填写有效的${VALUE_TYPE_LABELS[editing.valueType]}值，不支持 null。`}><Input.TextArea className="settings-editor" rows={14} value={editing.valueText} onChange={(event) => setEditing((current) => ({ ...current, valueText: event.target.value }))} /></Form.Item>
+        <Form.Item label="公开配置" extra="打开后，启用状态下会通过无需登录的公共配置接口返回给客户端。"><Switch checked={editing.isPublic} checkedChildren="公开" unCheckedChildren="内部" onChange={(isPublic) => setEditing((current) => ({ ...current, isPublic }))} /></Form.Item>
         <Form.Item label="状态"><Switch checked={editing.status} checkedChildren="启用" unCheckedChildren="停用" onChange={(status) => setEditing((current) => ({ ...current, status }))} /></Form.Item>
-        <Alert type="warning" showIcon message={`保存后版本将从 v${editing.version} 更新为 v${editing.version + 1}`} description="停用配置后，业务代码会使用该配置对应的默认值或降级行为。" />
+        <Alert type="warning" showIcon message={`保存后版本将从 v${editing.version} 更新为 v${editing.version + 1}`} description="停用后按各配置的业务规则处理；图片或视频金币价格停用会直接阻断对应生成。" />
       </Form>}
     </Modal>
   </div>;

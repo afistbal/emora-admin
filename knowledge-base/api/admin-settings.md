@@ -13,10 +13,11 @@
 |---|---:|---|---|
 | keyword | 否 | string | 按 `config_key` 或 `description` 模糊筛选，最长 128 个字符。 |
 | status | 否 | integer | `1` 启用，`0` 停用。 |
+| is_public | 否 | integer | `1` 公开，`0` 内部使用。 |
 | page | 否 | integer | 页码，默认 1。 |
 | page_size | 否 | integer | 每页数量，默认 10，范围 1–100。 |
 
-响应 `d` 包含 `items`、`page`、`page_size`、`total`。每条记录包含 `id`、`config_key`、可空的 `description`、`value_type`、`value`、`status`、`version`、创建/更新人和创建/更新时间。`value_type` 取值为 `string`、`integer`、`number`、`boolean`、`array` 或 `object`。
+响应 `d` 包含 `items`、`page`、`page_size`、`total`。每条记录包含 `id`、`config_key`、可空的 `description`、`value_type`、`value`、`is_public`、`status`、`version`、创建/更新人和创建/更新时间。`value_type` 取值为 `string`、`integer`、`number`、`boolean`、`array` 或 `object`。
 
 ## 添加系统配置键
 
@@ -29,6 +30,7 @@
 | description | 否 | string/null | 配置用途和影响范围说明，最长 500 个字符；空字符串按 null 保存。 |
 | value_type | 否 | string | 配置值类型：`string`、`integer`、`number`、`boolean`、`array` 或 `object`。新版后台必传；旧调用方不传时由后端按实际值推断。 |
 | value | 是 | JSON | 字符串、数字、布尔值、数组或对象；不能为 JSON null，编码后最大 1 MB。 |
+| is_public | 否 | integer | `1` 允许公共配置接口返回，`0` 仅内部使用；默认 `0`。 |
 | status | 是 | integer | `1` 启用，`0` 停用。 |
 
 后台页面先选择配置值类型，再按所选类型解析输入内容。字符串直接按原文保存，不需要添加 JSON 双引号；其他类型必须与 `value_type` 一致。
@@ -39,6 +41,7 @@
   "description": "控制示例功能是否开放",
   "value_type": "boolean",
   "value": true,
+  "is_public": 0,
   "status": 1
 }
 ```
@@ -56,6 +59,7 @@
 | description | 否 | string/null | 最长 500 个字符；不传保留原说明，传 null 或空字符串清空说明。 |
 | value_type | 否 | string | 配置值类型；新版后台必传，旧调用方不传时由后端按本次 `value` 推断。 |
 | value | 是 | JSON | 字符串、数字、布尔值、数组或对象；不能为 JSON null。 |
+| is_public | 否 | integer | `1` 公开，`0` 内部使用；不传时保留原值。 |
 | status | 是 | integer | `1` 启用，`0` 停用。 |
 | version | 是 | integer | 当前版本号，用于并发校验。 |
 
@@ -65,12 +69,13 @@
   "description": "每日免费文本消息额度",
   "value_type": "integer",
   "value": 10,
+  "is_public": 0,
   "status": 1,
   "version": 1
 }
 ```
 
-已知业务配置继续执行原有范围校验，例如上下文 `top_k` 为 1–50、系统提示词最长 32000 字符、会员权益保持既有数据结构。未知历史配置允许保存有效 JSON，但配置值不能超过 1 MB。
+已知业务配置继续执行原有范围校验，例如上下文 `top_k` 为 1–50；媒体价格 `public.create.assets.price` 必须是包含 `image`、`video` 的对象，两个值均为 0–100000 的整数；系统提示词最长 32000 字符；会员权益保持既有数据结构。媒体价格配置应设为公开且启用；0 表示免费，配置缺失、停用、类型错误或对应字段无效会由服务端阻断生成。未知历史配置允许保存合法类型的值，但序列化后不能超过 1 MB。
 
 ## 查询后台会员权益配置
 

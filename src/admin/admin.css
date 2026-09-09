@@ -286,8 +286,11 @@ button { color: inherit; cursor: pointer; }
 .character-cover-upload .ant-upload-select img { width: 100%; height: 100%; object-fit: cover; display: block; }
 .character-cover-upload-empty { display: grid; justify-items: center; gap: 6px; }
 .character-cover-upload-empty svg { width: 20px; height: 20px; }
-.provider-route-label { display: flex; min-width: 0; max-width: 100%; align-items: center; }
-.provider-route-label .ant-typography { min-width: 0; margin: 0; }
+.provider-route-label { display: flex; width: 100%; min-width: 0; align-items: center; }
+/* Ant Space 会为每个子项增加包装层；让模型名包装层收缩，避免长名称把状态点挤出 Select。 */
+.provider-route-label > .ant-space-item:first-child { flex: 1; min-width: 0; overflow: hidden; }
+.provider-route-label > .ant-space-item:last-child { flex: none; }
+.provider-route-label .ant-typography { display: block; min-width: 0; margin: 0; }
 .provider-route-status { display: inline-flex; flex: none; align-items: center; }
 .user-detail-modal .ant-modal-body { max-height: min(720px, 72vh); overflow-y: auto; padding-right: 6px; }
 .user-detail-modal .section-gap { gap: 12px; }
