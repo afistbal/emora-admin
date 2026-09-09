@@ -1,3 +1,4 @@
+import BillingPage from "./BillingPages.jsx";
 import MessagesPage from "./MessagesPage.jsx";
 import { useEffect, useRef, useState } from "react";
 import {
@@ -2775,6 +2776,8 @@ const NAV = [
   { id: "models", path: "/models", label: "模型配置", icon: GearSix },
   { id: "users", path: "/users", label: "用户管理", icon: Users },
   { id: "messages", path: "/messages", label: "消息列表", icon: ChatCircleDots },
+  { id: "orders", path: "/orders", label: "订单列表", icon: Coins },
+  { id: "subscriptions", path: "/subscriptions", label: "订阅统计", icon: ChartBar },
   { id: "commerce", path: "/commerce", label: "订阅配置", icon: Coins },
   { id: "analytics", path: "/analytics", label: "数据看板", icon: ChartLineUp },
   { id: "token-usage", path: "/token-usage", label: "Token 统计", icon: ChartBar },
@@ -2996,6 +2999,8 @@ export default function Admin() {
           {page === "models" && <ModelConfigPage toast={toast} adminToken={adminToken} />}
           {page === "users" && <UsersPage toast={toast} adminToken={adminToken} />}
           {page === "messages" && <MessagesPage adminToken={adminToken} />}
+          {page === "orders" && <BillingPage key="orders" adminToken={adminToken} />}
+          {page === "subscriptions" && <BillingPage key="subscriptions" subscription adminToken={adminToken} />}
           {page === "commerce" && <CommercePage toast={toast} adminToken={adminToken} />}
           {page === "analytics" && <AnalyticsPage toast={toast} adminToken={adminToken} />}
           {page === "token-usage" && <TokenUsagePage toast={toast} adminToken={adminToken} />}

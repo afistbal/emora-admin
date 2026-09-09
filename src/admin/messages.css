@@ -91,3 +91,17 @@
 .message-tracking dl > div { display:flex; gap:12px; font-size:11px; align-items:baseline; }
 .message-tracking dt { color:var(--muted); flex:0 0 95px; }
 .message-tracking dd { margin:0; overflow-wrap:anywhere; font-family:ui-monospace,Consolas,monospace; user-select:all; }
+
+.message-media-grid { display:flex; flex-wrap:wrap; gap:14px; }
+.message-media-grid:not(:empty) { margin-top:12px; }
+.message-media-item { margin:0; width:min(100%,320px); }
+.message-media-item video { width:100%; max-height:360px; background:#111; border-radius:10px; display:block; }
+.message-image-button { display:block; position:relative; border:0; padding:0; background:var(--message-wash); width:100%; border-radius:10px; overflow:hidden; }
+.message-image-button img { display:block; width:100%; height:210px; object-fit:contain; }
+.message-image-button span { position:absolute; right:8px; bottom:8px; border-radius:5px; padding:2px 8px; background:#0009; color:white; font-size:11px; }
+.message-media-item figcaption { color:var(--muted); margin-top:5px; font-size:11px; }
+.message-media-failed { padding:20px; border:1px dashed var(--line); border-radius:10px; display:grid; gap:10px; }
+.message-image-dialog { max-width:90vw; max-height:90vh; border:1px solid var(--line); border-radius:14px; background:var(--surface); padding:16px; }
+.message-image-dialog::backdrop { background:#000b; }
+.message-image-dialog .btn { display:block; margin:0 0 12px auto; }
+.message-image-dialog img { display:block; max-width:84vw; max-height:75vh; object-fit:contain; }

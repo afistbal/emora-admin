@@ -6,7 +6,7 @@
 - **文档版本**：0.2.0
 - **源文件 SHA-256**：`16a86fce8814a88ca49d47a86b9656d19434cac122e561a301d1079b1742e256`
 - **筛选规则**：仅保留路径以 `/admin/` 开头的接口；忽略路径以 `/ai/` 开头的 C 端聊天接口。
-- **接口数量**：32
+- **接口数量**：34
 
 ## 通用约定
 
@@ -66,3 +66,6 @@
 | 31 | POST | `/admin/settings/commerce/benefits/save` | 保存后台会员权益配置 | [查看](./admin-settings.md) |
 
 | 32 | POST | `/admin/messages/list` | 查询消息及失败原因 | [查看](./admin-messages.md) |
+
+| 33 | POST | `/admin/orders/list` | 订单列表 | [查看](./admin-billing.md) |
+| 34 | POST | `/admin/subscriptions/list` | 订阅统计与明细 | [查看](./admin-billing.md) |

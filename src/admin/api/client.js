@@ -147,6 +147,10 @@ export const adminApi = {
     walletHistory: (params, options) => adminPost("/admin/users/wallet/history", params, options),
     grantCoins: (params, options) => adminPost("/admin/users/coins/grant", params, options),
   },
+  billing: {
+    orders: (params, options) => adminPost("/admin/orders/list", params, options),
+    subscriptions: (params, options) => adminPost("/admin/subscriptions/list", params, options),
+  },
   messages: {
     list: (params, options) => adminPost("/admin/messages/list", params, options),
   },
