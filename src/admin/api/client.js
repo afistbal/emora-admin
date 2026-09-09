@@ -153,6 +153,7 @@ export const adminApi = {
   },
   messages: {
     list: (params, options) => adminPost("/admin/messages/list", params, options),
+    detail: (params, options) => adminPost("/admin/messages/detail", params, options),
   },
   feedback: {
     list: (params, options) => adminPost("/admin/feedback/list", params, options),
@@ -166,6 +167,7 @@ export const adminApi = {
   },
   settings: {
     list: (params = {}, options) => adminPost("/admin/settings/list", params, options),
+    create: (params, options) => adminPost("/admin/settings/create", params, options),
     update: (params, options) => adminPost("/admin/settings/update", params, options),
     commerceBenefits: (params = {}, options) => adminPost("/admin/settings/commerce/benefits", params, options),
     saveCommerceBenefits: (params, options) => adminPost("/admin/settings/commerce/benefits/save", params, options),

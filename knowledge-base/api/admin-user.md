@@ -198,7 +198,7 @@
 | d.profile.registered_at | 否 | integer |  | Unix timestamp。 |
 | d.membership | 是 | AdminUserMembership |  |  |
 | d.membership.is_vip | 否 | boolean |  |  |
-| d.membership.vip_expires_at | 否 | integer |  |  |
+| d.membership.vip_expires_at | 否 | integer |  | Unix timestamp；详情页无论当前是否仍为 VIP 都展示已记录的有效期，未记录时显示空值。 |
 | d.wallet | 是 | AdminUserWallet |  |  |
 | d.wallet.balance | 否 | integer |  |  |
 | d.wallet.total | 否 | integer |  |  |

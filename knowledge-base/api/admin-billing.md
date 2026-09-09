@@ -4,7 +4,7 @@
 
 ## 公共筛选与分页
 
-`user_id` 正整数；`page_size` 默认 10、范围 1–100。传 `page` 时使用页码分页并返回 `page`、`total`；不传 `page` 时保持原 `before_id` 游标分页。`date_from`、`date_to` 为 YYYY-MM-DD，按记录 created_at 筛选，结束日期包含整天，按应用数据库时间约定，不做浏览器时区转换。分页按 ID 降序，原有 `items`、`has_more`、`next_before_id`、`page_size` 字段保持兼容。校验失败 HTTP 422，非管理员 HTTP 403。
+`user_id` 正整数；`page_size` 默认 10、范围 1–100。传 `page` 时使用页码分页并返回 `page`、`total`；不传 `page` 时保持原 `before_id` 游标分页。`date_from`、`date_to` 为 YYYY-MM-DD，按记录 created_at 筛选，结束日期包含整天，按应用数据库时间约定，不做浏览器时区转换。单平台按 ID 降序；订阅页未指定平台时按创建时间、平台、ID 降序。原有 `items`、`has_more`、`next_before_id`、`page_size` 字段保持兼容。校验失败 HTTP 422，非管理员 HTTP 403。
 
 ## 订单
 
@@ -14,17 +14,17 @@ items 字段：id、sn、user_id、platform、status、amount、refund_amount、
 
 ## 订阅统计
 
-platform 仅支持98/99，默认99；status：1 待处理、2 有效、3 已过期、4 取消续订、5 退款撤销、6 验证失败。支持 store_product_id 精确筛选、auto_renewing 0/1。排除 del_flag != 1。
+platform 仅支持98/99。页码分页未传 platform 时同时返回 Apple 与 Google，传入98或99时只返回对应平台；不传 page 的旧游标调用继续默认99，保持原有 next_before_id 语义。status：1 待处理、2 有效、3 已过期、4 取消续订、5 退款撤销、6 验证失败。支持 store_product_id 精确筛选、auto_renewing 0/1。排除 del_flag != 1。
 
 summary 包含 total（记录数）、users（去重用户数）、statuses（状态码到数量的映射）。统计当前筛选全集，不受 before_id 影响；不是续费次数、转化率或实时 VIP 权益判断。并发支付回调可能使汇总与明细在瞬间出现差异。
 
-明细包含 id、user_id、pay_no、pkg_name、status、subscription_state、auto_renewing、expiry_time、amount、created_at、updated_at、product_name、store_product_id、start_time、subscription_type、platform。Apple 另含 transaction_id、original_transaction_id、environment、currency；Google 另含 base_plan_id、google_order_id、next_billing_at。周/月/年从关联订单对应的当前商品配置读取，无法关联时为 null；Apple start_time 为购买时间，不伪称初次订阅时间。Google 金额币种缺失时显示未记录。
+明细包含 id、user_id、pay_no、pkg_name、status、subscription_state、auto_renewing、expiry_time、amount、created_at、updated_at、product_name、store_product_id、start_time、subscription_type、platform。Apple 另含 transaction_id、original_transaction_id、environment、currency；Google 另含 base_plan_id、google_order_id、next_billing_at。`base_plan_id` 是 Google 基础计划配置 ID，不是 Google 订单号，因此展示在“商品 / 平台”；Google 订单号取 `google_order_id`，通常为 GPA 格式，展示在“订单号”。前端临时兼容后端修复部署前 UNION 字段错位的旧响应，后端发布后优先使用正确字段。当前订阅表未记录本次实际使用的 offer ID，因此后台不从商品当前优惠配置反推历史订单。周/月/年从关联订单对应的当前商品配置读取，无法关联时为 null；Apple start_time 为购买时间，不伪称初次订阅时间。列表时间统一格式为 `YYYY-MM-DD HH:mm:ss`，商品与平台列不展示环境或时间。Google 金额币种缺失时显示未记录。订单号复制统一使用 Ant `Typography.Text copyable` 的文本后置小图标，不显示独立边框按钮。
 
 不返回 purchase_token、app_account_token、verify_data、latest_payload。无 H5 专用订阅表，不编造 H5 或续费次数统计。
 
 ## 查询与部署
 
-订单页码分页增加 1 次总数查询，旧游标分页仍为 1 次查询。订阅列表继续复用统计总数，不重复查询总数。其余查询包括状态分组、去重用户、分页明细、批量关联订单商品，无循环查询、不加锁、不写事务、不调用第三方或缓存。订阅表 `pay_no` 与订单表 `sn` 的历史排序规则不同，因此不直接 JOIN，而是分页后通过 `orders.sn` 唯一索引批量查询；商品关联使用 products.id 主键。现有订阅 user/status 索引可用于筛选。全局统计需要扫描匹配的订阅记录，日期筛选缺少专用索引时可能扫描更多。尚未在生产执行 EXPLAIN，不预先新增重复索引。
+订单页码分页增加 1 次总数查询，旧游标分页仍为 1 次查询。订阅列表继续复用统计总数，不重复查询总数。全部平台页码查询使用 `UNION ALL` 合并两张订阅表，Apple 与 Google 专属字段按相同位置输出，再执行状态分组、去重用户、分页明细和批量关联订单商品；不循环查询、不加锁、不写事务、不调用第三方或缓存。订阅表 `pay_no` 与订单表 `sn` 的历史排序规则不同，因此不直接 JOIN，而是分页后通过 `orders.sn` 和 platform 批量查询；商品关联使用 products.id 主键。现有订阅 user/status 索引可用于筛选。全局统计需要扫描匹配的订阅记录，日期筛选缺少专用索引时可能扫描更多。尚未在生产执行 EXPLAIN，不预先新增重复索引。
 
 无数据库结构变更、无新配置。先发布后端并按项目流程刷新路由缓存，再发布前端；若 OPcache 不检查文件更新，重新加载 PHP-FPM。无需队列重启。回滚本次代码及前端包即可。
 

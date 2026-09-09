@@ -4,16 +4,60 @@ import { adminApi } from "./api/client.js";
 import "./settings.css";
 
 const EMPTY_FILTERS = { keyword: "", status: undefined };
+const VALUE_TYPE_OPTIONS = [
+  { value: "string", label: "字符串" },
+  { value: "integer", label: "整数" },
+  { value: "number", label: "数字" },
+  { value: "boolean", label: "布尔值" },
+  { value: "array", label: "数组" },
+  { value: "object", label: "对象" },
+];
+const VALUE_TYPE_LABELS = Object.fromEntries(VALUE_TYPE_OPTIONS.map((item) => [item.value, item.label]));
+const EMPTY_SETTING = { configKey: "", description: "", valueType: "string", valueText: "", status: true };
 
 function formatJson(value) {
   const formatted = JSON.stringify(value, null, 2);
   return formatted === undefined ? "null" : formatted;
 }
 
-function valueType(value) {
-  if (Array.isArray(value)) return "数组";
-  if (value === null) return "空值";
-  return { string: "字符串", number: "数字", boolean: "布尔值", object: "对象" }[typeof value] || typeof value;
+function inferValueType(value) {
+  if (Array.isArray(value)) return "array";
+  if (value !== null && typeof value === "object") return "object";
+  if (typeof value === "number") return Number.isInteger(value) ? "integer" : "number";
+  return typeof value;
+}
+
+function formatSettingEditorValue(value, valueType) {
+  if (valueType === "object" && Array.isArray(value) && value.length === 0) return "{}";
+  return valueType === "string" ? String(value ?? "") : formatJson(value);
+}
+
+function parseSettingEditorValue(valueText, valueType) {
+  const trimmedValue = valueText.trim();
+  if (valueType === "string") return valueText;
+  if (valueType === "integer") {
+    if (!/^-?\d+$/.test(trimmedValue) || !Number.isSafeInteger(Number(trimmedValue))) throw new Error("请输入有效的安全整数");
+    return Number(trimmedValue);
+  }
+  if (valueType === "number") {
+    const value = Number(trimmedValue);
+    if (trimmedValue === "" || !Number.isFinite(value)) throw new Error("请输入有效数字");
+    return value;
+  }
+  if (valueType === "boolean") {
+    if (trimmedValue !== "true" && trimmedValue !== "false") throw new Error("布尔值只能填写 true 或 false");
+    return trimmedValue === "true";
+  }
+
+  let value;
+  try {
+    value = JSON.parse(trimmedValue);
+  } catch {
+    throw new Error(`${VALUE_TYPE_LABELS[valueType]}格式不正确，请检查引号、逗号和括号`);
+  }
+  if (valueType === "array" && !Array.isArray(value)) throw new Error("配置值必须是 JSON 数组");
+  if (valueType === "object" && (value === null || Array.isArray(value) || typeof value !== "object")) throw new Error("配置值必须是 JSON 对象");
+  return value;
 }
 
 export default function SettingsPage({ adminToken }) {
@@ -27,6 +71,8 @@ export default function SettingsPage({ adminToken }) {
   const [error, setError] = useState("");
   const [refresh, setRefresh] = useState(0);
   const [savingId, setSavingId] = useState(null);
+  const [creating, setCreating] = useState(null);
+  const [createSaving, setCreateSaving] = useState(false);
   const [editing, setEditing] = useState(null);
 
   useEffect(() => {
@@ -58,7 +104,7 @@ export default function SettingsPage({ adminToken }) {
   const toggleStatus = async (item, checked) => {
     setSavingId(item.id);
     try {
-      const updated = await adminApi.settings.update({ id: item.id, value: item.value, status: checked ? 1 : 0, version: item.version });
+      const updated = await adminApi.settings.update({ id: item.id, value_type: item.value_type, value: item.value, status: checked ? 1 : 0, version: item.version });
       if (filters.status === undefined) replaceItem(updated);
       else {
         setPage(1);
@@ -76,9 +122,9 @@ export default function SettingsPage({ adminToken }) {
   const saveEditing = async () => {
     let value;
     try {
-      value = JSON.parse(editing.valueText);
-    } catch {
-      message.error("配置值不是有效的 JSON，请检查引号、逗号和括号");
+      value = parseSettingEditorValue(editing.valueText, editing.valueType);
+    } catch (parseError) {
+      message.error(parseError.message);
       return;
     }
 
@@ -86,6 +132,8 @@ export default function SettingsPage({ adminToken }) {
     try {
       const updated = await adminApi.settings.update({
         id: editing.id,
+        description: editing.description?.trim() || null,
+        value_type: editing.valueType,
         value,
         status: editing.status ? 1 : 0,
         version: editing.version,
@@ -104,19 +152,62 @@ export default function SettingsPage({ adminToken }) {
     }
   };
 
+  const saveCreating = async () => {
+    const configKey = creating.configKey.trim();
+    if (!configKey) {
+      message.error("请输入配置键");
+      return;
+    }
+
+    let value;
+    try {
+      value = parseSettingEditorValue(creating.valueText, creating.valueType);
+    } catch (parseError) {
+      message.error(parseError.message);
+      return;
+    }
+
+    setCreateSaving(true);
+    try {
+      const created = await adminApi.settings.create({
+        config_key: configKey,
+        description: creating.description.trim() || null,
+        value_type: creating.valueType,
+        value,
+        status: creating.status ? 1 : 0,
+      });
+      setCreating(null);
+      // 创建后按新键定位列表，避免当前筛选或分页让刚创建的配置不可见。
+      const nextFilters = { keyword: created.config_key };
+      setDraft({ keyword: created.config_key, status: undefined });
+      setFilters(nextFilters);
+      setPage(1);
+      setRefresh((current) => current + 1);
+      message.success("配置键已添加");
+    } catch (requestError) {
+      message.error(requestError.message || "配置添加失败");
+    } finally {
+      setCreateSaving(false);
+    }
+  };
+
   const columns = [
     { title: "配置键", dataIndex: "config_key", key: "config_key", width: 320, render: (value, item) => <div className="settings-key"><Typography.Text code copyable>{value}</Typography.Text><small>ID {item.id}</small></div> },
-    { title: "配置值", dataIndex: "value", key: "value", render: (value) => <div className="settings-value"><Tag>{valueType(value)}</Tag><pre>{formatJson(value)}</pre></div> },
+    { title: "配置说明", dataIndex: "description", key: "description", width: 260, render: (value) => value || "—" },
+    { title: "配置值", dataIndex: "value", key: "value", render: (value, item) => <div className="settings-value"><Tag>{VALUE_TYPE_LABELS[item.value_type] || item.value_type || "未知"}</Tag><pre>{formatJson(value)}</pre></div> },
     { title: "状态", dataIndex: "status", key: "status", width: 110, render: (status, item) => <Switch checked={Number(status) === 1} loading={savingId === item.id} checkedChildren="启用" unCheckedChildren="停用" onChange={(checked) => toggleStatus(item, checked)} /> },
     { title: "版本", dataIndex: "version", key: "version", width: 90, render: (value) => <Tag color="blue">v{value}</Tag> },
     { title: "最后更新", key: "updated", width: 190, render: (_, item) => <div className="settings-meta"><span>{item.updated_at || "—"}</span><small>操作人：{item.updated_by || "—"}</small></div> },
-    { title: "操作", key: "action", width: 90, render: (_, item) => <Button type="link" onClick={() => setEditing({ ...item, status: Number(item.status) === 1, valueText: formatJson(item.value) })}>编辑</Button> },
+    { title: "操作", key: "action", width: 80, render: (_, item) => <Button size="small" type="link" onClick={() => { const itemValueType = item.value_type || inferValueType(item.value); setEditing({ ...item, valueType: itemValueType, status: Number(item.status) === 1, valueText: formatSettingEditorValue(item.value, itemValueType) }); }}>编辑</Button> },
   ];
 
   return <div className="section-gap settings-page">
     <header className="settings-heading">
-      <div><h2>系统设置</h2><p>管理 settings 表中的现有业务配置，配置键保持只读。</p></div>
-      <Button loading={loading} onClick={() => setRefresh((value) => value + 1)}>刷新</Button>
+      <div><h2>系统设置</h2><p>管理 settings 表中的业务配置，配置键创建后保持只读。</p></div>
+      <Space>
+        <Button type="primary" onClick={() => setCreating(EMPTY_SETTING)}>+ 添加配置键</Button>
+        <Button loading={loading} onClick={() => setRefresh((value) => value + 1)}>刷新</Button>
+      </Space>
     </header>
 
     <Card>
@@ -131,14 +222,37 @@ export default function SettingsPage({ adminToken }) {
       {error && <Alert type="error" showIcon message={error} action={<Button onClick={() => setRefresh((value) => value + 1)}>重试</Button>} />}
       {!error && loading && <div className="empty-state"><Spin description="正在加载配置…" /></div>}
       {!error && !loading && !result?.items?.length && <Empty description="没有符合条件的配置" />}
-      {!error && !loading && Boolean(result?.items?.length) && <Table rowKey="id" columns={columns} dataSource={result.items} pagination={false} scroll={{ x: 1100 }} />}
+      {!error && !loading && Boolean(result?.items?.length) && <Table rowKey="id" columns={columns} dataSource={result.items} pagination={false} scroll={{ x: 1360 }} />}
       {!error && Number(result?.total || 0) > 0 && <div className="admin-pagination"><Pagination current={page} pageSize={pageSize} total={Number(result.total)} showSizeChanger pageSizeOptions={[10, 20, 50, 100]} showTotal={(total) => `共 ${total} 条`} onChange={(nextPage, nextPageSize) => { setPageSize(nextPageSize); setPage(nextPageSize !== pageSize ? 1 : nextPage); }} /></div>}
     </Card>
+
+    <Modal open={Boolean(creating)} title="添加系统配置键" okText="添加" cancelText="取消" confirmLoading={createSaving} width={760} onOk={saveCreating} onCancel={() => setCreating(null)} destroyOnHidden>
+      {creating && <Form layout="vertical">
+        <Form.Item label="配置键" required extra="仅允许字母、数字、点、下划线和连字符，创建后不可修改。">
+          <Input autoFocus maxLength={128} placeholder="例如：feature.example.enabled" value={creating.configKey} onChange={(event) => setCreating((current) => ({ ...current, configKey: event.target.value }))} />
+        </Form.Item>
+        <Form.Item label="配置说明" extra="可选，填写配置用途和影响范围，最多 500 个字符。">
+          <Input.TextArea rows={3} maxLength={500} showCount value={creating.description} onChange={(event) => setCreating((current) => ({ ...current, description: event.target.value }))} />
+        </Form.Item>
+        <Form.Item label="配置值类型" required extra="类型会随配置一起保存，用于区分文本与数字、布尔值等数据。">
+          <Select options={VALUE_TYPE_OPTIONS} value={creating.valueType} onChange={(valueType) => setCreating((current) => ({ ...current, valueType }))} />
+        </Form.Item>
+        <Form.Item label="配置值" required extra={creating.valueType === "string" ? "字符串按原文保存，不需要添加双引号。" : `请填写有效的${VALUE_TYPE_LABELS[creating.valueType]}值，不支持 null。`}>
+          <Input.TextArea className="settings-editor" rows={14} value={creating.valueText} onChange={(event) => setCreating((current) => ({ ...current, valueText: event.target.value }))} />
+        </Form.Item>
+        <Form.Item label="状态"><Switch checked={creating.status} checkedChildren="启用" unCheckedChildren="停用" onChange={(status) => setCreating((current) => ({ ...current, status }))} /></Form.Item>
+        <Alert type="warning" showIcon message="新增配置可能立即影响读取该配置键的业务，请确认键名和值的类型正确。" />
+      </Form>}
+    </Modal>
 
     <Modal open={Boolean(editing)} title="编辑系统配置" okText="保存" cancelText="取消" confirmLoading={savingId === editing?.id} width={760} onOk={saveEditing} onCancel={() => setEditing(null)} destroyOnHidden>
       {editing && <Form layout="vertical">
         <Form.Item label="配置键"><Input value={editing.config_key} readOnly /></Form.Item>
-        <Form.Item label="配置值（JSON）" extra="字符串必须保留双引号；数字、布尔值、数组和对象请使用标准 JSON 格式。"><Input.TextArea className="settings-editor" rows={14} value={editing.valueText} onChange={(event) => setEditing((current) => ({ ...current, valueText: event.target.value }))} /></Form.Item>
+        <Form.Item label="配置说明" extra="可选，填写配置用途和影响范围，最多 500 个字符。">
+          <Input.TextArea rows={3} maxLength={500} showCount value={editing.description || ""} onChange={(event) => setEditing((current) => ({ ...current, description: event.target.value }))} />
+        </Form.Item>
+        <Form.Item label="配置值类型" required><Select options={VALUE_TYPE_OPTIONS} value={editing.valueType} onChange={(valueType) => setEditing((current) => ({ ...current, valueType }))} /></Form.Item>
+        <Form.Item label="配置值" extra={editing.valueType === "string" ? "字符串按原文保存，不需要添加双引号。" : `请填写有效的${VALUE_TYPE_LABELS[editing.valueType]}值，不支持 null。`}><Input.TextArea className="settings-editor" rows={14} value={editing.valueText} onChange={(event) => setEditing((current) => ({ ...current, valueText: event.target.value }))} /></Form.Item>
         <Form.Item label="状态"><Switch checked={editing.status} checkedChildren="启用" unCheckedChildren="停用" onChange={(status) => setEditing((current) => ({ ...current, status }))} /></Form.Item>
         <Alert type="warning" showIcon message={`保存后版本将从 v${editing.version} 更新为 v${editing.version + 1}`} description="停用配置后，业务代码会使用该配置对应的默认值或降级行为。" />
       </Form>}

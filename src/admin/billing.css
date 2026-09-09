@@ -4,17 +4,15 @@
 .billing-platforms { display:flex; gap:10px; }
 .billing-filters { display:flex; flex-wrap:wrap; gap:14px; align-items:end; }
 .billing-filters .ant-form-item { width:160px; margin:0; }
-.billing-filters .ant-form-item-label { padding-bottom:7px; }
-.billing-filters .ant-form-item-label > label { color:var(--muted); font-size:12px; }
 .billing-filters .ant-input-number,.billing-filters .ant-picker,.billing-filters .ant-select { width:100%; }
 .billing-filters .ant-form-item:last-child { width:auto; }
 .billing-table { min-width:1200px; table-layout:fixed; }
 .billing-table td { vertical-align:top; overflow-wrap:anywhere; line-height:1.8; }
 .billing-table small,.billing-muted { color:var(--muted); font-size:11px; }
-.billing-table th { background:var(--accent-soft); }
 .billing-type { margin-top:6px; color:var(--accent); }
 .billing-detail-lines { display:grid; gap:3px; line-height:1.55; overflow-wrap:anywhere; }
 .billing-detail-lines small { color:var(--muted); font-size:11px; }
-.billing-order-number { display:flex; align-items:center; gap:4px; min-width:0; }
-.billing-order-number > span { display:grid; min-width:0; overflow-wrap:anywhere; }
-.billing-order-number .ant-btn { flex:none; height:24px; padding-inline:5px; }
+.billing-detail-lines > .ant-tag { justify-self:start; }
+.billing-order-number { display:grid; gap:2px; min-width:0; }
+.billing-order-number-row { min-width:0; }
+.billing-order-number-row .billing-copyable-value { max-width:100%; margin:0; font-variant-numeric:tabular-nums; }

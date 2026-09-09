@@ -2,7 +2,7 @@ import BillingPage from "./BillingPages.jsx";
 import MessagesPage from "./MessagesPage.jsx";
 import SettingsPage from "./SettingsPage.jsx";
 import { Children, isValidElement, useEffect, useRef, useState } from "react";
-import { App as AntApp, Avatar, Button as AntButton, Card as AntCard, DatePicker, Drawer as AntDrawer, Input as AntInput, InputNumber as AntInputNumber, Layout as AntLayout, Menu as AntMenu, Modal as AntModal, Pagination, Segmented, Select as AntSelect, Switch as AntSwitch, Table as AntTable, Tag, Upload } from "antd";
+import { Alert, App as AntApp, Avatar, Badge as AntBadge, Breadcrumb, Button as AntButton, Card as AntCard, Collapse as AntCollapse, DatePicker, Drawer as AntDrawer, Empty, Flex, Input as AntInput, InputNumber as AntInputNumber, Layout as AntLayout, Menu as AntMenu, Modal as AntModal, Pagination, Progress as AntProgress, Segmented, Select as AntSelect, Space, Spin, Switch as AntSwitch, Table as AntTable, Tabs, Tag, Typography, Upload } from "antd";
 import dayjs from "dayjs";
 import {
   ArrowLeft,
@@ -38,8 +38,8 @@ import { useLocation, useNavigate } from "react-router-dom";
 function Card({ title, sub, actions, children, className = "" }) {
   return (
     <AntCard
-      className={`card ant-admin-card ${className}`}
-      title={title ? <div className="ant-admin-card-title"><h2>{title}</h2>{sub && <span>{sub}</span>}</div> : undefined}
+      className={`ant-admin-card ${className}`}
+      title={title ? <div className="ant-admin-card-title"><span>{title}</span>{sub && <small>{sub}</small>}</div> : undefined}
       extra={actions || undefined}
     >
       {children}
@@ -47,9 +47,13 @@ function Card({ title, sub, actions, children, className = "" }) {
   );
 }
 
+function LoadingState({ text = "加载中…" }) {
+  return <div className="ant-loading-state"><Spin size="large" /><span>{text}</span></div>;
+}
+
 function Badge({ tone = "gray", children }) {
   const colors = { green: "success", yellow: "warning", red: "error", gray: "default" };
-  return <Tag className={`badge ${tone}`} color={colors[tone]}>{children}</Tag>;
+  return <Tag color={colors[tone]}>{children}</Tag>;
 }
 
 function statusTone(status) {
@@ -64,17 +68,19 @@ function Switch({ checked, onChange, label, disabled = false }) {
 }
 
 function UiButton({ type, className = "", children, ...props }) {
-  const classes = className.split(/\s+/);
+  const classes = className.split(/\s+/).filter(Boolean);
   const isPrimary = classes.includes("primary");
+  const isLink = classes.includes("icon-text-btn") || classes.includes("danger-text");
   const isText = classes.includes("ghost") || classes.includes("asset-del");
   const isDanger = classes.includes("danger") || classes.includes("danger-ghost");
+  const legacyClasses = new Set(["btn", "primary", "ghost", "danger", "danger-ghost", "sm", "icon-text-btn", "danger-text"]);
+  const antClassName = classes.filter((name) => !legacyClasses.has(name)).join(" ");
   return <AntButton
     {...props}
-    className={className}
+    className={antClassName || undefined}
     htmlType={type === "submit" ? "submit" : "button"}
-    type={isPrimary ? "primary" : isText ? "text" : "default"}
+    type={isPrimary || classes.includes("danger") ? "primary" : isLink ? "link" : isText ? "text" : "default"}
     danger={isDanger}
-    size={classes.includes("sm") ? "small" : "middle"}
   >{children}</AntButton>;
 }
 
@@ -89,14 +95,14 @@ function UiTextArea(props) {
   return <AntInput.TextArea {...props} />;
 }
 
-function UiSelect({ children, onChange, ...props }) {
+function UiSelect({ children, onChange, style, ...props }) {
   const options = Children.toArray(children)
     .filter((option) => isValidElement(option) && option.type === "option")
     .map((option) => ({ value: option.props.value ?? option.props.children, label: option.props.children, disabled: option.props.disabled }));
-  return <AntSelect {...props} options={options} onChange={(value) => onChange?.({ target: { value } })} />;
+  return <AntSelect {...props} style={{ width: "100%", ...style }} options={options} onChange={(value) => onChange?.({ target: { value } })} />;
 }
 
-function UiTable({ children, className = "", ...props }) {
+function UiTable({ children, className = "", tableLayout = "fixed", scroll, ...props }) {
   const sections = Children.toArray(children).filter(isValidElement);
   const head = sections.find((section) => section.type === "thead");
   const body = sections.find((section) => section.type === "tbody");
@@ -108,6 +114,7 @@ function UiTable({ children, className = "", ...props }) {
   const columns = headerCells.map((cell, index) => ({
     key: index,
     title: cell.props.children,
+    width: cell.props.width,
     render: (_, record) => record.cells[index]?.props.children ?? null,
     onCell: (record) => {
       const { children: cellChildren, ...cellProps } = record.cells[index]?.props || {};
@@ -123,11 +130,44 @@ function UiTable({ children, className = "", ...props }) {
     pagination={false}
     size={className.includes("compact") ? "small" : "middle"}
     locale={{ emptyText }}
-    tableLayout="fixed"
+    tableLayout={tableLayout}
     rowClassName={(record) => record.row.props.className || ""}
     onRow={(record) => ({ onClick: record.row.props.onClick })}
-    scroll={{ x: Math.max(900, columns.length * 150) }}
+    scroll={scroll ?? { x: Math.max(900, columns.length * 150) }}
   />;
+}
+
+function ImageUploadCard({ src, alt, disabled = false, onSelect }) {
+  return (
+    <Upload
+      className="character-cover-upload"
+      listType="picture-card"
+      accept="image/*"
+      disabled={disabled}
+      showUploadList={false}
+      beforeUpload={(file) => {
+        onSelect(file);
+        return false;
+      }}
+    >
+      {src
+        ? <img src={src} alt={alt} />
+        : <div className="character-cover-upload-empty"><ImageSquare /><span>上传图片</span></div>}
+    </Upload>
+  );
+}
+
+function ProviderRouteLabel({ route }) {
+  const statusLabel = route.enabled ? "当前启用" : "当前未启用";
+  return (
+    <Space size={6} className="provider-route-label">
+      <Typography.Text ellipsis={{ tooltip: route.model }}>{route.model}</Typography.Text>
+      {/* 用官方状态点压缩下拉项宽度，同时保留悬停与无障碍状态说明。 */}
+      <span className="provider-route-status" title={statusLabel} aria-label={statusLabel}>
+        <AntBadge status={route.enabled ? "success" : "error"} />
+      </span>
+    </Space>
+  );
 }
 
 function ToggleRow({ label, desc, checked, onChange, disabled = false }) {
@@ -206,15 +246,8 @@ function formatUnixDate(timestamp, includeTime = false) {
 
 function ConfirmDialog({ title, desc, confirmText = "确认", onConfirm, onClose }) {
   return (
-    <AntModal open title={title} onCancel={onClose} footer={null} centered width={420}>
-      <div className="ant-confirm-content">
-        <div className="medal"><Warning weight="fill" /></div>
-        <p>{desc}</p>
-        <div className="dialog-actions">
-          <AntButton danger type="primary" onClick={onConfirm}>{confirmText}</AntButton>
-          <AntButton onClick={onClose}>取消</AntButton>
-        </div>
-      </div>
+    <AntModal open title={title} onCancel={onClose} onOk={onConfirm} okText={confirmText} cancelText="取消" okButtonProps={{ danger: true }} centered width={420}>
+      <p>{desc}</p>
     </AntModal>
   );
 }
@@ -223,7 +256,8 @@ function ApiAccessGate() {
   return (
     <div className="api-access-gate">
       <div className="api-access-icon"><LockKey weight="fill" /></div>
-      <h2>加载中…</h2>
+      <Spin size="large" />
+      <h2>正在验证后台权限…</h2>
     </div>
   );
 }
@@ -271,7 +305,7 @@ function AdminLogin({ state, onSubmit }) {
   return (
     <div className="login-page">
       <div className="login-panel">
-        <div className="login-brand"><span><Sparkle weight="fill" /></span><div><b>Emora 运营后台</b><small>ADMIN CONSOLE</small></div></div>
+        <div className="login-brand"><img src="/assets/emora-logo.png" alt="Emora" /><b>Emora 运营后台</b></div>
         <div className="login-copy">
           <Badge tone="yellow">内部系统</Badge>
           <h1>登录后台</h1>
@@ -283,7 +317,7 @@ function AdminLogin({ state, onSubmit }) {
           {challengeId && <Field label="6 位邮箱验证码">
             <UiInput className="input code-input" inputMode="numeric" value={code} onChange={(event) => setCode(event.target.value.replace(/\D/g, "").slice(0, 6))} placeholder="000000" autoFocus autoComplete="one-time-code" />
           </Field>}
-          {(formError || stateError) && <div className="login-error"><Warning weight="fill" />{formError || stateError}</div>}
+          {(formError || stateError) && <Alert type="error" showIcon message={formError || stateError} />}
           <AntButton type="primary" htmlType="submit" className="login-submit" loading={busy} disabled={!email.trim() || (challengeId && code.length !== 6)}>{challengeId ? "登录后台" : "发送验证码"}</AntButton>
           {challengeId && <AntButton type="text" disabled={busy} onClick={() => { setChallengeId(""); setCode(""); setFormError(""); }}>更换邮箱</AntButton>}
         </form>
@@ -326,20 +360,33 @@ function DashboardPage({ toast }) {
         ))}
       </div>
 
-      {liveSummary?.kpis ? <LiveAnalyticsKpis kpis={liveSummary.kpis} /> : <div className="panel-loading">加载中…</div>}
+      {liveSummary?.kpis ? <LiveAnalyticsKpis kpis={liveSummary.kpis} /> : <LoadingState text="正在加载仪表盘数据…" />}
     </div>
   );
 }
 
 /* ================= Token 用量统计 ================= */
 
-const TOKEN_USAGE_KEYS = {
-  total_tokens: "总 Token",
-  prompt_tokens: "输入 Token",
-  completion_tokens: "输出 Token",
-  requests: "调用次数",
-  estimated_cost: "预估成本",
+const TOKEN_USAGE_CARDS = [
+  { key: "total_tokens", label: "总 Token", tone: "blue" },
+  { key: "input_tokens", label: "输入 Token", tone: "cyan" },
+  { key: "output_tokens", label: "输出 Token", tone: "purple" },
+  { key: "reasoning_tokens", label: "推理 Token", tone: "gold" },
+  { key: "requests", label: "调用次数", tone: "green" },
+  { key: "estimated_cost", label: "预估成本", tone: "red", cost: true },
+];
+
+const TOKEN_METRIC_ALIASES = {
+  input_tokens: ["input_tokens", "prompt_tokens"],
+  output_tokens: ["output_tokens", "completion_tokens"],
 };
+
+function tokenMetric(bucket, key) {
+  const aliases = TOKEN_METRIC_ALIASES[key] || [key];
+  const value = aliases.map((alias) => bucket?.[alias]).find((item) => item !== undefined && item !== null);
+  const number = Number(value);
+  return Number.isFinite(number) ? number : 0;
+}
 
 function formatTokenNumber(value) {
   const number = Number(value);
@@ -351,27 +398,134 @@ function formatTokenCost(value) {
   return Number.isFinite(number) ? `$${number.toLocaleString("zh-CN", { minimumFractionDigits: 2, maximumFractionDigits: 4 })}` : "—";
 }
 
-function TokenUsageValue({ value, cost = false }) {
-  return <>{cost ? formatTokenCost(value) : formatTokenNumber(value)}</>;
+function tokenShare(value, total) {
+  return total > 0 ? Math.min(100, Math.max(0, (value / total) * 100)) : 0;
 }
 
-function TokenUsageChart({ trend }) {
-  const rows = Array.isArray(trend) ? trend.filter((item) => item && item.date) : [];
-  const max = Math.max(...rows.map((item) => Number(item.total_tokens) || 0), 0);
-  if (!rows.length) return <div className="empty-state">后端暂无 Token 趋势数据。</div>;
+function normalizedTokenTrend(trend, startDate, endDate) {
+  const start = dayjs(startDate);
+  const end = dayjs(endDate);
+  if (!start.isValid() || !end.isValid() || end.isBefore(start, "day")) return [];
+
+  const trendByDate = new Map(
+    (Array.isArray(trend) ? trend : [])
+      .filter((item) => item?.date)
+      .map((item) => [item.date, item]),
+  );
+  const rows = [];
+  // 后端仅返回有调用的日期；补齐空白日期，避免折线把相隔多日的数据误画成连续一天。
+  for (let date = start.startOf("day"); !date.isAfter(end, "day"); date = date.add(1, "day")) {
+    const dateKey = date.format("YYYY-MM-DD");
+    rows.push(trendByDate.get(dateKey) || { date: dateKey, total_tokens: 0 });
+  }
+  return rows;
+}
+
+function niceTokenAxisMax(value) {
+  if (value <= 0) return 1;
+  const magnitude = 10 ** Math.floor(Math.log10(value));
+  const normalized = value / magnitude;
+  const step = normalized <= 1 ? 1 : normalized <= 2 ? 2 : normalized <= 5 ? 5 : 10;
+  return step * magnitude;
+}
+
+function TokenUsageChart({ trend, startDate, endDate }) {
+  const [hoveredIndex, setHoveredIndex] = useState(null);
+  const rows = normalizedTokenTrend(trend, startDate, endDate);
+  if (!rows.length) return <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="当前日期范围不可用" />;
+
+  const width = Math.max(720, rows.length * 30);
+  const height = 292;
+  const plot = { left: 64, right: 24, top: 20, bottom: 48 };
+  const plotWidth = width - plot.left - plot.right;
+  const plotHeight = height - plot.top - plot.bottom;
+  const axisMax = niceTokenAxisMax(Math.max(...rows.map((item) => tokenMetric(item, "total_tokens")), 0));
+  const points = rows.map((item, index) => ({
+    ...item,
+    value: tokenMetric(item, "total_tokens"),
+    x: plot.left + (rows.length === 1 ? plotWidth / 2 : (index / (rows.length - 1)) * plotWidth),
+    y: plot.top + plotHeight - (tokenMetric(item, "total_tokens") / axisMax) * plotHeight,
+  }));
+  const path = points.map((point, index) => `${index === 0 ? "M" : "L"} ${point.x} ${point.y}`).join(" ");
+  const yTicks = [0, 0.25, 0.5, 0.75, 1];
+  const xTickIndexes = [...new Set([0, Math.round((rows.length - 1) * 0.25), Math.round((rows.length - 1) * 0.5), Math.round((rows.length - 1) * 0.75), rows.length - 1])];
+  const hoveredPoint = hoveredIndex === null ? null : points[hoveredIndex];
+
   return (
-    <div className="token-trend-list">
-      {rows.map((item) => {
-        const total = Number(item.total_tokens) || 0;
-        const width = max > 0 ? Math.max(3, (total / max) * 100) : 0;
-        return (
-          <div className="token-trend-row" key={item.date}>
-            <span>{item.date}</span>
-            <div className="token-trend-track"><i style={{ width: `${width}%` }} /></div>
-            <b>{formatTokenNumber(total)}</b>
+    <div className="token-line-chart-scroll">
+      <div className="token-line-chart" style={{ width }}>
+        <svg viewBox={`0 0 ${width} ${height}`} role="img" aria-label={`${startDate} 至 ${endDate} 每日总 Token 折线图`}>
+          <title>{`${startDate} 至 ${endDate} 每日总 Token 折线图`}</title>
+          {yTicks.map((ratio) => {
+            const y = plot.top + plotHeight - ratio * plotHeight;
+            return <g key={ratio}>
+              <line className="token-chart-grid" x1={plot.left} x2={width - plot.right} y1={y} y2={y} />
+              <text className="token-chart-axis-label" x={plot.left - 10} y={y + 4} textAnchor="end">{formatTokenNumber(axisMax * ratio)}</text>
+            </g>;
+          })}
+          {xTickIndexes.map((index) => (
+            <text className="token-chart-axis-label" key={rows[index].date} x={points[index].x} y={height - 15} textAnchor="middle">
+              {dayjs(rows[index].date).format("MM/DD")}
+            </text>
+          ))}
+          <path className="token-chart-line" d={path} />
+          {points.map((point, index) => (
+            <circle
+              className={`token-chart-point${hoveredIndex === index ? " is-active" : ""}`}
+              key={point.date}
+              cx={point.x}
+              cy={point.y}
+              r={hoveredIndex === index ? 5 : 3}
+              tabIndex="0"
+              aria-label={`${point.date}，总 Token ${formatTokenNumber(point.value)}`}
+              onMouseEnter={() => setHoveredIndex(index)}
+              onMouseLeave={() => setHoveredIndex(null)}
+              onFocus={() => setHoveredIndex(index)}
+              onBlur={() => setHoveredIndex(null)}
+            >
+              <title>{`${point.date}：${formatTokenNumber(point.value)} Token`}</title>
+            </circle>
+          ))}
+        </svg>
+        {hoveredPoint && (
+          <div
+            className={`token-chart-tooltip${hoveredIndex > points.length / 2 ? " is-right" : ""}`}
+            style={{ left: hoveredPoint.x, top: Math.max(hoveredPoint.y, 68) }}
+          >
+            <span>{hoveredPoint.date}</span>
+            <b>{formatTokenNumber(hoveredPoint.value)} Token</b>
           </div>
-        );
-      })}
+        )}
+      </div>
+    </div>
+  );
+}
+
+function TokenMixPanel({ summary }) {
+  const total = tokenMetric(summary, "total_tokens");
+  const rows = [
+    { key: "input_tokens", label: "输入", color: "#1677ff" },
+    { key: "output_tokens", label: "输出", color: "#722ed1" },
+    { key: "reasoning_tokens", label: "推理", color: "#d89614" },
+  ];
+  const requests = tokenMetric(summary, "requests");
+  return (
+    <div className="token-mix-panel">
+      <div className="token-average">
+        <span>单次平均消耗</span>
+        <strong>{formatTokenNumber(requests > 0 ? Math.round(total / requests) : 0)}</strong>
+        <small>Token / 次</small>
+      </div>
+      <div className="token-mix-list">
+        {rows.map((row) => {
+          const value = tokenMetric(summary, row.key);
+          const percent = tokenShare(value, total);
+          return <div className="token-mix-row" key={row.key}>
+            <div><span>{row.label}</span><b>{formatTokenNumber(value)} · {percent.toFixed(1)}%</b></div>
+            <AntProgress percent={percent} showInfo={false} strokeColor={row.color} />
+          </div>;
+        })}
+      </div>
     </div>
   );
 }
@@ -383,133 +537,20 @@ function tokenDateString(date) {
   return `${year}-${month}-${day}`;
 }
 
-function tokenDisplayDate(value) {
-  return value ? value.replaceAll("-", "/") : "选择日期";
-}
-
-function parseTokenDate(value) {
-  const [year, month, day] = value.split("-").map(Number);
-  return new Date(year, month - 1, day);
-}
-
-function getTokenCalendarDays(monthDate) {
-  const firstDay = new Date(monthDate.getFullYear(), monthDate.getMonth(), 1);
-  const firstCell = new Date(firstDay);
-  firstCell.setDate(firstDay.getDate() - firstDay.getDay());
-  return Array.from({ length: 42 }, (_, index) => {
-    const date = new Date(firstCell);
-    date.setDate(firstCell.getDate() + index);
-    return date;
-  });
-}
-
-function TokenCalendarMonth({ monthDate, startDate, endDate, today, onPick, onMoveMonth }) {
-  const days = getTokenCalendarDays(monthDate);
-  return (
-    <div className="token-calendar-month">
-      <div className="token-calendar-head">
-        <UiButton className="token-calendar-arrow" type="button" aria-label="上一个月" onClick={() => onMoveMonth(-1)}>‹</UiButton>
-        <b>{monthDate.toLocaleDateString("zh-CN", { year: "numeric", month: "long" })}</b>
-        <UiButton className="token-calendar-arrow" type="button" aria-label="下一个月" onClick={() => onMoveMonth(1)}>›</UiButton>
-      </div>
-      <div className="token-calendar-weekdays">{["日", "一", "二", "三", "四", "五", "六"].map((day) => <span key={day}>{day}</span>)}</div>
-      <div className="token-calendar-grid">
-        {days.map((date) => {
-          const value = tokenDateString(date);
-          const inCurrentMonth = date.getMonth() === monthDate.getMonth();
-          const isFuture = value > today;
-          const isStart = value === startDate;
-          const isEnd = value === endDate;
-          const inRange = startDate && endDate && value > startDate && value < endDate;
-          return (
-            <UiButton
-              key={value}
-              type="button"
-              className={`token-calendar-day${inCurrentMonth ? "" : " is-outside"}${isStart || isEnd ? " is-edge" : ""}${inRange ? " is-range" : ""}`}
-              disabled={isFuture}
-              onClick={() => onPick(value)}
-            >
-              {date.getDate()}
-            </UiButton>
-          );
-        })}
-      </div>
-    </div>
-  );
-}
-
-function TokenDateRangePicker({ startDate, endDate, today, onApply }) {
-  const [open, setOpen] = useState(false);
-  const [draftStart, setDraftStart] = useState(startDate);
-  const [draftEnd, setDraftEnd] = useState(endDate);
-  const [monthDate, setMonthDate] = useState(() => parseTokenDate(startDate));
-
-  const openPicker = () => {
-    setDraftStart(startDate);
-    setDraftEnd(endDate);
-    setMonthDate(parseTokenDate(startDate));
-    setOpen(true);
-  };
-
-  const pickDate = (value) => {
-    if (!draftStart || (draftStart && draftEnd)) {
-      setDraftStart(value);
-      setDraftEnd("");
-      return;
-    }
-    if (value < draftStart) {
-      setDraftStart(value);
-      setDraftEnd(draftStart);
-      return;
-    }
-    setDraftEnd(value);
-  };
-
-  const clear = () => {
-    setDraftStart(today);
-    setDraftEnd(today);
-  };
-
-  const confirm = () => {
-    const value = draftStart || today;
-    onApply(value, draftEnd || value);
-    setOpen(false);
-  };
-
-  return (
-    <div className="token-date-picker">
-      <div className="token-date-fields">
-        <UiButton className="token-date-field" type="button" onClick={openPicker} aria-label="开始日期">{tokenDisplayDate(startDate)}</UiButton>
-        <span className="muted">~</span>
-        <UiButton className="token-date-field" type="button" onClick={openPicker} aria-label="结束日期">{tokenDisplayDate(endDate)}</UiButton>
-      </div>
-      {open && (
-        <div className="token-calendar-popover">
-          <div className="token-calendar-months">
-            <TokenCalendarMonth monthDate={monthDate} startDate={draftStart} endDate={draftEnd} today={today} onPick={pickDate} onMoveMonth={(offset) => { const next = new Date(monthDate); next.setMonth(next.getMonth() + offset); setMonthDate(next); }} />
-            <TokenCalendarMonth monthDate={new Date(monthDate.getFullYear(), monthDate.getMonth() + 1, 1)} startDate={draftStart} endDate={draftEnd} today={today} onPick={pickDate} onMoveMonth={(offset) => { const next = new Date(monthDate); next.setMonth(next.getMonth() + offset); setMonthDate(next); }} />
-          </div>
-          <div className="token-calendar-actions">
-            <UiButton className="btn ghost sm" type="button" onClick={clear}>清除</UiButton>
-            <UiButton className="btn primary sm" type="button" onClick={confirm}>确定</UiButton>
-          </div>
-        </div>
-      )}
-    </div>
-  );
-}
-
 function TokenUsagePage({ toast, adminToken }) {
   const today = tokenDateString(new Date());
-  const [startDate, setStartDate] = useState(today);
+  const [startDate, setStartDate] = useState(() => dayjs().subtract(30, "day").format("YYYY-MM-DD"));
   const [endDate, setEndDate] = useState(today);
   const [usage, setUsage] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState("");
+  const [retryKey, setRetryKey] = useState(0);
 
   useEffect(() => {
     const controller = new AbortController();
     setLoading(true);
     setUsage(null);
+    setLoadError("");
     // 复用已有统计接口，token_usage 是向后兼容的可选响应字段；旧后端仍可正常返回原统计数据。
     adminApi.analytics.query({
       tab: "all",
@@ -520,30 +561,62 @@ function TokenUsagePage({ toast, adminToken }) {
     }, { signal: controller.signal })
       .then((data) => setUsage(data?.token_usage || null))
       .catch((error) => {
-        if (error.name !== "AbortError") toast(`Token 统计请求失败：${error.message}`);
+        if (error.name !== "AbortError") {
+          setLoadError(error.message);
+          toast(`Token 统计请求失败：${error.message}`);
+        }
       })
-      .finally(() => setLoading(false));
+      .finally(() => { if (!controller.signal.aborted) setLoading(false); });
     return () => controller.abort();
-  }, [startDate, endDate, adminToken]);
+  }, [startDate, endDate, adminToken, retryKey]);
 
   const summary = usage?.summary || {};
   const models = Array.isArray(usage?.by_model) ? usage.by_model : [];
   const types = Array.isArray(usage?.by_type) ? usage.by_type : [];
   const hasUsage = Boolean(usage && (usage.summary || usage.trend || usage.by_model || usage.by_type));
+  const totalTokens = tokenMetric(summary, "total_tokens");
+  const sortedModels = [...models].sort((left, right) => tokenMetric(right, "total_tokens") - tokenMetric(left, "total_tokens"));
+  const sortedTypes = [...types].sort((left, right) => tokenMetric(right, "total_tokens") - tokenMetric(left, "total_tokens"));
+  const rangeValue = [dayjs(startDate), dayjs(endDate)];
+  const rangePresets = [
+    { label: "今天", value: [dayjs(), dayjs()] },
+    { label: "近 7 天", value: [dayjs().subtract(6, "day"), dayjs()] },
+    { label: "近 30 天", value: [dayjs().subtract(29, "day"), dayjs()] },
+    { label: "向前一个月", value: [dayjs().subtract(30, "day"), dayjs()] },
+  ];
+  const disableRangeDate = (current, info) => {
+    if (current.endOf("day").isAfter(dayjs().endOf("day"))) return true;
+    return Boolean(info.from && Math.abs(current.startOf("day").diff(info.from.startOf("day"), "day")) > 30);
+  };
 
   return (
-    <div className="section-gap">
-      <div className="page-intro-row">
-        <div>
-          <p className="page-desc">按时间范围查看模型调用量、输入输出消耗与成本分布。</p>
-          <div className="token-safety-note"><Info /> 仅展示聚合统计，不展示 Prompt、回复内容或任何密钥。</div>
+    <div className="section-gap token-usage-page">
+      <Card
+        className="token-overview-card"
+        title="Token 用量概览"
+        sub={`${startDate.replaceAll("-", "/")} — ${endDate.replaceAll("-", "/")} · Asia/Shanghai`}
+        actions={<DatePicker.RangePicker
+          value={rangeValue}
+          presets={rangePresets}
+          format="YYYY-MM-DD"
+          allowClear={false}
+          disabledDate={disableRangeDate}
+          onChange={(dates) => {
+            if (!dates?.[0] || !dates?.[1]) return;
+            setStartDate(dates[0].format("YYYY-MM-DD"));
+            setEndDate(dates[1].format("YYYY-MM-DD"));
+          }}
+        />}
+      >
+        <div className="token-overview-copy">
+          <p>查看模型调用规模、输入输出结构、推理消耗与预估成本，快速定位主要消耗来源。</p>
+          <div className="token-safety-note"><Info />仅展示聚合数据，不读取 Prompt、回复内容或密钥。</div>
         </div>
-        <div className="filter-bar">
-          <TokenDateRangePicker startDate={startDate} endDate={endDate} today={today} onApply={(nextStart, nextEnd) => { setStartDate(nextStart); setEndDate(nextEnd); }} />
-        </div>
-      </div>
+      </Card>
 
-      {loading ? <div className="panel-loading">加载中…</div> : !hasUsage ? (
+      {loading ? <LoadingState text="正在加载 Token 统计…" /> : loadError ? (
+        <Alert type="error" showIcon message="Token 统计加载失败" description={loadError} action={<AntButton onClick={() => setRetryKey((value) => value + 1)}>重新加载</AntButton>} />
+      ) : !hasUsage ? (
         <Card title="Token 用量统计" sub="当前统计接口未返回 token_usage 字段">
           <div className="token-contract-empty">
             <div className="api-access-icon"><ChartBar weight="fill" /></div>
@@ -553,29 +626,31 @@ function TokenUsagePage({ toast, adminToken }) {
           </div>
         </Card>
       ) : <>
-        <div className="kpi-grid token-kpi-grid">
-          {Object.entries(TOKEN_USAGE_KEYS).map(([key, label]) => (
-            <div className="kpi-card" key={key}>
-              <div className="kpi-label"><ChartBar />{label}</div>
-              <div className="kpi-value"><TokenUsageValue value={summary[key]} cost={key === "estimated_cost"} /></div>
-              {key === "total_tokens" && <div className="kpi-delta">输入 {formatTokenNumber(summary.prompt_tokens)} · 输出 {formatTokenNumber(summary.completion_tokens)}</div>}
-            </div>
+        <div className="token-summary-grid">
+          {TOKEN_USAGE_CARDS.map((card) => (
+            <AntCard className={`token-summary-card is-${card.tone}`} key={card.key}>
+              <span>{card.label}</span>
+              <strong>{card.cost ? formatTokenCost(tokenMetric(summary, card.key)) : formatTokenNumber(tokenMetric(summary, card.key))}</strong>
+              {card.key === "total_tokens" && <small>统计期内成功调用</small>}
+            </AntCard>
           ))}
         </div>
-        <div className="grid-2">
-          <Card title="Token 消耗趋势" sub="按日汇总">
-            <TokenUsageChart trend={usage.trend} />
-          </Card>
-          <Card title="模型消耗分布" sub="按调用模型聚合">
-            {models.length ? <div className="table-wrap"><UiTable className="table compact"><thead><tr><th>模型</th><th>调用次数</th><th>总 Token</th><th>预估成本</th></tr></thead><tbody>
-              {models.map((item) => <tr key={`${item.provider || "default"}-${item.model}`}><td><b>{item.model || "—"}</b><div className="muted small">{item.provider || "未标注 Provider"}</div></td><td className="num">{formatTokenNumber(item.requests)}</td><td className="num">{formatTokenNumber(item.total_tokens)}</td><td className="num">{formatTokenCost(item.estimated_cost)}</td></tr>)}
-            </tbody></UiTable></div> : <div className="empty-state">后端暂无模型维度数据。</div>}
-          </Card>
+
+        <div className="token-insight-grid">
+          <Card title="消耗结构" sub="输入、输出与推理 Token 占比"><TokenMixPanel summary={summary} /></Card>
+          <Card title="每日 Token 趋势" sub={`${startDate} 至 ${endDate} · 按天汇总总 Token`}><TokenUsageChart trend={usage.trend} startDate={startDate} endDate={endDate} /></Card>
         </div>
+
+        <Card title="模型消耗排行" sub={`共 ${models.length} 个模型 · 按总 Token 降序`}>
+          {sortedModels.length ? <div className="table-wrap"><UiTable className="table compact" tableLayout="auto" scroll={{ x: 900 }}><thead><tr><th>模型</th><th>Provider</th><th>调用次数</th><th>输入</th><th>输出</th><th>推理</th><th>总 Token / 占比</th><th>预估成本</th></tr></thead><tbody>
+            {sortedModels.map((item) => { const itemTotal = tokenMetric(item, "total_tokens"); const percent = tokenShare(itemTotal, totalTokens); return <tr key={`${item.provider || "default"}-${item.model}`}><td><b>{item.model || "—"}</b></td><td className="muted">{item.provider || "未标注"}</td><td className="num">{formatTokenNumber(tokenMetric(item, "requests"))}</td><td className="num">{formatTokenNumber(tokenMetric(item, "input_tokens"))}</td><td className="num">{formatTokenNumber(tokenMetric(item, "output_tokens"))}</td><td className="num">{formatTokenNumber(tokenMetric(item, "reasoning_tokens"))}</td><td><div className="token-table-share"><b>{formatTokenNumber(itemTotal)}</b><AntProgress percent={percent} size="small" showInfo={false} /></div></td><td className="num">{formatTokenCost(tokenMetric(item, "estimated_cost"))}</td></tr>; })}
+          </tbody></UiTable></div> : <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="后端暂无模型维度数据" />}
+        </Card>
+
         <Card title="业务类型消耗" sub="用于识别聊天、图片、视频等调用成本">
-          {types.length ? <div className="table-wrap"><UiTable className="table compact"><thead><tr><th>业务类型</th><th>调用次数</th><th>输入 Token</th><th>输出 Token</th><th>总 Token</th><th>预估成本</th></tr></thead><tbody>
-            {types.map((item) => <tr key={item.type}><td><Badge tone="yellow">{item.type || "未标注"}</Badge></td><td className="num">{formatTokenNumber(item.requests)}</td><td className="num">{formatTokenNumber(item.prompt_tokens)}</td><td className="num">{formatTokenNumber(item.completion_tokens)}</td><td className="num">{formatTokenNumber(item.total_tokens)}</td><td className="num">{formatTokenCost(item.estimated_cost)}</td></tr>)}
-          </tbody></UiTable></div> : <div className="empty-state">后端暂无业务类型数据。</div>}
+          {sortedTypes.length ? <div className="table-wrap"><UiTable className="table compact" tableLayout="auto" scroll={{ x: 780 }}><thead><tr><th>业务类型</th><th>调用次数</th><th>输入 Token</th><th>输出 Token</th><th>推理 Token</th><th>总 Token</th><th>占比</th><th>预估成本</th></tr></thead><tbody>
+            {sortedTypes.map((item) => { const itemTotal = tokenMetric(item, "total_tokens"); return <tr key={item.type}><td><Tag color="blue">{item.type || "未标注"}</Tag></td><td className="num">{formatTokenNumber(tokenMetric(item, "requests"))}</td><td className="num">{formatTokenNumber(tokenMetric(item, "input_tokens"))}</td><td className="num">{formatTokenNumber(tokenMetric(item, "output_tokens"))}</td><td className="num">{formatTokenNumber(tokenMetric(item, "reasoning_tokens"))}</td><td className="num"><b>{formatTokenNumber(itemTotal)}</b></td><td className="num">{tokenShare(itemTotal, totalTokens).toFixed(1)}%</td><td className="num">{formatTokenCost(tokenMetric(item, "estimated_cost"))}</td></tr>; })}
+          </tbody></UiTable></div> : <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="后端暂无业务类型数据" />}
         </Card>
       </>}
     </div>
@@ -685,7 +760,18 @@ function NewCharacterDialog({ onClose, onCreate }) {
   };
 
   return (
-    <AntModal open title="新增角色" width={520} footer={null} maskClosable={!submitting} closable={!submitting} onCancel={onClose}>
+    <AntModal
+      open
+      title="新增角色"
+      width={520}
+      maskClosable={!submitting}
+      closable={!submitting}
+      onCancel={onClose}
+      footer={[
+        <AntButton key="cancel" disabled={submitting} onClick={onClose}>取消</AntButton>,
+        <AntButton key="submit" type="primary" loading={submitting} disabled={!valid} onClick={confirm}>创建并进入编辑器</AntButton>,
+      ]}
+    >
         <Field label="角色编码 char_code *"><UiInput className="input" maxLength={64} value={charCode} onChange={(e) => setCharCode(e.target.value)} placeholder="如：char_night_walker" autoFocus /></Field>
         <div style={{ marginTop: 12 }}>
         <Field label="名称 *"><UiInput className="input" value={name} onChange={(e) => setName(e.target.value)} placeholder="如：星野" /></Field>
@@ -705,19 +791,10 @@ function NewCharacterDialog({ onClose, onCreate }) {
         <div style={{ marginTop: 12 }}>
           <div className="field">
             <span>封面（本地上传）*</span>
-            <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-              {cover
-                ? <img src={cover} alt="封面预览" style={{ width: 56, height: 72, objectFit: "cover", borderRadius: 10 }} />
-                : <div style={{ width: 56, height: 72, borderRadius: 10, background: "var(--surface-2)", border: "1px dashed var(--surface-3)" }} />}
-              <Upload accept="image/*" showUploadList={false} beforeUpload={(file) => { setCoverFile(file); setCover(URL.createObjectURL(file)); return false; }}><AntButton size="small">选择图片</AntButton></Upload>
-            </div>
+            <ImageUploadCard src={cover} alt="封面预览" onSelect={(file) => { setCoverFile(file); setCover(URL.createObjectURL(file)); }} />
           </div>
         </div>
-        <div className="dialog-actions" style={{ marginTop: 18, gridTemplateColumns: "1fr 1fr", display: "grid", gap: 10 }}>
-          <AntButton type="primary" loading={submitting} disabled={!valid} onClick={confirm}>创建并进入编辑器</AntButton>
-          <AntButton disabled={submitting} onClick={onClose}>取消</AntButton>
-        </div>
-        {submitError && <div className="login-error" style={{ marginTop: 12 }}><Warning weight="fill" />{submitError}</div>}
+        {submitError && <Alert type="error" showIcon message={submitError} style={{ marginTop: 12 }} />}
         <p className="muted small" style={{ margin: "10px 0 0", textAlign: "center" }}>新角色以「草稿」状态创建</p>
     </AntModal>
   );
@@ -737,16 +814,26 @@ function CharacterListPage({ list, onEdit, onCreate, onImport }) {
       )}
     >
       <div className="table-wrap">
-        <UiTable className="table character-list-table">
+        <UiTable className="table character-list-table" tableLayout="auto" scroll={{ x: "max-content" }}>
           <thead>
-            <tr><th>角色</th><th>状态</th><th>ID</th><th>标签</th><th>今日聊天用户数</th><th>消息次数</th><th>卡曝光 pv/uv</th><th>生成提交 → 成功率</th><th>操作</th></tr>
+            <tr><th>ID</th><th>角色</th><th>状态</th><th>标签</th><th>今日聊天用户数</th><th>消息次数</th><th>卡曝光 pv/uv</th><th>生成提交 → 成功率</th><th>操作</th></tr>
           </thead>
           <tbody>
             {list.map((c) => (
               <tr key={c.id} className="clickable" onClick={() => onEdit(c)}>
+                <td className="muted">{c.id}</td>
                 <td>
                   <div className="character-list-role">
-                    <img src={c.image} alt={c.name} style={{ width: 40, height: 40, borderRadius: 10, objectFit: "cover" }} />
+                    {/* 使用 Ant Design 头像统一图片加载与失败兜底，放大后便于在列表中辨识角色。 */}
+                    <Avatar
+                      className="character-list-avatar"
+                      shape="square"
+                      size={80}
+                      src={c.image || undefined}
+                      alt={c.name}
+                    >
+                      {c.name?.trim().charAt(0) || "?"}
+                    </Avatar>
                     <div className="character-list-role-copy"><b>{c.name}</b>{c.subtitle && <div className="muted character-list-summary" title={c.subtitle}>{c.subtitle}</div>}</div>
                   </div>
                 </td>
@@ -754,14 +841,13 @@ function CharacterListPage({ list, onEdit, onCreate, onImport }) {
                   <Badge tone={c.status === "草稿" ? "yellow" : "green"}>{c.status}</Badge>
                   <div className="character-status-note">{c.status === "草稿" ? "未影响线上版本" : "C 端可见"}</div>
                 </td>
-                <td className="muted">{c.id}</td>
                 <td><div className="pill-row character-list-tags">{c.tags.slice(0, 4).map((t) => <span className="tag-pill" key={t}>{t}</span>)}</div></td>
                 <td className="num">{c.chats.toLocaleString()}</td>
                 <td className="num">{c.msgCount.toLocaleString()}<div className="muted" style={{ fontSize: 11 }}>人均 {c.msgPer} 轮</div></td>
                 <td className="num">{c.expPv.toLocaleString()} / {c.expUv.toLocaleString()}</td>
                 <td className="num">{c.genSubmit.toLocaleString()} → {c.genRate}</td>
                 <td>
-                  <UiButton className="btn sm" onClick={(e) => { e.stopPropagation(); onEdit(c); }}>编辑</UiButton>
+                  <UiButton size="small" className="btn sm" onClick={(e) => { e.stopPropagation(); onEdit(c); }}>编辑</UiButton>
                 </td>
               </tr>
             ))}
@@ -1157,6 +1243,12 @@ function CharacterEditorPage({ character, onBack, toast, onStatusChange }) {
     setProfile((value) => ({ ...value, tags: [...value.tags, tag] }));
     setTagDraft("");
   };
+  const confirmProfileTag = (event) => {
+    // 中文输入法确认候选词时也会触发回车，需要等待组合输入结束后再添加标签。
+    if (event?.nativeEvent?.isComposing) return;
+    event?.preventDefault();
+    addProfileTag();
+  };
   const deleteProfileTag = (tag) => {
     setProfile((value) => ({ ...value, tags: value.tags.filter((item) => item !== tag) }));
   };
@@ -1175,7 +1267,10 @@ function CharacterEditorPage({ character, onBack, toast, onStatusChange }) {
   return (
     <div>
       <div className="editor-toolbar">
-        <UiButton className="btn" onClick={onBack}><ArrowLeft />返回列表</UiButton>
+        <Breadcrumb items={[
+          { title: <a href="/characters" onClick={(event) => { event.preventDefault(); onBack(); }}>角色管理</a> },
+          { title: `编辑 ${character.name}` },
+        ]} />
         <Badge tone={stage === "草稿" ? "yellow" : "green"}>{stage}</Badge>
         <span className="editor-stage-note">
           {stage === "草稿" ? "修改仅保存在草稿，上架前不会影响 C 端" : "当前为线上版本，可直接编辑；保存草稿不会影响 C 端"}
@@ -1187,6 +1282,10 @@ function CharacterEditorPage({ character, onBack, toast, onStatusChange }) {
         <UiButton className="btn" onClick={openVersions}>版本记录</UiButton>
         <UiButton className="btn" onClick={() => save()}>保存草稿</UiButton>
         <UiButton className="btn primary" onClick={publish}>上架</UiButton>
+      </div>
+
+      <div className="editor-tabs">
+        <Tabs activeKey={tab} items={tabs.map(([key, label]) => ({ key, label }))} onChange={setTab} />
       </div>
 
       <div className="editor-layout">
@@ -1205,8 +1304,6 @@ function CharacterEditorPage({ character, onBack, toast, onStatusChange }) {
         </aside>
 
         <div className="section-gap">
-          <Segmented value={tab} options={tabs.map(([value, label]) => ({ value, label }))} onChange={setTab} />
-
           {tab === "basic" && (
             <Card title="基础信息" sub="角色数据对应 chara_card_v2 规范（spec: chara_card_v2 / spec_version 2.0）">
               <Field label="名称 name *"><UiInput className="input" value={profile.name} onChange={(event) => setProfile((value) => ({ ...value, name: event.target.value }))} readOnly={isReadOnly} /></Field>
@@ -1221,10 +1318,10 @@ function CharacterEditorPage({ character, onBack, toast, onStatusChange }) {
                     ))}
                   </div>
                   {!isReadOnly && (
-                    <div style={{ display: "flex", gap: 8 }}>
-                      <UiInput className="input" value={tagDraft} placeholder="输入标签后添加" onChange={(event) => setTagDraft(event.target.value)} onKeyDown={(event) => { if (event.key === "Enter") { event.preventDefault(); addProfileTag(); } }} />
+                    <Space.Compact className="character-tag-entry">
+                      <UiInput className="input" value={tagDraft} placeholder="输入标签，回车添加" onChange={(event) => setTagDraft(event.target.value)} onPressEnter={confirmProfileTag} />
                       <UiButton type="button" className="btn sm" onClick={addProfileTag} disabled={!tagDraft.trim()}>+ 添加标签</UiButton>
-                    </div>
+                    </Space.Compact>
                   )}
                 </Field>
               </div>
@@ -1239,17 +1336,16 @@ function CharacterEditorPage({ character, onBack, toast, onStatusChange }) {
                 <Field label="角色备注 creator_notes"><UiTextArea className="textarea" value={profile.creatorNotes} onChange={(event) => setProfile((value) => ({ ...value, creatorNotes: event.target.value }))} readOnly={isReadOnly} placeholder="补充角色的运营备注…" /></Field>
               </div>
               <div style={{ marginTop: 14 }}>
-                <div className="field"><span>封面 avatar（本地上传）</span><div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-                  <img src={cover} alt="封面预览" style={{ width: 56, height: 72, objectFit: "cover", borderRadius: 10 }} />
-                  <Upload accept="image/*" disabled={isReadOnly} showUploadList={false} beforeUpload={(file) => { changeCover(file); return false; }}><AntButton size="small">更换图片</AntButton></Upload>
-                </div></div>
+                <Field label="封面 avatar（本地上传）">
+                  <ImageUploadCard src={cover} alt="封面预览" disabled={isReadOnly} onSelect={changeCover} />
+                </Field>
               </div>
             </Card>
           )}
 
           {tab === "basic" && (
             <Card title="开场白 / Greetings" sub="主开场 + 最多 5 条备选开场；每条都应提供一个不同的对话起点">
-              <div className="hint-bar greeting-hint"><Info />开场白需要直接进入场景，用角色自己的声音给用户一个可回应的动作、问题或选择。</div>
+              <Alert type="info" showIcon message="开场白需要直接进入场景，用角色自己的声音给用户一个可回应的动作、问题或选择。" />
               {greetings.map((g, index) => (
                 <div className="greeting-card" key={g.id}>
                   <header>
@@ -1272,28 +1368,29 @@ function CharacterEditorPage({ character, onBack, toast, onStatusChange }) {
           )}
 
           {tab === "persona" && (
-            <Card title="人设设定" sub="chara_card_v2 规范字段 · 组装顺序从上到下">
+            <Card className="persona-settings-card" title="人设设定" sub="chara_card_v2 规范字段 · 组装顺序从上到下">
               <div className="persona-block">
                 <header><b>Description / 角色简介</b><span className="muted small">介绍角色身份、背景和整体定位</span><span className="order">PROMPT SEGMENT 1</span></header>
-                <UiTextArea className="textarea" maxLength={500} value={profile.description} onChange={(event) => setProfile((value) => ({ ...value, description: event.target.value }))} readOnly={isReadOnly} />
+                <UiTextArea className="textarea" autoSize={{ minRows: 2, maxRows: 16 }} showCount value={profile.description} onChange={(event) => setProfile((value) => ({ ...value, description: event.target.value }))} readOnly={isReadOnly} />
               </div>
               <div className="persona-block">
                 <header><b>Personality / 人格设定</b><span className="muted small">定义性格、情绪表达、行为倾向和语气</span><span className="order">PROMPT SEGMENT 2</span></header>
-                <UiTextArea className="textarea" value={profile.personality} onChange={(event) => setProfile((value) => ({ ...value, personality: event.target.value }))} readOnly={isReadOnly} placeholder="描述角色的性格、情绪表达、行为倾向和语气…" />
+                <UiTextArea className="textarea" autoSize={{ minRows: 2, maxRows: 16 }} value={profile.personality} onChange={(event) => setProfile((value) => ({ ...value, personality: event.target.value }))} readOnly={isReadOnly} placeholder="描述角色的性格、情绪表达、行为倾向和语气…" />
               </div>
               <div className="persona-block">
                 <header><b>Scenario / 场景设定</b><span className="muted small">定义用户与 AI 的关系、身份和聊天背景</span><span className="order">PROMPT SEGMENT 3</span></header>
-                <UiTextArea className="textarea" value={profile.scenario} onChange={(event) => setProfile((value) => ({ ...value, scenario: event.target.value }))} readOnly={isReadOnly} placeholder="描述用户与 AI 的关系、身份和聊天背景…" />
+                <UiTextArea className="textarea" autoSize={{ minRows: 2, maxRows: 16 }} value={profile.scenario} onChange={(event) => setProfile((value) => ({ ...value, scenario: event.target.value }))} readOnly={isReadOnly} placeholder="描述用户与 AI 的关系、身份和聊天背景…" />
               </div>
               <div className="persona-block">
                 <header><b>Avatar notes / 视觉备注</b><span className="muted small">内部可见，不进入模型</span></header>
-                <UiTextArea className="textarea" value={profile.avatarNotes} onChange={(event) => setProfile((value) => ({ ...value, avatarNotes: event.target.value }))} readOnly={isReadOnly} />
+                <UiTextArea className="textarea" autoSize={{ minRows: 2, maxRows: 16 }} value={profile.avatarNotes} onChange={(event) => setProfile((value) => ({ ...value, avatarNotes: event.target.value }))} readOnly={isReadOnly} />
               </div>
             </Card>
           )}
 
           {tab === "rules" && (
             <Card
+              className="rules-settings-card"
               title="对话规则"
               sub="system_prompt 全局可编辑 · 与角色内容一起保存草稿并在上架后生效"
             >
@@ -1302,17 +1399,19 @@ function CharacterEditorPage({ character, onBack, toast, onStatusChange }) {
                 <UiTextArea
                   className="textarea prompt-textarea"
                   value={platformSystemPrompt}
+                  autoSize={{ minRows: 4, maxRows: 24 }}
                   maxLength={32000}
                   disabled={platformPromptLoading}
                   onChange={(e) => setPlatformSystemPrompt(e.target.value)}
                 />
                 <div className="greeting-foot"><span>修改后请点击顶部“保存草稿”或“上架”提交</span></div>
               </div>
-              <div className="persona-block" style={{ marginTop: 12 }}>
+              <div className="persona-block">
                 <header><b>历史后指令 post_history_instructions</b><span className="muted small">注入对话历史之后、生成回复之前的补充指令</span><span className="order">PROMPT SEGMENT 4</span></header>
                 <UiTextArea
                   className="textarea prompt-textarea"
                   value={prompt.en || prompt.zh}
+                  autoSize={{ minRows: 4, maxRows: 24 }}
                   maxLength={32000}
                   readOnly={isReadOnly}
                   placeholder="输入角色对话规则…"
@@ -1329,7 +1428,7 @@ function CharacterEditorPage({ character, onBack, toast, onStatusChange }) {
 
           {tab === "examples" && (
             <Card title="示例对话 / mes_example" sub="通过具体问答示范角色的回复方式；每组包含一条用户消息和一条角色回复">
-              <div className="hint-bar greeting-hint"><Info />示例对话会作为角色定义的一部分提交给后端，建议使用真实、具体的对话场景。</div>
+              <Alert type="info" showIcon message="示例对话会作为角色定义的一部分提交给后端，建议使用真实、具体的对话场景。" />
               {mesExamples.map((example, index) => {
                 const userField = locale === "zh" ? "zhUser" : "enUser";
                 const characterField = locale === "zh" ? "zhCharacter" : "enCharacter";
@@ -1410,7 +1509,7 @@ function CharacterEditorPage({ character, onBack, toast, onStatusChange }) {
                     <td>v{version.ver}</td>
                     <td><Badge tone={version.state === "published" ? "green" : "gray"}>{version.state}</Badge></td>
                     <td className="muted">{version.created_at || "—"}</td>
-                    <td><UiButton className="btn sm" disabled={version.state !== "published"} onClick={() => rollbackVersion(version)}>回滚到此版本</UiButton></td>
+                    <td><UiButton size="small" className="btn sm" disabled={version.state !== "published"} onClick={() => rollbackVersion(version)}>回滚到此版本</UiButton></td>
                   </tr>
                 ))}</tbody>
               </UiTable>
@@ -1428,13 +1527,18 @@ function AddPresetDialog({ mode, onClose, onAdd }) {
   const [tag, setTag] = useState("");
   const [promptEn, setPromptEn] = useState("");
   return (
-    <AntModal open title={`新增${mode === "photo" ? "照片" : "视频"}预设`} width={440} footer={null} onCancel={onClose}>
+    <AntModal
+      open
+      title={`新增${mode === "photo" ? "照片" : "视频"}预设`}
+      width={680}
+      onCancel={onClose}
+      footer={[
+        <AntButton key="cancel" onClick={onClose}>取消</AntButton>,
+        <AntButton key="submit" type="primary" disabled={!tag.trim() || !promptEn.trim()} onClick={() => onAdd(tag.trim(), promptEn.trim())}>确认新增</AntButton>,
+      ]}
+    >
         <Field label="标签名 *"><UiInput className="input" value={tag} maxLength={64} onChange={(e) => setTag(e.target.value)} placeholder="如：胶片感" /></Field>
-        <div style={{ marginTop: 12 }}><Field label="英文提示词 *"><UiTextArea className="textarea" maxLength={4096} value={promptEn} onChange={(e) => setPromptEn(e.target.value)} /></Field></div>
-        <div style={{ marginTop: 18, display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
-          <AntButton type="primary" disabled={!tag.trim() || !promptEn.trim()} onClick={() => onAdd(tag.trim(), promptEn.trim())}>确认新增</AntButton>
-          <AntButton onClick={onClose}>取消</AntButton>
-        </div>
+        <div style={{ marginTop: 12 }}><Field label="英文提示词 *"><UiTextArea className="textarea" autoSize={{ minRows: 6, maxRows: 16 }} maxLength={4096} value={promptEn} onChange={(e) => setPromptEn(e.target.value)} /></Field></div>
     </AntModal>
   );
 }
@@ -1572,7 +1676,7 @@ function PresetsPage({ toast, adminToken }) {
                 <td><UiInput className="input" value={p.tag} maxLength={64} aria-label="标签名" onChange={(e) => updatePreset(mode, p.id, "tag", e.target.value)} /></td>
                 <td><UiInput className="input" value={p.promptEn} maxLength={4096} aria-label="英文提示词" onChange={(e) => updatePreset(mode, p.id, "promptEn", e.target.value)} /></td>
                 <td><Switch checked={p.active} onChange={(value) => setPresetStatus(mode, p, value)} label={p.tag} /></td>
-                <td><div style={{ display: "flex", gap: 6 }}><UiButton className="btn sm" disabled={!p.tag.trim() || !p.promptEn.trim()} onClick={() => savePreset(mode, p, i)}>保存</UiButton><UiButton className="btn sm danger-ghost" onClick={() => setConfirmDel({ mode, id: p.id, tag: p.tag })}>删除</UiButton></div></td>
+                <td><div style={{ display: "flex", gap: 6 }}><UiButton size="small" className="btn sm" disabled={!p.tag.trim() || !p.promptEn.trim()} onClick={() => savePreset(mode, p, i)}>保存</UiButton><UiButton size="small" className="btn sm danger-ghost" onClick={() => setConfirmDel({ mode, id: p.id, tag: p.tag })}>删除</UiButton></div></td>
               </tr>
             ))}
           </tbody>
@@ -1583,8 +1687,8 @@ function PresetsPage({ toast, adminToken }) {
 
   return (
     <div className="section-gap">
-      <div className="hint-bar"><Info />视觉资产（封面 / Gallery / 私密照片）已在「角色管理 → 角色编辑器 → 视觉资产」Tab 中管理。</div>
-      <Segmented value={tab} options={[["manage", "预设管理"], ["system", "系统预设"], ["price", "生成价格"], ["quota", "免费额度"], ["fallback", "兜底话术"]].map(([value, label]) => ({ value, label }))} onChange={setTab} />
+      <Alert type="info" showIcon message="视觉资产（封面 / Gallery / 私密照片）已在「角色管理 → 角色编辑器 → 视觉资产」Tab 中管理。" />
+      <Tabs activeKey={tab} items={[["manage", "预设管理"], ["system", "系统预设"], ["price", "生成价格"], ["quota", "免费额度"], ["fallback", "兜底话术"]].map(([key, label]) => ({ key, label }))} onChange={setTab} />
 
       {tab === "manage" && (
         <>
@@ -1594,7 +1698,7 @@ function PresetsPage({ toast, adminToken }) {
       )}
 
       {tab === "system" && (
-        systemPromptsLoading ? <div className="empty-state">正在加载系统预设…</div> : (
+        systemPromptsLoading ? <LoadingState text="正在加载系统预设…" /> : (
           <div className="grid-2 system-prompt-grid">
             {[["image", "图片系统预设", "作为图片生成的全局系统预设，仅在客户端使用自定义提示词时自动加入。"], ["video", "视频系统预设", "作为视频生成的全局系统预设，仅在客户端使用自定义提示词时自动加入。"]].map(([type, title, description]) => (
               <Card key={type} title={title} actions={
@@ -1614,15 +1718,15 @@ function PresetsPage({ toast, adminToken }) {
       )}
 
       {tab === "price" && (
-        <Card title="生成价格"><div className="empty-state">暂无对应后台接口，未展示任何本地数据。</div></Card>
+        <Card title="生成价格"><Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="暂无对应后台接口，未展示任何本地数据" /></Card>
       )}
 
       {tab === "quota" && (
-        <Card title="免费消息额度"><div className="empty-state">暂无对应后台接口，未展示任何本地数据。</div></Card>
+        <Card title="免费消息额度"><Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="暂无对应后台接口，未展示任何本地数据" /></Card>
       )}
 
       {tab === "fallback" && (
-        <Card title="兜底话术"><div className="empty-state">暂无对应后台接口，未展示任何本地数据。</div></Card>
+        <Card title="兜底话术"><Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="暂无对应后台接口，未展示任何本地数据" /></Card>
       )}
 
       {showAdd && <AddPresetDialog mode={showAdd} onClose={() => setShowAdd(null)} onAdd={addPreset} />}
@@ -1679,6 +1783,8 @@ function UsersPage({ toast, adminToken }) {
   const [txFilter, setTxFilter] = useState("全部");
   const [adminBusyUserId, setAdminBusyUserId] = useState("");
   const [adminConfirmUser, setAdminConfirmUser] = useState(null);
+  const [detailLoading, setDetailLoading] = useState(false);
+  const detailRequest = useRef(null);
 
   useEffect(() => {
     const controller = new AbortController();
@@ -1696,7 +1802,8 @@ function UsersPage({ toast, adminToken }) {
           nick: user.nickname || "未设置昵称",
           registered: formatUnixDate(user.registered_at),
           member: user.is_vip ? "有效会员" : "非会员",
-          memberUntil: user.is_vip ? formatUnixDate(user.vip_expires_at) : "—",
+          // 即使会员已经过期，也保留接口返回的历史到期时间供运营核对。
+          memberUntil: formatUnixDate(user.vip_expires_at),
           coins: user.coin_balance || 0,
           sessions: user.session_count ?? "—",
           status: user.status === "normal" ? "正常" : user.status,
@@ -1767,6 +1874,9 @@ function UsersPage({ toast, adminToken }) {
   const openWalletRecords = async (user) => {
     setRecordsUser(user);
     setSelected(null);
+    // 从列表直达其他用户流水时先清空旧数据，避免请求完成前短暂显示上一位用户的记录。
+    setRecords([]);
+    setTxFilter("全部");
     setView("records");
     try {
       const data = await adminApi.users.walletHistory({ user_id: user.id, page_size: 50 });
@@ -1783,29 +1893,50 @@ function UsersPage({ toast, adminToken }) {
   };
 
   const openUser = async (user) => {
+    detailRequest.current?.abort();
+    const controller = new AbortController();
+    detailRequest.current = controller;
+    // 先使用列表已有数据打开弹窗，再异步补齐详情，避免网络延迟造成点击后无反馈。
+    setSelected(user);
+    setDetailLoading(true);
     try {
-      const data = await adminApi.users.detail({ user_id: user.id });
-      setSelected({
-        ...user,
-        userUuid: data.user_uuid || data.profile?.user_uuid || user.userUuid,
-        email: data.profile?.email || user.email || "—",
-        nick: data.profile?.nickname || user.nick,
-        gender: data.profile?.gender || "—",
-        ageRange: data.profile?.age_range || "—",
-        bio: data.profile?.bio || "—",
-        channel: data.profile?.registration_channel || "—",
-        registered: formatUnixDate(data.profile?.registered_at),
-        member: data.membership?.is_vip ? "有效会员" : "非会员",
-        memberUntil: data.membership?.is_vip ? formatUnixDate(data.membership?.vip_expires_at) : "—",
-        coins: data.wallet?.balance || 0,
-        sessions: data.session_count ?? "—",
-        status: data.status === "normal" ? "正常" : data.status,
-        // 兼容后端灰度发布期间的旧详情响应，未返回字段时沿用列表状态。
-        isAdmin: data.is_admin === undefined ? user.isAdmin : Boolean(data.is_admin),
-      });
+      const data = await adminApi.users.detail({ user_id: user.id }, { signal: controller.signal });
+      if (controller.signal.aborted) return;
+      setSelected((current) => current?.id === user.id ? {
+          ...user,
+          userUuid: data.user_uuid || data.profile?.user_uuid || user.userUuid,
+          email: data.profile?.email || user.email || "—",
+          nick: data.profile?.nickname || user.nick,
+          gender: data.profile?.gender || "—",
+          ageRange: data.profile?.age_range || "—",
+          bio: data.profile?.bio || "—",
+          channel: data.profile?.registration_channel || "—",
+          registered: formatUnixDate(data.profile?.registered_at),
+          member: data.membership?.is_vip === undefined ? user.member : data.membership.is_vip ? "有效会员" : "非会员",
+          memberUntil: data.membership && Object.hasOwn(data.membership, "vip_expires_at")
+            ? formatUnixDate(data.membership.vip_expires_at)
+            : user.memberUntil,
+          coins: data.wallet?.balance || 0,
+          sessions: data.session_count ?? "—",
+          status: data.status === "normal" ? "正常" : data.status,
+          // 兼容后端灰度发布期间的旧详情响应，未返回字段时沿用列表状态。
+          isAdmin: data.is_admin === undefined ? user.isAdmin : Boolean(data.is_admin),
+        } : current);
     } catch (error) {
-      toast(`用户详情请求失败：${error.message}`);
+      if (error.name !== "AbortError") toast(`用户详情请求失败：${error.message}`);
+    } finally {
+      if (detailRequest.current === controller) {
+        detailRequest.current = null;
+        setDetailLoading(false);
+      }
     }
+  };
+
+  const closeUser = () => {
+    detailRequest.current?.abort();
+    detailRequest.current = null;
+    setDetailLoading(false);
+    setSelected(null);
   };
 
   /* 金币流水独立页 */
@@ -1835,24 +1966,25 @@ function UsersPage({ toast, adminToken }) {
         <UiInput className="input" style={{ width: 320 }} placeholder="按 ID / user_uuid / 邮箱 / 昵称搜索" value={keyword} onChange={(e) => { setKeyword(e.target.value); setPage(1); }} />
         </div>
         <div className="table-wrap">
-          <UiTable className="table">
-            <thead><tr><th>ID</th><th>user_uuid</th><th>邮箱</th><th>昵称</th><th>注册时间</th><th>会员状态</th><th>金币余额</th><th>会话数</th><th>状态</th><th>操作</th></tr></thead>
+          <UiTable className="table users-table" tableLayout="auto" scroll={{ x: 1240 }}>
+            <thead><tr><th width={100}>ID</th><th width={170}>user_uuid</th><th width={220}>邮箱</th><th width={150}>昵称</th><th width={125}>注册时间</th><th width={190}>会员状态</th><th width={100}>金币余额</th><th width={78}>会话数</th><th width={80}>状态</th><th width={180}>操作</th></tr></thead>
             <tbody>
               {filtered.map((u) => (
                 <tr key={u.id} className="clickable" onClick={() => openUser(u)}>
-                  <td className="muted">{u.id}</td>
-                  <td className="muted">{u.userUuid}</td>
-                  <td className="muted">{u.email}</td>
-                  <td><b>{u.nick}</b></td>
+                  <td><span className="user-copy-value" onClick={(event) => event.stopPropagation()}><Typography.Text copyable={{ text: String(u.id), tooltips: ["复制 ID", "已复制"] }}>{u.id}</Typography.Text></span></td>
+                  <td><span className="user-copy-value" onClick={(event) => event.stopPropagation()}><Typography.Text copyable={u.userUuid && u.userUuid !== "—" ? { text: String(u.userUuid), tooltips: ["复制 user_uuid", "已复制"] } : false}>{u.userUuid}</Typography.Text></span></td>
+                  <td className="muted user-email" title={u.email}>{u.email}</td>
+                  <td>{u.nick}</td>
                   <td className="muted">{u.registered}</td>
                   <td><Badge tone={u.member === "有效会员" ? "green" : "gray"}>{u.member}{u.member === "有效会员" ? ` · ${u.memberUntil}` : ""}</Badge></td>
                   <td className="num">{u.coins.toLocaleString()}</td>
                   <td className="num">{u.sessions}</td>
                   <td><Badge tone={statusTone(u.status)}>{u.status}</Badge></td>
                   <td>
-                    <UiButton className={`btn sm ${u.isAdmin ? "danger-ghost" : ""}`} disabled={adminBusyUserId === u.id} onClick={(event) => { event.stopPropagation(); requestAdminToggle(u); }}>
-                      {adminBusyUserId === u.id ? "处理中…" : u.isAdmin ? "取消管理员" : "设置管理员"}
-                    </UiButton>
+                    <Space size={8}>
+                      <AntButton size="small" onClick={(event) => { event.stopPropagation(); openUser(u); }}>详情</AntButton>
+                      <AntButton size="small" onClick={(event) => { event.stopPropagation(); openWalletRecords(u); }}>流水</AntButton>
+                    </Space>
                   </td>
                 </tr>
               ))}
@@ -1863,10 +1995,11 @@ function UsersPage({ toast, adminToken }) {
       </Card>
 
       {selected && (
-        <AntDrawer open title={`用户详情 · ${selected.nick}`} width={520} onClose={() => setSelected(null)}>
+        <AntModal open title={`用户详情 · ${selected.nick}`} width={760} footer={null} onCancel={closeUser} destroyOnHidden className="user-detail-modal">
             <div className="section-gap">
+              {detailLoading && <div className="user-detail-loading"><Spin size="small" /><span>正在加载完整资料…</span></div>}
               <div className="card">
-                <div className="summary-kv">
+                <div className="summary-kv user-detail-kv">
                   <div><span>ID</span><b>{selected.id}</b></div>
                   <div><span>user_uuid</span><b>{selected.userUuid || "—"}</b></div>
                   <div><span>性别 / 语言</span><b>{selected.gender} · {selected.lang}</b></div>
@@ -1880,7 +2013,7 @@ function UsersPage({ toast, adminToken }) {
                 <div className="card-head"><h2>会员</h2><span className="sub">高危操作 · 需超管或运营</span></div>
                 <ToggleRow
                   label="会员状态"
-                  desc={selected.member === "有效会员" ? `有效期至 ${selected.memberUntil}` : "当前为非会员 · 暂无会员状态修改接口"}
+                  desc={`当前状态：${selected.member} · 会员有效期：${selected.memberUntil}`}
                   checked={selected.member === "有效会员"}
                   onChange={() => {}}
                   disabled
@@ -1919,7 +2052,7 @@ function UsersPage({ toast, adminToken }) {
                 </div>
               </div>
             </div>
-        </AntDrawer>
+        </AntModal>
       )}
       {adminConfirmUser && (
         <ConfirmDialog
@@ -2042,7 +2175,11 @@ function ProductDiscountConfig({ value, onChange, onSave }) {
     onChange(JSON.stringify({ ...rest, discounts: nextDiscounts }, null, 2));
   };
 
-  return <Field label="优惠方案">
+  return <div className="field subscription-discount-section">
+    <div className="subscription-section-heading">
+      <span>优惠方案</span>
+      <span className="muted small">独立配置当前商品的订阅优惠</span>
+    </div>
     {discounts.map((discount, index) => {
       const enabled = discount?.enabled === true || discount?.enabled === 1 || discount?.enabled === "1" || discount?.enabled === "true";
       const method = discount?.method || "fixed_price";
@@ -2089,7 +2226,7 @@ function ProductDiscountConfig({ value, onChange, onSave }) {
     <UiButton className="btn sm" type="button" disabled={disabled} onClick={() => updateDiscounts([...discounts, { enabled: false, offer_id: "", type: "first_subscription", method: "fixed_price", value: "" }])}>+ 添加优惠方案</UiButton>
     {disabled && <span className="muted small">请先将 extra 编辑为有效的 JSON 对象。</span>}
     {!disabled && <span className="muted small">每一行都是当前商品独立的优惠方案，保存到 extra.discounts。</span>}
-  </Field>;
+  </div>;
 }
 
 function AddProductDialog({ kind, platform, onClose, onCreate }) {
@@ -2134,7 +2271,18 @@ function AddProductDialog({ kind, platform, onClose, onCreate }) {
   };
 
   return (
-    <AntModal open title={`新增 ${platform === 2 ? "iOS" : "安卓"} ${isCoin ? "一次性商品" : "订阅套餐"}`} width={560} footer={null} maskClosable={!submitting} closable={!submitting} onCancel={onClose}>
+    <AntModal
+      open
+      title={`新增 ${platform === 2 ? "iOS" : "安卓"} ${isCoin ? "一次性商品" : "订阅套餐"}`}
+      width={560}
+      maskClosable={!submitting}
+      closable={!submitting}
+      onCancel={onClose}
+      footer={[
+        <AntButton key="cancel" disabled={submitting} onClick={onClose}>取消</AntButton>,
+        <AntButton key="submit" type="primary" loading={submitting} disabled={!valid} onClick={submit}>确认新增</AntButton>,
+      ]}
+    >
         <div className="grid-2" style={{ gap: 12 }}>
           <Field label="平台 *">
             <UiInput className="input" readOnly value={platform === 2 ? "iOS" : "安卓"} />
@@ -2156,13 +2304,9 @@ function AddProductDialog({ kind, platform, onClose, onCreate }) {
           )}
         </div>
         {!isCoin && <ProductSubscriptionType value={extra} onChange={setExtra} />}
-        <Field label="扩展配置 extra（JSON，可留空）"><UiTextArea className="textarea" value={extra} onChange={(event) => setExtra(event.target.value)} placeholder='{"key": "value"}' /></Field>
-        {error && <div className="login-error" style={{ marginTop: 12 }}><Warning weight="fill" />{error}</div>}
+        <Field label="扩展配置 extra（JSON，可留空）"><UiTextArea className="textarea" autoSize={{ minRows: 4, maxRows: 18 }} value={extra} onChange={(event) => setExtra(event.target.value)} placeholder='{"key": "value"}' /></Field>
+        {error && <Alert type="error" showIcon message={error} style={{ marginTop: 12 }} />}
         <p className="muted small" style={{ margin: "12px 0 0" }}>新建商品默认为下架状态，确认配置后再手动上架。</p>
-        <div style={{ marginTop: 18, display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
-          <AntButton type="primary" loading={submitting} disabled={!valid} onClick={submit}>确认新增</AntButton>
-          <AntButton disabled={submitting} onClick={onClose}>取消</AntButton>
-        </div>
     </AntModal>
   );
 }
@@ -2299,9 +2443,26 @@ function CommercePage({ toast, adminToken }) {
 
   return (
     <div className="section-gap">
-      <Segmented aria-label="商品平台" value={platform} options={[{ value: 1, label: "安卓" }, { value: 2, label: "iOS" }]} onChange={(value) => { setPlatform(value); setProductPage(1); }} />
-      <Segmented aria-label="商品类型" value={tab} options={[{ value: "plans", label: "订阅" }, { value: "packs", label: "一次性商品" }]} onChange={(value) => { setTab(value); setProductPage(1); }} />
-      {productsLoading && <div className="panel-loading">正在加载 {platformName} 商品…</div>}
+      <div className="commerce-filter-bar">
+        <div className="commerce-filter-group">
+          <span className="commerce-filter-label">平台</span>
+          <Segmented aria-label="商品平台" value={platform} options={[{ value: 1, label: "Android" }, { value: 2, label: "iOS" }]} onChange={(value) => { setPlatform(value); setProductPage(1); }} />
+        </div>
+        <div className="commerce-filter-divider" aria-hidden="true" />
+        <div className="commerce-filter-group">
+          <span className="commerce-filter-label">商品类型</span>
+          <Segmented aria-label="商品类型" value={tab} options={[{ value: "plans", label: "订阅" }, { value: "packs", label: "一次性商品" }]} onChange={(value) => { setTab(value); setProductPage(1); }} />
+        </div>
+      </div>
+      {productsLoading && (
+        <AntCard className="commerce-loading-card" variant="borderless">
+          <Spin size="large" />
+          <div>
+            <strong>正在加载{platformName}商品</strong>
+            <span>请稍候，正在获取最新商品配置…</span>
+          </div>
+        </AntCard>
+      )}
 
       {tab === "packs" && !productsLoading && (
         <Card
@@ -2313,10 +2474,10 @@ function CommercePage({ toast, adminToken }) {
             <UiTable className="table">
               <thead><tr><th>档位</th><th>基础金币</th><th>赠送金币</th><th>价格（USD）</th><th>C 端展示</th><th>扩展配置 extra（JSON）</th><th>上架</th></tr></thead>
               <tbody>
-                {packs.length === 0 && <tr><td colSpan={7} className="empty-state">当前平台暂无一次性商品。</td></tr>}
+                {packs.length === 0 && <tr><td colSpan={7}><Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description={`当前平台暂无${platformName}一次性商品`} /></td></tr>}
                 {packs.map((p) => (
                   <tr key={p.id}>
-                    <td className="muted">{p.productId || p.name || `#${p.id}`}</td>
+                    <td className="muted">{p.productId || p.name || p.id}</td>
                     <td><UiInput className="input" style={{ width: 100, height: 32 }} type="number" value={p.base} onChange={(e) => updatePack(p.id, "base", Number(e.target.value))} /></td>
                     <td><UiInput className="input" style={{ width: 100, height: 32 }} type="number" value={p.bonus} onChange={(e) => updatePack(p.id, "bonus", Number(e.target.value))} /></td>
                     <td><UiInput className="input" style={{ width: 90, height: 32 }} type="number" value={p.price} onChange={(e) => updatePack(p.id, "price", Number(e.target.value))} /></td>
@@ -2336,7 +2497,7 @@ function CommercePage({ toast, adminToken }) {
           <div className="filter-bar" style={{ justifyContent: "flex-end" }}>
             <UiButton className="btn primary" onClick={() => setShowAddProduct("plan")}>+ 新增订阅套餐</UiButton>
           </div>
-          {plans.length === 0 ? <div className="empty-state">当前平台暂无订阅商品。</div> : (
+          {plans.length === 0 ? <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description={`当前平台暂无${platformName}订阅商品`} /> : (
             <div className="grid-3 subscription-product-grid">
               {plans.map((p) => (
                 <Card className="subscription-product-card" key={p.id || p.name} title={p.name} actions={<UiButton className="btn sm primary" onClick={() => savePlan(p)}>保存</UiButton>}>
@@ -2360,9 +2521,16 @@ function CommercePage({ toast, adminToken }) {
                     <ProductOriginalPrice value={p.extra} onChange={(value) => updatePlan(p.id, "extra", value)} />
                     <ProductSubscriptionType value={p.extra} defaultType={p.subscriptionType} onChange={(value) => updatePlan(p.id, "extra", value)} />
                   </div>
-                  <Field label="扩展配置 extra（JSON，可留空）"><UiTextArea className="textarea" value={p.extra} onChange={(e) => updatePlan(p.id, "extra", e.target.value)} /></Field>
-                  {p.id && <ToggleRow label="商品状态" checked={p.active !== false} onChange={(value) => setProductStatus("plan", p.id, value)} />}
-                  <ProductDiscountConfig value={p.extra} onChange={(value) => updatePlan(p.id, "extra", value)} onSave={() => savePlan(p)} />
+                  <div className="subscription-extra-block">
+                    <Field label="扩展配置 extra（JSON，可留空）"><UiTextArea className="textarea" autoSize={{ minRows: 4, maxRows: 18 }} value={p.extra} onChange={(e) => updatePlan(p.id, "extra", e.target.value)} /></Field>
+                  </div>
+                  {p.id && <div className="subscription-status-row">
+                    <div><strong>商品状态</strong><span>控制该订阅商品是否上架</span></div>
+                    <Switch checked={p.active !== false} onChange={(value) => setProductStatus("plan", p.id, value)} label="商品状态" />
+                  </div>}
+                  <div className="subscription-discount-block">
+                    <ProductDiscountConfig value={p.extra} onChange={(value) => updatePlan(p.id, "extra", value)} onSave={() => savePlan(p)} />
+                  </div>
                 </Card>
               ))}
             </div>
@@ -2424,8 +2592,8 @@ function AnalyticsPage({ toast, adminToken }) {
         <AntSelect style={{ minWidth: 120 }} value={userType} aria-label="用户类型" onChange={setUserType} options={[{ value: "all", label: "全部" }, { value: "guest", label: "游客" }, { value: "registered", label: "已注册" }]} />
         <span className="muted small">{startDate} ~ {endDate} · 共 {days} 天</span>
       </div>
-      <Segmented value={tab} options={analyticsTabs.map(([value, label]) => ({ value, label }))} onChange={setTab} />
-      {loading ? <div className="panel-loading">加载中…</div> : analytics?.kpis ? <LiveAnalyticsKpis kpis={analytics.kpis} /> : <div className="empty-state">接口未返回统计数据。</div>}
+      <Tabs activeKey={tab} items={analyticsTabs.map(([key, label]) => ({ key, label }))} onChange={setTab} />
+      {loading ? <LoadingState text="正在加载统计数据…" /> : analytics?.kpis ? <LiveAnalyticsKpis kpis={analytics.kpis} /> : <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="接口未返回统计数据" />}
     </div>
   );
 }
@@ -2503,7 +2671,7 @@ function MediaModelSelect({ label, options, optionKey, values, onChange }) {
   </UiSelect></Field>;
 }
 
-function ProviderDialog({ provider, onClose, onSave, onDeleteModel }) {
+function ProviderEditorPage({ provider, onClose, onSave, onDeleteModel }) {
   const editing = Boolean(provider);
   const [form, setForm] = useState(() => ({
     name: provider?.name || "",
@@ -2526,8 +2694,20 @@ function ProviderDialog({ provider, onClose, onSave, onDeleteModel }) {
   }));
   const update = (key, value) => setForm((current) => ({ ...current, [key]: value }));
   const updateModel = (type, index, key, value) => setForm((current) => ({ ...current, models: { ...current.models, [type]: current.models[type].map((item, itemIndex) => itemIndex === index ? { ...item, [key]: value } : item) } }));
-  // 新增模型默认停用，避免保存时触发同类型默认模型的自动切换；需要使用时再明确启用。
-  const addModel = (type) => setForm((current) => ({ ...current, models: { ...current.models, [type]: [...current.models[type], { model: "", enabled: false, sort: current.models[type].length * 10, provider_options: defaultMediaModelOptions(type) }] } }));
+  // 新增模型默认停用并标记为本次新增：既不切换线上默认模型，也让新配置项首次渲染时自动展开。
+  const addModel = (type) => setForm((current) => ({
+    ...current,
+    models: {
+      ...current.models,
+      [type]: [...current.models[type], {
+        model: "",
+        enabled: false,
+        sort: current.models[type].length * 10,
+        provider_options: defaultMediaModelOptions(type),
+        isNew: true,
+      }],
+    },
+  }));
   const [deletingModel, setDeletingModel] = useState(null);
   const removeModel = async (type, index) => {
     const model = form.models[type][index];
@@ -2582,48 +2762,86 @@ function ProviderDialog({ provider, onClose, onSave, onDeleteModel }) {
     }
   };
   return (
-    <AntModal open title={editing ? "编辑中转站" : "新建中转站"} width={860} footer={null} onCancel={onClose} className="provider-dialog" destroyOnHidden>
-        <Field label="名称（driver）*"><UiInput className="input" maxLength={128} value={form.name} onChange={(event) => update("name", event.target.value)} placeholder="如：主用中转站" /></Field>
-        <div style={{ marginTop: 12 }}>
-          <Field label="状态"><UiSelect className="select" value={form.status} onChange={(event) => update("status", event.target.value)}><option value="enabled">启用</option><option value="disabled">停用</option></UiSelect></Field>
+    <div className="section-gap provider-editor-page">
+      <header className="provider-editor-header">
+        <div className="provider-editor-heading">
+          <Breadcrumb items={[
+            { title: <AntButton type="link" className="provider-breadcrumb-link" onClick={onClose}>模型配置</AntButton> },
+            { title: <AntButton type="link" className="provider-breadcrumb-link" onClick={onClose}>中转站列表</AntButton> },
+            { title: editing ? provider.name : "新建中转站" },
+          ]} />
+          <h2>{editing ? `编辑中转站 · ${provider.name}` : "新建中转站"}</h2>
         </div>
-        <div style={{ marginTop: 12 }}><Field label="API 地址 / 中转域名 *"><UiInput className="input" value={form.baseUrl} onChange={(event) => update("baseUrl", event.target.value)} placeholder="https://api.example.com/v1" /></Field></div>
-        <div style={{ marginTop: 12 }}><Field label={`API Key ${editing ? "（留空则保留原 Key）" : "*"}`}><UiInput className="input" type="text" value={form.apiKey} onChange={(event) => update("apiKey", event.target.value)} placeholder={editing ? `当前：${maskApiKey(provider.api_key)}` : "sk-..."} autoComplete="new-password" /></Field></div>
-        <div style={{ marginTop: 12 }}>
-          <Field label="模型（可添加多个，类型：文本 / 图片 / 视频）">
-            <div style={{ display: "grid", gap: 10 }}>
+      </header>
+
+      <Card
+        title="基础配置"
+        actions={(
+          <Space size={8}>
+            <AntButton disabled={saving || deletingModel !== null} onClick={onClose}>取消</AntButton>
+            <AntButton type="primary" loading={saving} disabled={!ready || deletingModel !== null} onClick={submit}>保存中转站</AntButton>
+          </Space>
+        )}
+      >
+        <div className="provider-editor-basics">
+          <Field label="名称（driver）*"><UiInput className="input" maxLength={128} value={form.name} onChange={(event) => update("name", event.target.value)} placeholder="如：主用中转站" /></Field>
+          <Field label="API 地址 / 中转域名 *"><UiInput className="input" value={form.baseUrl} onChange={(event) => update("baseUrl", event.target.value)} placeholder="https://api.example.com/v1" /></Field>
+          <Field label={`API Key ${editing ? "（留空则保留）" : "*"}`}><UiInput className="input" type="text" value={form.apiKey} onChange={(event) => update("apiKey", event.target.value)} placeholder={editing ? `当前：${maskApiKey(provider.api_key)}` : "sk-..."} autoComplete="new-password" /></Field>
+          <Field label="备注"><UiTextArea className="textarea" autoSize={{ minRows: 2, maxRows: 6 }} value={form.remark} onChange={(event) => update("remark", event.target.value)} placeholder="填写中转站内部说明" /></Field>
+          <Field label="状态">
+            <div className="provider-status-control">
+              <AntSwitch checked={form.status === "enabled"} aria-label="中转站状态" onChange={(checked) => update("status", checked ? "enabled" : "disabled")} />
+              <Typography.Text type="secondary">{form.status === "enabled" ? "已启用" : "已停用"}</Typography.Text>
+            </div>
+          </Field>
+        </div>
+      </Card>
+
+      <div className="provider-editor-models">
               {MODEL_PROFILES.map(({ type, label }) => <section key={type} className={`provider-model-group provider-model-group--${type}`}>
                 <header className="provider-model-heading">
                   <span className="provider-model-icon">{type === "video" ? <VideoCamera size={20} /> : type === "image" ? <ImageSquare size={20} /> : <ChatCircleDots size={20} />}</span>
                   <div><strong>{label}模型</strong><span className="provider-model-count">{form.models[type].length} 个模型</span></div>
                   <UiButton className="btn sm" type="button" onClick={() => addModel(type)}>+ 添加模型</UiButton>
                 </header>
-                <div className="provider-model-list">{form.models[type].map((item, index) => <div key={`${type}-${index}`} className="provider-model-item">
-                  <div className="provider-model-caption"><span className="provider-model-number">{String(index + 1).padStart(2, "0")}</span><strong>{item.model.trim() || "待配置模型"}</strong><span className={`provider-model-status ${item.enabled !== false ? "is-enabled" : ""}`}>{item.enabled !== false ? "已启用" : "未启用"}</span></div>
-                  <div className="provider-model-fields">
-                    <Field label="模型名称"><UiInput className="input" value={item.model} onChange={(event) => updateModel(type, index, "model", event.target.value)} placeholder={`输入${label}模型名`} /></Field>
-                    <Field label="优先级"><UiInput className="input" type="number" value={item.sort} onChange={(event) => updateModel(type, index, "sort", event.target.value)} /></Field>
-                    <div className="provider-model-actions"><Switch checked={item.enabled !== false} onChange={(checked) => updateModel(type, index, "enabled", checked)} label={`启用${label}模型 ${index + 1}`} /><UiButton className="btn sm danger-ghost" type="button" disabled={Boolean(item.id && item.enabled) || deletingModel === item.id} title={item.id && item.enabled ? "启用中的模型不可删除，请先停用" : "删除模型"} onClick={() => removeModel(type, index)}>{deletingModel === item.id ? "删除中…" : "删除"}</UiButton></div>
-                  </div>
-                {type === "video" && <div style={{ display: "grid", gridTemplateColumns: "repeat(3, minmax(0, 1fr))", gap: 10, marginTop: 8 }}>
-                  <Field label="生成时长（2-30 秒）"><UiInput className="input" type="number" min={2} max={30} step={1} value={videoModelOption(item.provider_options, "duration")} placeholder="留空使用默认值" onChange={(event) => updateModel(type, index, "provider_options", withVideoModelOption(item.provider_options, "duration", event.target.value))} /></Field>
-                  <MediaModelSelect label="画面比例（ratio）" options={item.provider_options} optionKey="ratio" values={["16:9", "9:16", "1:1", "4:3", "3:4"]} onChange={(options) => updateModel(type, index, "provider_options", options)} />
-                  <MediaModelSelect label="输出分辨率" options={item.provider_options} optionKey="resolution" values={["480P", "720P", "1080P"]} onChange={(options) => updateModel(type, index, "provider_options", options)} />
-                </div>}
-                {type === "image" && <div className="grid-2" style={{ marginTop: 8 }}>
-                  <MediaModelSelect label="图片分辨率（resolution）" options={item.provider_options} optionKey="resolution" values={["512", "1k", "2k", "4k"]} onChange={(options) => updateModel(type, index, "provider_options", options)} />
-                  <MediaModelSelect label="生成质量（quality）" options={item.provider_options} optionKey="quality" values={["auto", "low", "medium", "high"]} onChange={(options) => updateModel(type, index, "provider_options", options)} />
-                  <MediaModelSelect label="图片比例（aspect_ratio）" options={item.provider_options} optionKey="aspect_ratio" values={["16:9", "9:16", "1:1", "4:3", "3:4"]} onChange={(options) => updateModel(type, index, "provider_options", options)} />
-                </div>}
-              </div>)}</div></section>)}
-            </div>
-          </Field>
-        </div>
-        <div style={{ marginTop: 12 }}><Field label="备注"><UiTextArea className="textarea" value={form.remark} onChange={(event) => update("remark", event.target.value)} /></Field></div>
-        <div className="dialog-actions" style={{ marginTop: 18, gridTemplateColumns: "1fr 1fr" }}><AntButton type="primary" loading={saving} disabled={!ready || deletingModel !== null} onClick={submit}>保存</AntButton><AntButton disabled={saving || deletingModel !== null} onClick={onClose}>取消</AntButton></div>
-        {!validVideoOptions && <p className="login-error">视频生成时长必须是 2-30 秒的整数，或留空使用默认值。</p>}
+                <div className="provider-model-list">{form.models[type].map((item, index) => <div key={`${type}-${item.id || index}`} className="provider-model-item">
+                  <AntCollapse
+                    className="provider-model-collapse"
+                    bordered={false}
+                    defaultActiveKey={item.isNew ? ["details"] : []}
+                    expandIconPosition="end"
+                    items={[{
+                      key: "details",
+                      label: <div className="provider-model-caption"><span className="provider-model-number">{String(index + 1).padStart(2, "0")}</span><strong>{item.model.trim() || "待配置模型"}</strong></div>,
+                      extra: <div className="provider-model-actions" onClick={(event) => event.stopPropagation()} onKeyDown={(event) => event.stopPropagation()}>
+                        <span className={`provider-model-status ${item.enabled !== false ? "is-enabled" : ""}`}>{item.enabled !== false ? "已启用" : "未启用"}</span>
+                        <Switch checked={item.enabled !== false} onChange={(checked) => updateModel(type, index, "enabled", checked)} label={`启用${label}模型 ${index + 1}`} />
+                        <UiButton className="btn sm danger-ghost" type="button" disabled={Boolean(item.id && item.enabled) || deletingModel === item.id} title={item.id && item.enabled ? "启用中的模型不可删除，请先停用" : "删除模型"} onClick={() => removeModel(type, index)}>{deletingModel === item.id ? "删除中…" : "删除"}</UiButton>
+                      </div>,
+                      children: <>
+                        <div className="provider-model-fields">
+                          <Field label="模型名称"><UiInput className="input" value={item.model} onChange={(event) => updateModel(type, index, "model", event.target.value)} placeholder={`输入${label}模型名`} /></Field>
+                          <Field label="优先级"><UiInput className="input" type="number" value={item.sort} onChange={(event) => updateModel(type, index, "sort", event.target.value)} /></Field>
+                        </div>
+                        {type === "video" && <div className="provider-media-options">
+                          <Field label="生成时长（2-30 秒）"><UiInput className="input" type="number" min={2} max={30} step={1} value={videoModelOption(item.provider_options, "duration")} placeholder="留空使用默认值" onChange={(event) => updateModel(type, index, "provider_options", withVideoModelOption(item.provider_options, "duration", event.target.value))} /></Field>
+                          <MediaModelSelect label="画面比例（ratio）" options={item.provider_options} optionKey="ratio" values={["16:9", "9:16", "1:1", "4:3", "3:4"]} onChange={(options) => updateModel(type, index, "provider_options", options)} />
+                          <MediaModelSelect label="输出分辨率" options={item.provider_options} optionKey="resolution" values={["480P", "720P", "1080P"]} onChange={(options) => updateModel(type, index, "provider_options", options)} />
+                        </div>}
+                        {type === "image" && <div className="provider-media-options">
+                          <MediaModelSelect label="图片分辨率（resolution）" options={item.provider_options} optionKey="resolution" values={["512", "1k", "2k", "4k"]} onChange={(options) => updateModel(type, index, "provider_options", options)} />
+                          <MediaModelSelect label="生成质量（quality）" options={item.provider_options} optionKey="quality" values={["auto", "low", "medium", "high"]} onChange={(options) => updateModel(type, index, "provider_options", options)} />
+                          <MediaModelSelect label="图片比例（aspect_ratio）" options={item.provider_options} optionKey="aspect_ratio" values={["16:9", "9:16", "1:1", "4:3", "3:4"]} onChange={(options) => updateModel(type, index, "provider_options", options)} />
+                        </div>}
+                      </>,
+                    }]}
+                  />
+                </div>)}</div></section>)}
+      </div>
+
+        {!validVideoOptions && <Alert type="error" showIcon message="视频生成时长必须是 2-30 秒的整数，或留空使用默认值。" />}
         {!ready && validVideoOptions && <p className="muted small" style={{ margin: "10px 0 0", textAlign: "center" }}>请填写名称、API 地址和 API Key（新建时），并至少添加一个模型（文本、图片、视频任选一种）</p>}
-    </AntModal>
+    </div>
   );
 }
 
@@ -2633,7 +2851,6 @@ function ModelConfigPage({ toast, adminToken }) {
   const [loading, setLoading] = useState(true);
   const [editing, setEditing] = useState(undefined);
   const [confirmDelete, setConfirmDelete] = useState(null);
-  const routeClickTimers = useRef(new Map());
 
   const load = (signal) => adminApi.modelConfig.list({}, { signal }).then((data) => {
     setProviders(data?.providers || []);
@@ -2670,7 +2887,8 @@ function ModelConfigPage({ toast, adminToken }) {
   const switchRoute = async (provider, profile, routeId) => {
     const routes = getProviderRoutes(provider, profile.type);
     const target = routes.find((route) => String(route.id) === String(routeId));
-    if (!target) return;
+    // 展开下拉框或再次选择当前模型都不应发送切换请求，只有选择未启用模型才执行变更。
+    if (!target || target.enabled) return;
     try {
       await Promise.all(routes.filter((route) => route.id && route.id !== target.id && route.enabled).map((route) => adminApi.modelConfig.routeStatus({ id: Number(route.id), enabled: false })));
       // 用户选择下拉项时，无论前端缓存的 enabled 状态是什么，都明确调用启用接口。
@@ -2680,22 +2898,6 @@ function ModelConfigPage({ toast, adminToken }) {
     } catch (error) {
       toast(`切换${profile.label}模型失败：${error.message}`);
     }
-  };
-  const handleRouteSelect = (provider, profile, routeId, source) => {
-    const timerKey = `${provider.id}:${profile.type}`;
-    const pending = routeClickTimers.current.get(timerKey);
-    if (pending) clearTimeout(pending);
-    routeClickTimers.current.delete(timerKey);
-    if (source === "click") {
-      // 原生 select 选择当前值时不会触发 change；延迟执行 click，给 change 留出优先处理机会。
-      const timer = setTimeout(() => {
-        routeClickTimers.current.delete(timerKey);
-        switchRoute(provider, profile, routeId);
-      }, 80);
-      routeClickTimers.current.set(timerKey, timer);
-      return;
-    }
-    switchRoute(provider, profile, routeId);
   };
   const deleteRoute = async (provider, route) => {
     if (route.enabled) {
@@ -2738,22 +2940,24 @@ function ModelConfigPage({ toast, adminToken }) {
       toast(`切换${profile.label}中转站失败：${error.message}`);
     }
   };
+  if (editing !== undefined) {
+    return <ProviderEditorPage provider={editing} onClose={() => setEditing(undefined)} onSave={saveProvider} onDeleteModel={(route) => deleteRoute(editing, route)} />;
+  }
   return (
     <div className="section-gap">
       <Card title="中转站列表" sub={`共 ${providers.length} 个 · 每个中转站可配置多个文本/图片/视频模型 · 配置即时生效`} actions={<UiButton className="btn primary" onClick={() => setEditing(null)}>+ 新建中转站</UiButton>}>
-        {loading ? <div className="panel-loading">加载中…</div> : <div className="table-wrap"><UiTable className="table compact"><thead><tr><th>名称</th><th>API 地址</th><th>API Key</th>{MODEL_PROFILES.map(({ label }) => <th key={label}>{label}模型</th>)}<th>操作</th></tr></thead><tbody>
+        {loading ? <LoadingState text="正在加载中转站配置…" /> : <div className="table-wrap"><UiTable className="table compact"><thead><tr><th>名称</th><th>API 地址</th><th>API Key</th>{MODEL_PROFILES.map(({ label }) => <th key={label}>{label}模型</th>)}<th>操作</th></tr></thead><tbody>
           {providers.map((provider) => <tr key={provider.id}>
-            <td style={{ whiteSpace: "nowrap" }}><b>{provider.name}</b><div className="muted small">{provider.status === "enabled" ? "启用" : "停用"}</div></td>
+            <td style={{ whiteSpace: "nowrap" }}><b>{provider.name}</b><div><Tag color={provider.status === "enabled" ? "success" : "default"}>{provider.status === "enabled" ? "已启用" : "已停用"}</Tag></div></td>
             <td className="muted mono" title={provider.base_url} style={{ maxWidth: 190, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{provider.base_url}</td>
             <td className="muted mono" style={{ whiteSpace: "nowrap" }}>{maskApiKey(provider.api_key)}</td>
-            {MODEL_PROFILES.map((profile) => { const routes = getProviderRoutes(provider, profile.type); const active = routes.find((route) => route.enabled) || routes[0]; return <td key={profile.type}><div style={{ minWidth: 190 }}>{routes.length ? <AntSelect style={{ width: "100%" }} value={active?.id || ""} disabled={provider.status !== "enabled"} onClick={() => handleRouteSelect(provider, profile, active?.id, "click")} onChange={(value) => handleRouteSelect(provider, profile, value, "change")} options={routes.map((route) => ({ value: route.id, label: `${route.model}${route.enabled ? "（当前启用）" : ""}` }))} /> : <span className="muted">—</span>}</div></td>; })}
-            <td><div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}><UiButton className="btn sm" onClick={() => setEditing(provider)}>编辑模型</UiButton><UiButton className="btn sm" onClick={() => toggleProvider(provider)}>{provider.status === "enabled" ? "停用中转站" : "启用中转站"}</UiButton><UiButton className="btn sm danger-ghost" onClick={() => setConfirmDelete(provider)}>删除</UiButton></div></td>
+            {MODEL_PROFILES.map((profile) => { const routes = getProviderRoutes(provider, profile.type); const active = routes.find((route) => route.enabled) || routes[0]; return <td key={profile.type}><div style={{ minWidth: 220 }}>{routes.length ? <AntSelect style={{ width: "100%" }} value={active?.id || ""} disabled={provider.status !== "enabled"} onChange={(value) => switchRoute(provider, profile, value)} options={routes.map((route) => ({ value: route.id, label: <ProviderRouteLabel route={route} /> }))} /> : <span className="muted">—</span>}</div></td>; })}
+            <td><div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}><UiButton size="small" className="btn sm" onClick={() => setEditing(provider)}>编辑</UiButton><UiButton size="small" className="btn sm" onClick={() => toggleProvider(provider)}>{provider.status === "enabled" ? "停用" : "启用中转站"}</UiButton><UiButton size="small" className="btn sm danger-ghost" onClick={() => setConfirmDelete(provider)}>删除</UiButton></div></td>
           </tr>)}
-          {!providers.length && <tr><td colSpan={7}><div className="empty-state">暂无中转站配置</div></td></tr>}
+          {!providers.length && <tr><td colSpan={7}><Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="暂无中转站配置" /></td></tr>}
         </tbody></UiTable></div>}
       </Card>
       <Card title="业务模型路由" sub="后端支持的业务 profile_key；当前页面展示文本、图片、视频三类调用路由"><div className="pill-row">{profileKeys.map((key) => <span className="tag-pill" key={key}>{key}</span>)}</div></Card>
-      {editing !== undefined && <ProviderDialog provider={editing} onClose={() => setEditing(undefined)} onSave={saveProvider} onDeleteModel={(route) => deleteRoute(editing, route)} />}
       {confirmDelete && <ConfirmDialog title="删除该中转站" desc={`将删除「${confirmDelete.name}」及其模型配置，操作不可恢复。`} confirmText="确认删除" onClose={() => setConfirmDelete(null)} onConfirm={deleteProvider} />}
     </div>
   );
@@ -2761,31 +2965,81 @@ function ModelConfigPage({ toast, adminToken }) {
 
 /* ================= 主壳 ================= */
 
-const NAV = [
-  { id: "dashboard", path: "/", label: "仪表盘", icon: Gauge },
-  { id: "characters", path: "/characters", label: "角色管理", icon: MaskHappy },
-  { id: "presets", path: "/presets", label: "生成预设", icon: ImageSquare },
-  { id: "models", path: "/models", label: "模型配置", icon: GearSix },
-  { id: "users", path: "/users", label: "用户管理", icon: Users },
-  { id: "messages", path: "/messages", label: "消息列表", icon: ChatCircleDots },
-  { id: "orders", path: "/orders", label: "订单列表", icon: Coins },
-  { id: "subscriptions", path: "/subscriptions", label: "订阅统计", icon: ChartBar },
-  { id: "commerce", path: "/commerce", label: "订阅配置", icon: Coins },
-  { id: "analytics", path: "/analytics", label: "数据看板", icon: ChartLineUp },
-  { id: "token-usage", path: "/token-usage", label: "Token 统计", icon: ChartBar },
-  { id: "settings", path: "/settings", label: "系统设置", icon: GearSix },
+const NAV_GROUPS = [
+  {
+    key: "overview",
+    label: "概览",
+    icon: Gauge,
+    children: [
+      { id: "dashboard", path: "/", label: "仪表盘", icon: Gauge },
+      { id: "analytics", path: "/analytics", label: "数据看板", icon: ChartLineUp },
+      { id: "token-usage", path: "/token-usage", label: "Token 统计", icon: ChartBar },
+    ],
+  },
+  {
+    key: "content-ai",
+    label: "内容与 AI",
+    icon: Sparkle,
+    children: [
+      { id: "characters", path: "/characters", label: "角色管理", icon: MaskHappy },
+      { id: "presets", path: "/presets", label: "生成预设", icon: ImageSquare },
+      { id: "models", path: "/models", label: "模型配置", icon: GearSix },
+    ],
+  },
+  {
+    key: "operations",
+    label: "运营管理",
+    icon: Users,
+    children: [
+      { id: "users", path: "/users", label: "用户管理", icon: Users },
+      { id: "messages", path: "/messages", label: "消息列表", icon: ChatCircleDots },
+    ],
+  },
+  {
+    key: "commerce-group",
+    label: "商业化",
+    icon: Coins,
+    children: [
+      { id: "orders", path: "/orders", label: "订单列表", icon: Coins },
+      { id: "subscriptions", path: "/subscriptions", label: "订阅列表", icon: ChartBar },
+      { id: "commerce", path: "/commerce", label: "订阅配置", icon: Coins },
+    ],
+  },
+  {
+    key: "system",
+    label: "系统管理",
+    icon: GearSix,
+    children: [
+      { id: "settings", path: "/settings", label: "系统设置", icon: GearSix },
+    ],
+  },
 ];
+
+// 路由仍使用原有的一维配置，菜单分组只负责展示，避免改变现有 URL 和页面选择逻辑。
+const NAV = NAV_GROUPS.flatMap((group) => group.children);
 
 export default function Admin() {
   const { message } = AntApp.useApp();
   const location = useLocation();
   const navigate = useNavigate();
-  const activeRoute = NAV.find((item) => item.path === location.pathname);
+  const messageDetailMatch = location.pathname.match(/^\/messages\/(\d+)$/);
+  const messageDetailId = messageDetailMatch ? Number(messageDetailMatch[1]) : null;
+  // 消息详情保留“消息列表”的导航选中态，同时允许独立 URL 刷新和浏览器返回。
+  const activeRoute = NAV.find((item) => item.path === location.pathname)
+    || (messageDetailId ? NAV.find((item) => item.id === "messages") : undefined);
   const page = activeRoute?.id || "dashboard";
   const [editing, setEditing] = useState(null); // 角色编辑器中的角色
   const [charList, setCharList] = useState([]);
   const [adminToken, setAdminTokenState] = useState(getAdminToken());
   const [apiState, setApiState] = useState("loading");
+  const [openNavGroups, setOpenNavGroups] = useState(() => {
+    try {
+      const savedGroups = JSON.parse(window.localStorage.getItem("emora-admin-open-nav-groups") || "null");
+      return Array.isArray(savedGroups) ? savedGroups : NAV_GROUPS.map((group) => group.key);
+    } catch {
+      return NAV_GROUPS.map((group) => group.key);
+    }
+  });
   const [theme, setTheme] = useState(() => {
     const savedTheme = window.localStorage.getItem("emora-admin-theme");
     return savedTheme === "dark" ? "dark" : "light";
@@ -2796,6 +3050,11 @@ export default function Admin() {
     document.documentElement.dataset.theme = theme;
     window.localStorage.setItem("emora-admin-theme", theme);
   }, [theme]);
+
+  useEffect(() => {
+    // 分别记录各业务分组的展开状态，刷新页面后继续保持管理员的导航习惯。
+    window.localStorage.setItem("emora-admin-open-nav-groups", JSON.stringify(openNavGroups));
+  }, [openNavGroups]);
 
   // 现有调用方统一传入文本，根据业务错误关键词选择 Ant Design 的消息类型。
   const toast = (content) => {
@@ -2921,49 +3180,66 @@ export default function Admin() {
   }
 
   const activeNav = NAV.find((n) => n.id === page);
-  const title = editing ? `角色管理 · 编辑 ${editing.name}` : activeNav.label;
-  const menuItems = NAV.map(({ id, label, icon: Icon }) => ({
+  const title = editing ? `角色管理 · 编辑 ${editing.name}` : messageDetailId ? "消息详情" : activeNav.label;
+  const createMenuItem = ({ id, label, icon: Icon }) => ({
     key: id,
     icon: <Icon weight={page === id ? "fill" : "regular"} />,
     label,
-  }));
+  });
+  const menuItems = NAV_GROUPS.map((group) => {
+    const GroupIcon = group.icon;
+    return {
+      key: group.key,
+      icon: <GroupIcon />,
+      label: group.label,
+      children: group.children.map(createMenuItem),
+    };
+  });
 
   return (
-    <AntLayout className="admin-shell">
+    <AntLayout hasSider className="admin-shell">
       <AntLayout.Sider className="admin-sidebar" width={232} theme={theme}>
-        <div className="admin-brand">
-          <div className="admin-brand-mark"><Sparkle weight="fill" /></div>
-          <div>
-            <strong>Emora 运营后台</strong>
-            <small>ADMIN CONSOLE</small>
-          </div>
-        </div>
-        <AntMenu className="admin-nav" mode="inline" theme={theme} selectedKeys={[page]} items={menuItems} onClick={({ key }) => navTo(key)} />
+        <Flex className="admin-brand" align="center" gap={10}>
+          <img className="admin-brand-mark" src="/assets/emora-logo.png" alt="Emora" />
+          <Typography.Text strong>Emora 运营后台</Typography.Text>
+        </Flex>
+        <AntMenu
+          className="admin-nav"
+          mode="inline"
+          theme={theme}
+          openKeys={openNavGroups}
+          onOpenChange={setOpenNavGroups}
+          inlineIndent={16}
+          selectedKeys={[page]}
+          items={menuItems}
+          aria-label="后台主导航"
+          onClick={({ key }) => navTo(key)}
+        />
       </AntLayout.Sider>
 
       <AntLayout className="admin-main">
         <AntLayout.Header className="admin-topbar">
-          <h1>{title}</h1>
-          <div className="admin-topbar-right">
-            <div className="admin-user">
-              <Avatar className="admin-avatar" icon={<UserCircle weight="fill" />} />
-              <div>
-                <strong>管理员</strong>
-                <small>已通过后台鉴权</small>
-              </div>
-            </div>
-            <AntButton
-              className="theme-toggle"
-              size="small"
-              icon={theme === "dark" ? <Sun /> : <Moon />}
-              title={theme === "dark" ? "切换为白色主题" : "切换为黑色主题"}
-              aria-label={theme === "dark" ? "切换为白色主题" : "切换为黑色主题"}
-              onClick={() => setTheme((currentTheme) => (currentTheme === "dark" ? "light" : "dark"))}
-            >
-              {theme === "dark" ? "白色模式" : "黑色模式"}
-            </AntButton>
-            <AntButton type="text" size="small" onClick={() => { setAdminToken(""); setAdminTokenState(""); navigate("/login", { replace: true }); }}>退出</AntButton>
-          </div>
+          <Flex className="admin-topbar-content" align="center" justify="space-between" gap="middle">
+            <Typography.Title className="admin-page-title" level={5}>{title}</Typography.Title>
+            <Space size="middle" align="center">
+              <Space className="admin-user" size="small" align="center">
+                <Avatar size={36} icon={<UserCircle weight="fill" />} />
+                <Flex className="admin-user-copy" vertical>
+                  <Typography.Text strong>管理员</Typography.Text>
+                  <Typography.Text type="secondary">已通过后台鉴权</Typography.Text>
+                </Flex>
+              </Space>
+              <AntButton
+                icon={theme === "dark" ? <Sun /> : <Moon />}
+                title={theme === "dark" ? "切换为白色主题" : "切换为黑色主题"}
+                aria-label={theme === "dark" ? "切换为白色主题" : "切换为黑色主题"}
+                onClick={() => setTheme((currentTheme) => (currentTheme === "dark" ? "light" : "dark"))}
+              >
+                {theme === "dark" ? "白色模式" : "黑色模式"}
+              </AntButton>
+              <AntButton type="text" onClick={() => { setAdminToken(""); setAdminTokenState(""); navigate("/login", { replace: true }); }}>退出</AntButton>
+            </Space>
+          </Flex>
         </AntLayout.Header>
 
         <AntLayout.Content className="admin-content">
@@ -2985,7 +3261,7 @@ export default function Admin() {
           {page === "presets" && <PresetsPage toast={toast} adminToken={adminToken} />}
           {page === "models" && <ModelConfigPage toast={toast} adminToken={adminToken} />}
           {page === "users" && <UsersPage toast={toast} adminToken={adminToken} />}
-          {page === "messages" && <MessagesPage adminToken={adminToken} />}
+          {page === "messages" && <MessagesPage adminToken={adminToken} detailId={messageDetailId} />}
           {page === "orders" && <BillingPage key="orders" adminToken={adminToken} />}
           {page === "subscriptions" && <BillingPage key="subscriptions" subscription adminToken={adminToken} />}
           {page === "commerce" && <CommercePage toast={toast} adminToken={adminToken} />}
