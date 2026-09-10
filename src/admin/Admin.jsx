@@ -1,7 +1,6 @@
 import BillingPage from "./BillingPages.jsx";
 import MessagesPage from "./MessagesPage.jsx";
 import SettingsPage from "./SettingsPage.jsx";
-import UserLedgerPage from "./UserLedgerPage.jsx";
 import { useEffect, useRef, useState } from "react";
 import { Alert, App as AntApp, Avatar, Badge as AntBadge, Breadcrumb, Button as AntButton, Card as AntCard, Collapse as AntCollapse, DatePicker, Drawer as AntDrawer, Empty, Flex, Form, Input as AntInput, InputNumber as AntInputNumber, Layout as AntLayout, Menu as AntMenu, Modal as AntModal, Pagination, Progress as AntProgress, Segmented, Select as AntSelect, Space, Spin, Switch as AntSwitch, Table as AntTable, Tabs, Tag, Typography, Upload } from "antd";
 import dayjs from "dayjs";
@@ -1305,19 +1304,21 @@ function CharacterEditorPage({ character, onBack, toast, onStatusChange }) {
                     <Form.Item label="创建者"><AntInput value={profile.creator} onChange={(event) => setProfile((value) => ({ ...value, creator: event.target.value }))} readOnly={isReadOnly} placeholder="如：Luma 内容组" /></Form.Item>
                     <Form.Item label="AI 标识"><AntInput value="AI（常量展示，不伪装真人）" readOnly /></Form.Item>
                     <Form.Item label="标签">
-                      <Space size={[4, 4]} wrap style={{ marginBottom: 8 }}>
-                        {profile.tags.map((tag) => (
-                          <Tag key={tag} closable={!isReadOnly} onClose={(event) => { event.preventDefault(); deleteProfileTag(tag); }}>{tag}</Tag>
-                        ))}
-                      </Space>
-                      {!isReadOnly && (
-                        <Space.Compact className="character-tag-entry">
-                          <AntInput value={tagDraft} placeholder="输入标签，回车添加" onChange={(event) => setTagDraft(event.target.value)} onPressEnter={confirmProfileTag} />
-                          <AntButton onClick={addProfileTag} disabled={!tagDraft.trim()}>+ 添加标签</AntButton>
-                        </Space.Compact>
-                      )}
+                      <div className="character-tag-editor">
+                        <Space size={[4, 4]} wrap>
+                          {profile.tags.map((tag) => (
+                            <Tag key={tag} closable={!isReadOnly} onClose={(event) => { event.preventDefault(); deleteProfileTag(tag); }}>{tag}</Tag>
+                          ))}
+                        </Space>
+                        {!isReadOnly && (
+                          <Space.Compact className="character-tag-entry">
+                            <AntInput value={tagDraft} placeholder="输入标签，回车添加" onChange={(event) => setTagDraft(event.target.value)} onPressEnter={confirmProfileTag} />
+                            <AntButton onClick={addProfileTag} disabled={!tagDraft.trim()}>+ 添加标签</AntButton>
+                          </Space.Compact>
+                        )}
+                      </div>
                     </Form.Item>
-                    <Form.Item label="角色备注"><AntInput.TextArea value={profile.creatorNotes} onChange={(event) => setProfile((value) => ({ ...value, creatorNotes: event.target.value }))} readOnly={isReadOnly} placeholder="补充角色的运营备注…" /></Form.Item>
+                    <Form.Item label="角色备注"><AntInput.TextArea autoSize={{ minRows: 6, maxRows: 10 }} value={profile.creatorNotes} onChange={(event) => setProfile((value) => ({ ...value, creatorNotes: event.target.value }))} readOnly={isReadOnly} placeholder="补充角色的运营备注…" /></Form.Item>
                   </div>
                   <div className="basic-cover-panel">
                     <div className="basic-cover-panel-head">
@@ -1360,19 +1361,19 @@ function CharacterEditorPage({ character, onBack, toast, onStatusChange }) {
             <Card className="persona-settings-card" title="人设设定" sub="chara_card_v2 规范字段 · 组装顺序从上到下">
               <div className="persona-block">
                 <header><b>Description / 角色简介</b><span className="muted small">介绍角色身份、背景和整体定位</span><span className="order">PROMPT SEGMENT 1</span></header>
-                <AntInput.TextArea autoSize={{ minRows: 2, maxRows: 16 }} showCount value={profile.description} onChange={(event) => setProfile((value) => ({ ...value, description: event.target.value }))} readOnly={isReadOnly} />
+                <AntInput.TextArea autoSize={{ minRows: 6, maxRows: 16 }} showCount value={profile.description} onChange={(event) => setProfile((value) => ({ ...value, description: event.target.value }))} readOnly={isReadOnly} />
               </div>
               <div className="persona-block">
                 <header><b>Personality / 人格设定</b><span className="muted small">定义性格、情绪表达、行为倾向和语气</span><span className="order">PROMPT SEGMENT 2</span></header>
-                <AntInput.TextArea autoSize={{ minRows: 2, maxRows: 16 }} value={profile.personality} onChange={(event) => setProfile((value) => ({ ...value, personality: event.target.value }))} readOnly={isReadOnly} placeholder="描述角色的性格、情绪表达、行为倾向和语气…" />
+                <AntInput.TextArea autoSize={{ minRows: 6, maxRows: 16 }} value={profile.personality} onChange={(event) => setProfile((value) => ({ ...value, personality: event.target.value }))} readOnly={isReadOnly} placeholder="描述角色的性格、情绪表达、行为倾向和语气…" />
               </div>
               <div className="persona-block">
                 <header><b>Scenario / 场景设定</b><span className="muted small">定义用户与 AI 的关系、身份和聊天背景</span><span className="order">PROMPT SEGMENT 3</span></header>
-                <AntInput.TextArea autoSize={{ minRows: 2, maxRows: 16 }} value={profile.scenario} onChange={(event) => setProfile((value) => ({ ...value, scenario: event.target.value }))} readOnly={isReadOnly} placeholder="描述用户与 AI 的关系、身份和聊天背景…" />
+                <AntInput.TextArea autoSize={{ minRows: 6, maxRows: 16 }} value={profile.scenario} onChange={(event) => setProfile((value) => ({ ...value, scenario: event.target.value }))} readOnly={isReadOnly} placeholder="描述用户与 AI 的关系、身份和聊天背景…" />
               </div>
               <div className="persona-block">
                 <header><b>Avatar notes / 视觉备注</b><span className="muted small">内部可见，不进入模型</span></header>
-                <AntInput.TextArea autoSize={{ minRows: 2, maxRows: 16 }} value={profile.avatarNotes} onChange={(event) => setProfile((value) => ({ ...value, avatarNotes: event.target.value }))} readOnly={isReadOnly} />
+                <AntInput.TextArea autoSize={{ minRows: 6, maxRows: 16 }} value={profile.avatarNotes} onChange={(event) => setProfile((value) => ({ ...value, avatarNotes: event.target.value }))} readOnly={isReadOnly} />
               </div>
             </Card>
           )}
@@ -2934,7 +2935,6 @@ const NAV_GROUPS = [
     icon: Users,
     children: [
       { id: "users", path: "/users", label: "用户管理", icon: Users },
-      { id: "user-ledger", path: "/user-ledger", label: "用户流水", icon: Coins },
       { id: "messages", path: "/messages", label: "消息列表", icon: ChatCircleDots },
     ],
   },
@@ -3198,7 +3198,6 @@ export default function Admin() {
           {page === "presets" && <PresetsPage toast={toast} adminToken={adminToken} />}
           {page === "models" && <ModelConfigPage toast={toast} adminToken={adminToken} />}
           {page === "users" && <UsersPage toast={toast} adminToken={adminToken} />}
-          {page === "user-ledger" && <UserLedgerPage adminToken={adminToken} />}
           {page === "messages" && <MessagesPage adminToken={adminToken} detailId={messageDetailId} />}
           {page === "orders" && <BillingPage key="orders" adminToken={adminToken} />}
           {page === "subscriptions" && <BillingPage key="subscriptions" subscription adminToken={adminToken} />}

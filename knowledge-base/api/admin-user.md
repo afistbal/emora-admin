@@ -343,7 +343,7 @@
 - **请求**：`POST https://testapi.weshow.cc/api/admin/users/wallet/flows`
 - **鉴权**：Bearer Admin Token
 - **Content-Type**：`application/json`
-- **说明**：供运营管理中的“用户流水”页面使用。按不可变金币流水 ID 倒序分页，并在同一次查询中返回关联用户信息；不会逐条请求用户详情。
+- **说明**：保留为后台全局流水查询能力，当前运营管理不提供独立“用户流水”入口。接口按不可变金币流水 ID 倒序分页，并在同一次查询中返回关联用户信息；不会逐条请求用户详情。
 
 ### 请求字段
 

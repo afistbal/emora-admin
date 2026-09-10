@@ -513,6 +513,7 @@ button { color: inherit; cursor: pointer; }
 .matrix .ok { color: var(--accent); }
 .matrix .no { color: var(--faint); }
 
+.character-tag-editor { display: grid; justify-items: start; gap: 8px; min-width: 0; }
 .character-tag-entry.ant-space-compact { width: min(420px, 100%); }
 .character-tag-entry .ant-input { min-width: 0; flex: 1; }
 
