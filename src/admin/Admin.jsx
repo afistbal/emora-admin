@@ -756,6 +756,7 @@ function CharacterListPage({ list, onEdit, onCreate, onImport }) {
             { title: "ID", dataIndex: "id", render: (value) => <span className="muted">{value}</span> },
             { title: "角色", key: "role", render: (_, character) => <div className="character-list-role"><Avatar className="character-list-avatar" shape="square" size={80} src={character.image || undefined} alt={character.name}>{character.name?.trim().charAt(0) || "?"}</Avatar><div className="character-list-role-copy"><b>{character.name}</b>{character.subtitle && <div className="muted character-list-summary" title={character.subtitle}>{character.subtitle}</div>}</div></div> },
             { title: "状态", key: "status", render: (_, character) => <><Badge tone={character.status === "草稿" ? "yellow" : "green"}>{character.status}</Badge><div className="character-status-note">{character.status === "草稿" ? "未影响线上版本" : "C 端可见"}</div></> },
+            { title: "版本", dataIndex: "version", render: (value) => value ? <Typography.Text code>{displayCharacterVersion(value)}</Typography.Text> : "—" },
             { title: "标签", dataIndex: "tags", render: (tags) => <Space size={[4, 4]} wrap>{tags.slice(0, 4).map((tag) => <Tag key={tag}>{tag}</Tag>)}</Space> },
             { title: "今日聊天用户数", dataIndex: "chats", align: "right", render: (value) => value.toLocaleString() },
             { title: "消息次数", key: "messages", align: "right", render: (_, character) => <>{character.msgCount.toLocaleString()}<div className="muted" style={{ fontSize: 11 }}>人均 {character.msgPer} 轮</div></> },
@@ -814,6 +815,35 @@ async function loadMediaRefsByIds(ids, signal) {
   return refs;
 }
 
+function characterVersionContent(version) {
+  const rawData = version?.data || {};
+  return rawData.en || rawData["zh-Hant"] || rawData;
+}
+
+function characterVersionCover(version) {
+  const bindings = Array.isArray(version?.assets) ? version.assets : [];
+  const cover = bindings.find((binding) => binding.role === "cover" && binding.state === "online")
+    || bindings.find((binding) => binding.role === "cover");
+  return cover?.asset?.ref || cover?.asset?.preview_ref || "";
+}
+
+function characterVersionPreview(version) {
+  if (!version) return null;
+  const content = characterVersionContent(version);
+  return {
+    version: String(version.ver ?? content.spec_version ?? content.character_version ?? ""),
+    name: content.name || "—",
+    tagline: content.tagline || "",
+    cover: characterVersionCover(version),
+  };
+}
+
+function displayCharacterVersion(version) {
+  const value = String(version || "").trim();
+  if (!value) return "未设置";
+  return value.toLowerCase().startsWith("v") ? value : `v${value}`;
+}
+
 function CharacterEditorPage({ character, onBack, toast, onStatusChange }) {
   const [tab, setTab] = useState("basic");
   const [stage, setStage] = useState(character.status === "草稿" ? "草稿" : "已上架");
@@ -828,6 +858,9 @@ function CharacterEditorPage({ character, onBack, toast, onStatusChange }) {
   const [greetings, setGreetings] = useState([]);
   const [mesExamples, setMesExamples] = useState([]);
   const [cover, setCover] = useState(character.cardImage || character.image || "");
+  const [publishedPreview, setPublishedPreview] = useState(null);
+  const [hasSavedDraft, setHasSavedDraft] = useState(false);
+  const [hasUnsavedCover, setHasUnsavedCover] = useState(false);
   const [assetTab, setAssetTab] = useState("public");
   const [assetItems, setAssetItems] = useState({ public: [], private: [] });
   const [confirmDelAsset, setConfirmDelAsset] = useState(null); // { mode, id, label }
@@ -848,6 +881,9 @@ function CharacterEditorPage({ character, onBack, toast, onStatusChange }) {
   useEffect(() => {
     setCharacterDetailReady(false);
     setCharacterDetailError("");
+    setPublishedPreview(null);
+    setHasSavedDraft(false);
+    setHasUnsavedCover(false);
     if (!Number.isInteger(Number(character.id))) {
       setGreetings([{ id: 1, primary: true, enabled: true, body: "" }]);
       setCharacterDetailReady(true);
@@ -865,9 +901,12 @@ function CharacterEditorPage({ character, onBack, toast, onStatusChange }) {
           setCharacterDetailReady(true);
           return;
         }
-        const rawData = version.data || {};
         // 新角色使用单层 data；读取旧版本时仅在这里解开历史语言包装，保存后自动转成单层结构。
-        const content = rawData.en || rawData["zh-Hant"] || rawData;
+        const content = characterVersionContent(version);
+        // 左侧线上预览必须固定读取 published，不能被草稿或刚上传的封面覆盖。
+        setPublishedPreview(characterVersionPreview(data?.published));
+        setHasSavedDraft(Boolean(data?.draft));
+        setHasUnsavedCover(false);
         setProfile({
           name: content.name || character.name,
           // 版本输入框对应 char_versions.ver；旧数据没有 spec_version 时回退到旧快照字段。
@@ -906,28 +945,25 @@ function CharacterEditorPage({ character, onBack, toast, onStatusChange }) {
         const bindings = version.assets || [];
         const previewRefs = await loadMediaRefsByIds(bindings.map((binding) => binding.preview_id));
         if (!active) return;
-        if (bindings.length) {
-          const mapped = { public: [], private: [] };
-          for (const binding of bindings) {
-            const mode = binding.access === "private" || binding.role === "private" ? "private" : "public";
-            mapped[mode].push({
-              id: binding.id,
-              assetId: binding.asset_id,
-              src: binding.asset?.ref || binding.asset?.preview_ref || "",
-              label: binding.role === "cover" ? "封面" : binding.role === "private" ? "私密照片" : binding.role === "poster" ? "视频封面" : "Gallery",
-              kind: binding.role,
-              role: binding.role,
-              active: binding.state === "online",
-              blurred: mode === "private",
-              previewId: binding.preview_id,
-              previewSrc: previewRefs.get(Number(binding.preview_id)) || null,
-              price: binding.price,
-            });
-          }
-          setAssetItems(mapped);
-          const coverBinding = bindings.find((binding) => binding.role === "cover");
-          if (coverBinding?.asset?.ref) setCover(coverBinding.asset.ref);
+        setCover(characterVersionCover(version));
+        const mapped = { public: [], private: [] };
+        for (const binding of bindings) {
+          const mode = binding.access === "private" || binding.role === "private" ? "private" : "public";
+          mapped[mode].push({
+            id: binding.id,
+            assetId: binding.asset_id,
+            src: binding.asset?.ref || binding.asset?.preview_ref || "",
+            label: binding.role === "cover" ? "封面" : binding.role === "private" ? "私密照片" : binding.role === "poster" ? "视频封面" : "Gallery",
+            kind: binding.role,
+            role: binding.role,
+            active: binding.state === "online",
+            blurred: mode === "private",
+            previewId: binding.preview_id,
+            previewSrc: previewRefs.get(Number(binding.preview_id)) || null,
+            price: binding.price,
+          });
         }
+        setAssetItems(mapped);
         setStage(data.character?.state === "online" ? "已上架" : "草稿");
         setCharacterDetailReady(true);
       })
@@ -1012,6 +1048,7 @@ function CharacterEditorPage({ character, onBack, toast, onStatusChange }) {
     try {
       const asset = await adminApi.media.uploadFile(file, character.charCode);
       setCover(asset.ref);
+      setHasUnsavedCover(true);
       setAssetItems((items) => ({
         ...items,
         public: [
@@ -1038,6 +1075,14 @@ function CharacterEditorPage({ character, onBack, toast, onStatusChange }) {
   const rollbackVersion = async (version) => {
     try {
       await adminApi.characters.rollback({ char_id: Number(character.id), ver_id: Number(version.id) });
+      try {
+        const detail = await adminApi.characters.detail({ char_id: Number(character.id) });
+        setPublishedPreview(characterVersionPreview(detail?.published));
+        setHasSavedDraft(Boolean(detail?.draft));
+        setHasUnsavedCover(false);
+      } catch (refreshError) {
+        toast(`版本已回滚，但线上预览刷新失败：${refreshError.message}`);
+      }
       setShowVersions(false);
       setStage("已上架");
       onStatusChange(character.id, "已上架");
@@ -1048,7 +1093,7 @@ function CharacterEditorPage({ character, onBack, toast, onStatusChange }) {
   };
 
   const tabs = [
-    ["basic", "基础信息"], ["persona", "人设设定"], ["examples", "示例对话"], ["rules", "对话规则"], ["assets", "视觉资产"],
+    ["basic", "基础信息"], ["persona", "人设设定"], ["greetings", "开场白"], ["examples", "示例对话"], ["rules", "对话规则"], ["assets", "视觉资产"],
   ];
 
   const isReadOnly = false;
@@ -1089,7 +1134,8 @@ function CharacterEditorPage({ character, onBack, toast, onStatusChange }) {
     }
     const primaryGreeting = greetings.find((greeting) => greeting.primary);
     if (!primaryGreeting || !String(primaryGreeting.body || "").trim()) {
-      setTab("basic");
+      // 主开场白已拆分为独立页签，校验失败时直接定位到对应输入区域。
+      setTab("greetings");
       toast("请先填写主开场白，再保存或上架角色");
       return false;
     }
@@ -1097,6 +1143,8 @@ function CharacterEditorPage({ character, onBack, toast, onStatusChange }) {
     try {
       await adminApi.characters.saveDraft({ char_id: Number(character.id), ver: profile.version, data: buildCharacterData(), assets: buildAssetBindings(), platform_system_prompt: platformSystemPrompt });
       setStage("草稿");
+      setHasSavedDraft(true);
+      setHasUnsavedCover(false);
       onStatusChange(character.id, "草稿");
       if (!silent) toast("草稿已保存，当前线上版本继续生效");
       return true;
@@ -1114,6 +1162,10 @@ function CharacterEditorPage({ character, onBack, toast, onStatusChange }) {
       if (!(await save(true))) return;
       await adminApi.characters.publish({ char_id: Number(character.id) });
       setStage("已上架");
+      // 发布成功后当前编辑快照才成为线上版本，随后清除草稿标识。
+      setPublishedPreview({ version: profile.version, name: profile.name || "—", tagline: profile.tagline || "", cover });
+      setHasSavedDraft(false);
+      setHasUnsavedCover(false);
       onStatusChange(character.id, "已上架");
       toast("上架成功，新版本已对 C 端生效");
     } catch (error) {
@@ -1164,6 +1216,7 @@ function CharacterEditorPage({ character, onBack, toast, onStatusChange }) {
     { label: "历史后指令未超过 32,000 字符（可选）", pass: effectivePrompt.length <= 32000 },
   ];
   const definitionReady = definitionChecks.every((item) => item.pass);
+  const hasDraftPreview = hasSavedDraft || hasUnsavedCover;
 
   return (
     <div>
@@ -1188,15 +1241,50 @@ function CharacterEditorPage({ character, onBack, toast, onStatusChange }) {
       {characterDetailError && <Alert type="error" showIcon message="角色详情加载失败" description={`${characterDetailError}。为避免空数据覆盖原草稿，保存和上架已禁用，请刷新页面后重试。`} />}
 
       <div className="editor-tabs">
+        <div className="editor-preview-guide">
+          <Info aria-hidden="true" />
+          <div>
+            <Typography.Text strong>版本预览</Typography.Text>
+            <span>对比线上与草稿，上架后才影响 C 端</span>
+          </div>
+        </div>
         <Tabs activeKey={tab} items={tabs.map(([key, label]) => ({ key, label }))} onChange={setTab} />
       </div>
 
       <div className="editor-layout">
-        <aside className="editor-summary">
-          <img className="cover" src={cover} alt={character.name} />
-          <div className="body">
-            <h3>{character.name}</h3>
-            <div className="en">{character.subtitle}</div>
+        <aside className={`editor-summary${hasDraftPreview ? " has-draft" : ""}`}>
+          <div className="editor-version-grid">
+            <section className="editor-version-card editor-version-card--published">
+              <div className="editor-version-head">
+                <Tag color="success">线上版本</Tag>
+                <Typography.Text strong>{publishedPreview ? displayCharacterVersion(publishedPreview.version) : characterDetailReady ? "尚未发布" : "加载中"}</Typography.Text>
+              </div>
+              {publishedPreview?.cover
+                ? <img className="cover" src={publishedPreview.cover} alt={`${publishedPreview.name} 线上封面`} />
+                : <div className="editor-version-empty">{characterDetailReady ? "暂无线上封面" : <Spin />}</div>}
+              <div className="editor-version-copy">
+                <strong>{publishedPreview?.name || character.name}</strong>
+                <span>C 端当前生效</span>
+              </div>
+            </section>
+            {hasDraftPreview && (
+              <section className="editor-version-card editor-version-card--draft">
+                <div className="editor-version-head">
+                  <Tag color="warning">{hasSavedDraft ? "草稿版本" : "编辑预览"}</Tag>
+                  <Typography.Text strong>{displayCharacterVersion(profile.version)}</Typography.Text>
+                </div>
+                {cover
+                  ? <img className="cover" src={cover} alt={`${profile.name || character.name} 草稿封面`} />
+                  : <div className="editor-version-empty">暂无草稿封面</div>}
+                <div className="editor-version-copy">
+                  <strong>{profile.name || character.name}</strong>
+                  <span className={hasUnsavedCover ? "is-warning" : ""}>{hasUnsavedCover ? "新封面尚未保存" : "已保存，尚未发布"}</span>
+                </div>
+              </section>
+            )}
+          </div>
+          <div className="editor-summary-metrics">
+            <Typography.Text strong>线上数据</Typography.Text>
             <div className="summary-kv">
               <div><span>今日聊天用户数</span><b className="num">{character.chats.toLocaleString()}</b></div>
               <div><span>消息次数</span><b className="num">{character.msgCount.toLocaleString()}（人均 {character.msgPer} 轮）</b></div>
@@ -1209,41 +1297,42 @@ function CharacterEditorPage({ character, onBack, toast, onStatusChange }) {
         <div className="section-gap">
           {tab === "basic" && (
             <Card title="基础信息" sub="角色数据对应 chara_card_v2 规范（spec: chara_card_v2 / spec_version 2.0）">
-              <Form.Item label="名称 name *"><AntInput value={profile.name} onChange={(event) => setProfile((value) => ({ ...value, name: event.target.value }))} readOnly={isReadOnly} /></Form.Item>
-              <div style={{ marginTop: 14 }}>
-                <Form.Item label="标签 tags（数组，可增删）">
-                  <Space size={[4, 4]} wrap style={{ marginBottom: 8 }}>
-                    {profile.tags.map((tag) => (
-                      <Tag key={tag} closable={!isReadOnly} onClose={(event) => { event.preventDefault(); deleteProfileTag(tag); }}>{tag}</Tag>
-                    ))}
-                  </Space>
-                  {!isReadOnly && (
-                    <Space.Compact className="character-tag-entry">
-                      <AntInput value={tagDraft} placeholder="输入标签，回车添加" onChange={(event) => setTagDraft(event.target.value)} onPressEnter={confirmProfileTag} />
-                      <AntButton onClick={addProfileTag} disabled={!tagDraft.trim()}>+ 添加标签</AntButton>
-                    </Space.Compact>
-                  )}
-                </Form.Item>
-              </div>
-              <div className="grid-2" style={{ marginTop: 14 }}>
-                <Form.Item label="版本号 character_version"><AntInput value={profile.version} onChange={(event) => setProfile((value) => ({ ...value, version: event.target.value }))} readOnly={isReadOnly} placeholder="如：v2.3.1" /></Form.Item>
-                <Form.Item label="创建者 creator"><AntInput value={profile.creator} onChange={(event) => setProfile((value) => ({ ...value, creator: event.target.value }))} readOnly={isReadOnly} placeholder="如：Luma 内容组" /></Form.Item>
-              </div>
-              <div style={{ marginTop: 14 }}>
-                <Form.Item label="AI 标识"><AntInput value="AI（常量展示，不伪装真人）" readOnly /></Form.Item>
-              </div>
-              <div style={{ marginTop: 14 }}>
-                <Form.Item label="角色备注 creator_notes"><AntInput.TextArea value={profile.creatorNotes} onChange={(event) => setProfile((value) => ({ ...value, creatorNotes: event.target.value }))} readOnly={isReadOnly} placeholder="补充角色的运营备注…" /></Form.Item>
-              </div>
-              <div style={{ marginTop: 14 }}>
-                <Form.Item label="封面 avatar（本地上传）">
-                  <ImageUploadCard src={cover} alt="封面预览" disabled={isReadOnly} onSelect={changeCover} />
-                </Form.Item>
-              </div>
+              <Form className="basic-profile-form" component={false} layout="horizontal" labelAlign="left" labelCol={{ flex: "96px" }} wrapperCol={{ flex: "1 1 0" }}>
+                <div className="basic-profile-top">
+                  <div className="basic-profile-fields">
+                    <Form.Item label="名称"><AntInput value={profile.name} onChange={(event) => setProfile((value) => ({ ...value, name: event.target.value }))} readOnly={isReadOnly} /></Form.Item>
+                    <Form.Item label="版本号"><AntInput value={profile.version} onChange={(event) => setProfile((value) => ({ ...value, version: event.target.value }))} readOnly={isReadOnly} placeholder="如：v2.3.1" /></Form.Item>
+                    <Form.Item label="创建者"><AntInput value={profile.creator} onChange={(event) => setProfile((value) => ({ ...value, creator: event.target.value }))} readOnly={isReadOnly} placeholder="如：Luma 内容组" /></Form.Item>
+                    <Form.Item label="AI 标识"><AntInput value="AI（常量展示，不伪装真人）" readOnly /></Form.Item>
+                    <Form.Item label="标签">
+                      <Space size={[4, 4]} wrap style={{ marginBottom: 8 }}>
+                        {profile.tags.map((tag) => (
+                          <Tag key={tag} closable={!isReadOnly} onClose={(event) => { event.preventDefault(); deleteProfileTag(tag); }}>{tag}</Tag>
+                        ))}
+                      </Space>
+                      {!isReadOnly && (
+                        <Space.Compact className="character-tag-entry">
+                          <AntInput value={tagDraft} placeholder="输入标签，回车添加" onChange={(event) => setTagDraft(event.target.value)} onPressEnter={confirmProfileTag} />
+                          <AntButton onClick={addProfileTag} disabled={!tagDraft.trim()}>+ 添加标签</AntButton>
+                        </Space.Compact>
+                      )}
+                    </Form.Item>
+                    <Form.Item label="角色备注"><AntInput.TextArea value={profile.creatorNotes} onChange={(event) => setProfile((value) => ({ ...value, creatorNotes: event.target.value }))} readOnly={isReadOnly} placeholder="补充角色的运营备注…" /></Form.Item>
+                  </div>
+                  <div className="basic-cover-panel">
+                    <div className="basic-cover-panel-head">
+                      <Typography.Text strong>封面预览</Typography.Text>
+                      <Tag>3:4</Tag>
+                    </div>
+                    <ImageUploadCard src={cover} alt="封面预览" disabled={isReadOnly} onSelect={changeCover} />
+                    {!isReadOnly && <Typography.Text type="secondary">点击封面可重新上传</Typography.Text>}
+                  </div>
+                </div>
+              </Form>
             </Card>
           )}
 
-          {tab === "basic" && (
+          {tab === "greetings" && (
             <Card title="开场白 / Greetings" sub="主开场 + 最多 5 条备选开场；每条都应提供一个不同的对话起点">
               <Alert type="info" showIcon message="开场白需要直接进入场景，用角色自己的声音给用户一个可回应的动作、问题或选择。" />
               {greetings.map((g, index) => (
@@ -1996,7 +2085,7 @@ function ProductOriginalPrice({ value, onChange }) {
     onChange(JSON.stringify(nextExtra, null, 2));
   };
 
-  return <Form.Item label="划线价（USD）">
+  return <Form.Item label="划线价（USD）" layout="vertical">
     <AntInputNumber style={{ width: "100%" }} min={0} step={0.01} value={originalPrice} disabled={disabled}
       onChange={(nextValue) => updateOriginalPrice(nextValue ?? "")} placeholder="例如 39.00；留空则不显示" />
     {disabled && <span className="muted small">请先将 extra 编辑为有效的 JSON 对象。</span>}
@@ -2014,7 +2103,7 @@ function ProductSubscriptionType({ value, onChange, defaultType }) {
     && [1, 2, 3].includes(Number(type))
     ? String(Number(type))
     : ([1, 2, 3].includes(Number(defaultType)) ? String(Number(defaultType)) : "");
-  return <Form.Item label="订阅类型">
+  return <Form.Item label="订阅类型" layout="vertical">
     <AntSelect style={{ width: "100%" }} disabled={disabled} value={selectedType || undefined}
       placeholder="请选择"
       options={[{ value: "1", label: "周" }, { value: "2", label: "月" }, { value: "3", label: "年" }]}
@@ -2165,7 +2254,7 @@ function AddProductDialog({ kind, platform, onClose, onCreate }) {
           )}
         </div>
         {!isCoin && <ProductSubscriptionType value={extra} onChange={setExtra} />}
-        <Form.Item label="扩展配置 extra（JSON，可留空）"><AntInput.TextArea autoSize={{ minRows: 4, maxRows: 18 }} value={extra} onChange={(event) => setExtra(event.target.value)} placeholder='{"key": "value"}' /></Form.Item>
+        <Form.Item label="扩展配置 extra（JSON，可留空）" layout="vertical"><AntInput.TextArea autoSize={{ minRows: 4, maxRows: 18 }} value={extra} onChange={(event) => setExtra(event.target.value)} placeholder='{"key": "value"}' /></Form.Item>
         {error && <Alert type="error" showIcon message={error} style={{ marginTop: 12 }} />}
         <p className="muted small" style={{ margin: "12px 0 0" }}>新建商品默认为下架状态，确认配置后再手动上架。</p>
     </AntModal>
@@ -2307,12 +2396,18 @@ function CommercePage({ toast, adminToken }) {
       <div className="commerce-filter-bar">
         <div className="commerce-filter-group">
           <span className="commerce-filter-label">平台</span>
-          <Segmented aria-label="商品平台" value={platform} options={[{ value: 1, label: "Android" }, { value: 2, label: "iOS" }]} onChange={(value) => { setPlatform(value); setProductPage(1); }} />
+          <Segmented aria-label="商品平台" value={platform} options={[
+            { value: 1, label: <Space size={4}>{platform === 1 && <Check size={14} weight="bold" />}<Typography.Text strong={platform === 1}>Android</Typography.Text></Space> },
+            { value: 2, label: <Space size={4}>{platform === 2 && <Check size={14} weight="bold" />}<Typography.Text strong={platform === 2}>iOS</Typography.Text></Space> },
+          ]} onChange={(value) => { setPlatform(value); setProductPage(1); }} />
         </div>
         <div className="commerce-filter-divider" aria-hidden="true" />
         <div className="commerce-filter-group">
           <span className="commerce-filter-label">商品类型</span>
-          <Segmented aria-label="商品类型" value={tab} options={[{ value: "plans", label: "订阅" }, { value: "packs", label: "一次性商品" }]} onChange={(value) => { setTab(value); setProductPage(1); }} />
+          <Segmented aria-label="商品类型" value={tab} options={[
+            { value: "plans", label: <Space size={4}>{tab === "plans" && <Check size={14} weight="bold" />}<Typography.Text strong={tab === "plans"}>订阅</Typography.Text></Space> },
+            { value: "packs", label: <Space size={4}>{tab === "packs" && <Check size={14} weight="bold" />}<Typography.Text strong={tab === "packs"}>一次性商品</Typography.Text></Space> },
+          ]} onChange={(value) => { setTab(value); setProductPage(1); }} />
         </div>
       </div>
       {productsLoading && (
@@ -2354,28 +2449,24 @@ function CommercePage({ toast, adminToken }) {
             <div className="grid-3 subscription-product-grid">
               {plans.map((p) => (
                 <Card className="subscription-product-card" key={p.id || p.name} title={p.name} actions={<AntButton type="primary" onClick={() => savePlan(p)}>保存</AntButton>}>
-                  <div className="grid-2" style={{ gap: 10 }}>
-                    <Form.Item label="Product ID">
+                  <div className="subscription-plan-fields">
+                    <Form.Item label="Product ID" layout="vertical">
                       <AntInput value={p.productId} onChange={(e) => updatePlan(p.id, "productId", e.target.value)} />
                     </Form.Item>
-                    <Form.Item label="Base Plan ID">
+                    <Form.Item label="Base Plan ID" layout="vertical">
                       <AntInput value={p.basePlanId} onChange={(e) => updatePlan(p.id, "basePlanId", e.target.value)} />
                     </Form.Item>
-                  </div>
-                  <div className="grid-2" style={{ gap: 10 }}>
-                    <Form.Item label="价格（USD）">
+                    <Form.Item label="价格（USD）" layout="vertical">
                       <AntInputNumber style={{ width: "100%" }} min={0} step={0.01} value={p.price} onChange={(nextValue) => updatePlan(p.id, "price", Number(nextValue || 0))} />
                     </Form.Item>
-                    <Form.Item label="首次优惠价（USD）">
+                    <Form.Item label="首次优惠价（USD）" layout="vertical">
                       <AntInputNumber style={{ width: "100%" }} min={0} step={0.01} value={p.renewPrice} onChange={(nextValue) => updatePlan(p.id, "renewPrice", Number(nextValue || 0))} />
                     </Form.Item>
-                  </div>
-                  <div className="grid-2 subscription-meta-grid">
                     <ProductOriginalPrice value={p.extra} onChange={(value) => updatePlan(p.id, "extra", value)} />
                     <ProductSubscriptionType value={p.extra} defaultType={p.subscriptionType} onChange={(value) => updatePlan(p.id, "extra", value)} />
                   </div>
                   <div className="subscription-extra-block">
-                    <Form.Item label="扩展配置 extra（JSON，可留空）"><AntInput.TextArea autoSize={{ minRows: 4, maxRows: 18 }} value={p.extra} onChange={(e) => updatePlan(p.id, "extra", e.target.value)} /></Form.Item>
+                    <Form.Item label="扩展配置 extra（JSON，可留空）" layout="vertical"><AntInput.TextArea autoSize={{ minRows: 4, maxRows: 18 }} value={p.extra} onChange={(e) => updatePlan(p.id, "extra", e.target.value)} /></Form.Item>
                   </div>
                   {p.id && <div className="subscription-status-row">
                     <div><strong>商品状态</strong><span>控制该订阅商品是否上架</span></div>
@@ -2931,6 +3022,7 @@ export default function Admin() {
           name: item.profile?.name || item.char_code,
           subtitle: item.profile?.tagline || "—",
           tags: item.profile?.tags || [],
+          version: item.profile?.version || "",
           status: item.state === "online" ? "已上架" : "草稿",
           image: cover || "",
           cardImage: cover || "",

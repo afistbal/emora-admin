@@ -56,7 +56,8 @@
 | d.items[].id | 否 | integer |  |  |
 | d.items[].char_code | 否 | string |  |  |
 | d.items[].state | 否 | string |  |  |
-| d.items[].profile | 否 | object |  |  |
+| d.items[].profile | 否 | object |  | 已发布角色返回当前线上版本资料；没有线上版本时回退返回草稿资料。 |
+| d.items[].profile.version | 否 | string |  | 当前列表资料对应的版本号；已发布角色为线上版本号。 |
 | d.items[].profile.name | 否 | string |  |  |
 | d.items[].profile.tagline | 否 | string |  |  |
 | d.items[].profile.tags | 否 | array<string> |  |  |
@@ -1196,4 +1197,3 @@
 ```
 
 ---
-
