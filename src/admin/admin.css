@@ -332,13 +332,16 @@ button { color: inherit; cursor: pointer; }
 .provider-route-label .ant-typography { display: block; min-width: 0; margin: 0; }
 .provider-route-status { display: inline-flex; flex: none; align-items: center; }
 .user-detail-modal .ant-modal-body { max-height: min(720px, 72vh); overflow-y: auto; padding-right: 6px; }
-.user-detail-modal .section-gap { gap: 12px; }
+.user-detail-modal .section-gap > * + * { margin-top: 12px; }
 .user-detail-loading { display: flex; align-items: center; gap: 9px; padding: 10px 12px; border-radius: 9px; background: var(--accent-soft); color: var(--muted); font-size: 12px; }
 /* 用户资料按“字段：值”形成稳定基线，长值只在内容列内换行。 */
 .user-detail-kv > div { display: grid; grid-template-columns: 100px minmax(0, 1fr); align-items: baseline; justify-content: initial; gap: 12px; }
 .user-detail-kv > div > span { text-align: right; white-space: nowrap; }
 .user-detail-kv > div > span::after { content: "："; }
 .user-detail-kv > div > b { min-width: 0; text-align: left; overflow-wrap: anywhere; }
+.user-detail-section .ant-card-body { padding: 16px; }
+.user-detail-coin-form { display: grid; grid-template-columns: 130px minmax(180px, 1fr) auto; align-items: end; gap: 12px; }
+.user-detail-coin-form .ant-form-item { margin-bottom: 0; }
 
 .editor-toolbar { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
 .editor-stage-note { color: var(--muted); font-size: 11px; }

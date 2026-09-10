@@ -1,6 +1,7 @@
 import BillingPage from "./BillingPages.jsx";
 import MessagesPage from "./MessagesPage.jsx";
 import SettingsPage from "./SettingsPage.jsx";
+import UserLedgerPage from "./UserLedgerPage.jsx";
 import { useEffect, useRef, useState } from "react";
 import { Alert, App as AntApp, Avatar, Badge as AntBadge, Breadcrumb, Button as AntButton, Card as AntCard, Collapse as AntCollapse, DatePicker, Drawer as AntDrawer, Empty, Flex, Form, Input as AntInput, InputNumber as AntInputNumber, Layout as AntLayout, Menu as AntMenu, Modal as AntModal, Pagination, Progress as AntProgress, Segmented, Select as AntSelect, Space, Spin, Switch as AntSwitch, Table as AntTable, Tabs, Tag, Typography, Upload } from "antd";
 import dayjs from "dayjs";
@@ -1976,26 +1977,17 @@ function UsersPage({ toast, adminToken }) {
                   disabled
                 />
               </div>
-              <div className="card">
-                <div className="card-head"><h2>金币</h2><span className="sub">余额 {selected.coins.toLocaleString()} · 高危操作</span></div>
-                <div style={{ display: "flex", gap: 10, alignItems: "flex-end" }}>
+              <Card className="user-detail-section" title="金币" sub={`余额 ${selected.coins.toLocaleString()} · 高危操作`}>
+                <Form className="user-detail-coin-form" layout="vertical" component="div">
                   <Form.Item label="增加数量">
-                    <AntInputNumber style={{ width: 120 }} min={1} value={addAmount} onChange={(nextValue) => setAddAmount(nextValue ?? "")} />
+                    <AntInputNumber style={{ width: "100%" }} min={1} value={addAmount} onChange={(nextValue) => setAddAmount(nextValue ?? "")} />
                   </Form.Item>
                   <Form.Item label="备注">
                     <AntInput value={addNote} onChange={(e) => setAddNote(e.target.value)} />
                   </Form.Item>
                   <AntButton type="primary" onClick={addCoins}>确认增加</AntButton>
-                </div>
-              </div>
-              <div className="card">
-                <div className="card-head">
-                  <h2>金币流水</h2><span className="sub">最近 3 条</span>
-                  <div className="spacer" />
-                  <AntButton onClick={() => openWalletRecords(selected)}>查看全部流水</AntButton>
-                </div>
-                <TxTable rows={records.slice(0, 3)} />
-              </div>
+                </Form>
+              </Card>
               <div className="card">
                 <div className="card-head"><h2>处置操作</h2><span className="sub">全部留痕 · 即时生效于 C 端</span></div>
                 <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
@@ -2935,6 +2927,7 @@ const NAV_GROUPS = [
     icon: Users,
     children: [
       { id: "users", path: "/users", label: "用户管理", icon: Users },
+      { id: "user-ledger", path: "/user-ledger", label: "用户流水", icon: Coins },
       { id: "messages", path: "/messages", label: "消息列表", icon: ChatCircleDots },
     ],
   },
@@ -3198,6 +3191,7 @@ export default function Admin() {
           {page === "presets" && <PresetsPage toast={toast} adminToken={adminToken} />}
           {page === "models" && <ModelConfigPage toast={toast} adminToken={adminToken} />}
           {page === "users" && <UsersPage toast={toast} adminToken={adminToken} />}
+          {page === "user-ledger" && <UserLedgerPage adminToken={adminToken} />}
           {page === "messages" && <MessagesPage adminToken={adminToken} detailId={messageDetailId} />}
           {page === "orders" && <BillingPage key="orders" adminToken={adminToken} />}
           {page === "subscriptions" && <BillingPage key="subscriptions" subscription adminToken={adminToken} />}

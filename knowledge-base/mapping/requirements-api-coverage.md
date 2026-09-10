@@ -9,7 +9,7 @@
 | 角色管理 | `/admin/characters/list`、`detail`、`versions`、`create`、`draft/save`、`publish`、`rollback`、`assets/status`、`assets/remove` | 覆盖角色列表、详情、版本、草稿、发布、回滚和资产状态 |
 | 媒体资产 | `/admin/media/list`、`upload`、`upload-policy` | 支持素材查询与上传流程；它是角色编辑等页面的基础能力，不必单独做菜单 |
 | 生成预设 | `/admin/ai/presets/list`、`create`、`update`、`status`、`delete` | 覆盖预设管理；虽然包含 `ai`，但路径属于 `/admin/`，必须保留 |
-| 用户管理 | `/admin/users/list`、`detail`、`admin/status`、`wallet/history`、`wallet/flows`、`coins/grant` | 覆盖用户查询、详情、单用户金币流水和人工赠币；全局流水接口保留兼容，不提供独立页面 |
+| 用户管理 | `/admin/users/list`、`detail`、`admin/status`、`wallet/history`、`wallet/flows`、`coins/grant` | 覆盖用户查询、详情、单用户/全局金币流水和人工赠币 |
 | 商品管理 | `/admin/products/list`、`create`、`update`、`status`、`delete` | 提供通用商品管理能力，可支持已定义的商业化页面，但具体商品类型仍以接口枚举为准 |
 | 数据统计 | `/admin/analytics/query` | 有统一查询入口，但维度与产品稿并不完全一致，见下方差异 |
 | 系统设置 | `/admin/settings/list`、`/admin/settings/update` | 动态管理 settings 现有记录；配置键只读，JSON 值和启停状态支持版本并发校验 |
