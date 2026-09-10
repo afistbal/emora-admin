@@ -1,7 +1,7 @@
 import environments from "../../config/environments.json";
 
-// Umi 在构建时固化目标环境，继续复用原来的 dev/prod 接口配置，不改变任何请求契约。
-const environmentKey = process.env.EMORA_ENV === "prod" ? "prod" : "dev";
+// Vite 的 mode 只负责选择已有的 dev/prod 配置，不改变任何接口请求契约。
+const environmentKey = import.meta.env.MODE === "prod" || import.meta.env.MODE === "production" ? "prod" : "dev";
 export const API_ENVIRONMENT = environments[environmentKey];
 export const API_BASE_URL = API_ENVIRONMENT.apiBaseUrl;
 

@@ -4,20 +4,21 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "dev": "cross-env EMORA_ENV=dev PORT=8666 HOST=0.0.0.0 umi dev",
-    "prod": "cross-env EMORA_ENV=prod PORT=8666 HOST=0.0.0.0 umi dev",
-    "build": "cross-env EMORA_ENV=prod umi build",
-    "build:dev": "cross-env EMORA_ENV=dev umi build",
-    "preview": "cross-env PORT=8666 HOST=0.0.0.0 umi preview",
-    "validate": "node scripts/validate-knowledge.mjs && cross-env EMORA_ENV=prod umi build"
+    "dev": "vite --mode dev --open /",
+    "prod": "vite --mode prod --open /",
+    "build": "vite build --mode prod",
+    "build:dev": "vite build --mode dev",
+    "preview": "vite preview --mode prod",
+    "validate": "node scripts/validate-knowledge.mjs && vite build"
   },
   "dependencies": {
     "@phosphor-icons/react": "^2.1.10",
+    "@vitejs/plugin-react": "5.0.4",
     "antd": "^6.6.3",
-    "cross-env": "^10.1.0",
     "dayjs": "^1.11.23",
     "react": "19.2.0",
     "react-dom": "19.2.0",
-    "umi": "^4.7.16"
+    "react-router-dom": "^7.18.2",
+    "vite": "6.4.2"
   }
 }

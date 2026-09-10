@@ -32,7 +32,7 @@ import {
   X,
 } from "@phosphor-icons/react";
 import { adminApi, getAdminToken, setAdminToken } from "./api/client.js";
-import { useLocation, useNavigate } from "umi";
+import { useLocation, useNavigate } from "react-router-dom";
 
 /* ================= 共享小组件 ================= */
 

@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { Alert, Button, Card, Descriptions, Empty, Form, Image, InputNumber, Pagination, Select, Space, Spin, Table, Tag, Typography } from "antd";
 import { ArrowLeft, ArrowsClockwise, ChatCircleDots, MagnifyingGlass, WarningCircle } from "@phosphor-icons/react";
-import { useNavigate } from "umi";
+import { useNavigate } from "react-router-dom";
 import { adminApi } from "./api/client.js";
 import "./messages.css";
 

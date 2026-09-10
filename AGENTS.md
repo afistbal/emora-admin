@@ -5,7 +5,7 @@
 ## 1. 项目定位
 
 - 本仓库是 Emora 运营后台前端，不是 PHP 后端项目。
-- 技术栈：React 19、Umi 4、Ant Design 6、Day.js。
+- 技术栈：React 19、React Router、Vite 6、Ant Design 6、Day.js。
 - 前端源码目录：`D:\work\emora-admin`。
 - 后端仓库：`D:\work\emora-api`。需要修改接口时必须切换到后端仓库，并阅读后端仓库自己的 `AGENTS.md`。
 - 生产静态制品归档仓库：`D:\work\emora.build`。
@@ -29,7 +29,7 @@
 
 至少完成以下检查：
 
-1. 阅读 `package.json`、`.umirc.js` 和 `knowledge-base/README.md`。
+1. 阅读 `package.json`、`vite.config.mjs` 和 `knowledge-base/README.md`。
 2. 找到页面状态所有者、事件处理函数、接口调用和相关 CSS。
 3. 检查同一组件在白色模式和黑色模式下的表现。
 4. 检查加载、空数据、失败、禁用、重复点击和长文本场景。
@@ -163,11 +163,11 @@ npm run validate
 git diff --check
 ```
 
-`npm run validate` 会执行知识库/API 客户端一致性检查和 Umi 生产构建。不得硬编码文档接口数量，以命令实际输出为准。
+`npm run validate` 会执行知识库/API 客户端一致性检查和 Vite 生产构建。不得硬编码文档接口数量，以命令实际输出为准。
 
 涉及界面时还要：
 
-1. 使用 `npm run dev` 启动本地页面，默认端口以 `package.json` 的脚本为准。
+1. 使用 `npm run dev` 启动本地页面，默认端口以 `vite.config.mjs` 为准。
 2. 核对目标页面的正常、加载、空数据和失败状态。
 3. 核对白色模式和黑色模式。
 4. 核对长文本、滚动、分页和交互控件。
@@ -182,7 +182,7 @@ git diff --check
 推荐流程：
 
 1. 在源码仓库执行 `npm run validate`。
-2. 使用 `npm run build` 生成独立生产暂存目录 `dist-prod`（目录由 `.umirc.js` 的 `outputPath` 配置）。
+2. 使用 `npm run build -- --outDir dist-prod` 生成独立生产暂存目录。
 3. 确认 `dist-prod/index.html` 和静态资源存在。
 4. 在 PowerShell 中解析并核对目标绝对路径确实位于 `D:\work\emora.build` 下。
 5. 将生产文件同步到 `D:\work\emora.build\emora-admin`，不得删除或覆盖聚合仓库的 `.git`。

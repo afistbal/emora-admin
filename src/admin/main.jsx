@@ -1,7 +1,10 @@
 import { useEffect, useState } from "react";
+import { createRoot } from "react-dom/client";
+import { BrowserRouter } from "react-router-dom";
 import { App as AntApp, ConfigProvider, theme as antTheme } from "antd";
 import "antd/dist/reset.css";
-import "./admin/admin.css";
+import Admin from "./Admin.jsx";
+import "./admin.css";
 
 const sharedTheme = {
   cssVar: true,
@@ -9,14 +12,14 @@ const sharedTheme = {
 
 function AdminThemeProvider({ children }) {
   const [isDark, setIsDark] = useState(() => {
-    // 在 Umi 渲染业务路由前读取持久化主题，避免页面先以白色主题闪烁。
+    // 首屏直接读取与后台主题开关相同的持久化值，避免子组件写入 data-theme 前 Ant 先按白色主题渲染。
     const savedTheme = window.localStorage.getItem("emora-admin-theme");
     return savedTheme === "dark"
       || (savedTheme === null && document.documentElement.dataset.theme === "dark");
   });
 
   useEffect(() => {
-    // 现有主题开关继续通过 data-theme 驱动，统一同步 Ant Design 的主题算法。
+    // 后台原有主题开关通过 data-theme 切换；监听属性后同步 Ant Design 的主题算法。
     const observer = new MutationObserver(() => {
       setIsDark(document.documentElement.dataset.theme === "dark");
     });
@@ -39,6 +42,10 @@ function AdminThemeProvider({ children }) {
   );
 }
 
-export function rootContainer(container) {
-  return <AdminThemeProvider>{container}</AdminThemeProvider>;
-}
+createRoot(document.getElementById("root")).render(
+  <AdminThemeProvider>
+    <BrowserRouter>
+      <Admin />
+    </BrowserRouter>
+  </AdminThemeProvider>,
+);
