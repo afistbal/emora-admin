@@ -693,7 +693,6 @@ function parseImportedCharacterCard(value) {
     id: `char_${now}`,
     charCode: `char_${now}`,
     name,
-    nameEn: name,
     subtitle: content.tagline,
     status: "草稿",
     version: specVersion,
@@ -706,7 +705,7 @@ function parseImportedCharacterCard(value) {
     video: null,
     sessions7d: 0, validDialogs7d: 0, todaySessions: 0, assetScore: 1,
     chats: 0, msgCount: 0, msgPer: 0, expPv: 0, expUv: 0, genSubmit: 0, genRate: "—",
-    data: { "zh-Hant": content, en: { ...content, name } },
+    data: content,
     versionValue: specVersion,
   };
 }
@@ -729,13 +728,12 @@ function NewCharacterDialog({ onClose, onCreate }) {
   const [tags, setTags] = useState("");
   const [subtitle, setSubtitle] = useState("");
   const [greeting, setGreeting] = useState("");
-  const [greetingEn, setGreetingEn] = useState("");
   const [cover, setCover] = useState(null);
   const [coverFile, setCoverFile] = useState(null);
   const [submitting, setSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState("");
 
-  const valid = charCode.trim() && name.trim() && greeting.trim() && greetingEn.trim() && cover;
+  const valid = charCode.trim() && name.trim() && greeting.trim() && cover;
   const confirm = async () => {
     setSubmitting(true);
     setSubmitError("");
@@ -743,11 +741,11 @@ function NewCharacterDialog({ onClose, onCreate }) {
       await onCreate({
       id: `char_${Date.now()}`,
       charCode: charCode.trim(),
-      name: name.trim(), nameEn: name.trim(), subtitle: subtitle.trim(),
+      name: name.trim(), subtitle: subtitle.trim(),
       status: "草稿", version: "v0.1.0-draft", publishedAt: "—",
       tags: tags.split(/[，,\s]+/).filter(Boolean).slice(0, 4),
       image: cover, cardImage: cover,
-      greeting: greeting.trim(), greetingEn: greetingEn.trim(), lockedImage: cover, gallery: [cover], video: null,
+      greeting: greeting.trim(), lockedImage: cover, gallery: [cover], video: null,
       sessions7d: 0, validDialogs7d: 0, todaySessions: 0, assetScore: 1,
       chats: 0, msgCount: 0, msgPer: 0, expPv: 0, expUv: 0, genSubmit: 0, genRate: "—",
       coverFile,
@@ -783,10 +781,7 @@ function NewCharacterDialog({ onClose, onCreate }) {
           <Field label="简介"><UiTextArea className="textarea" style={{ minHeight: 56 }} value={subtitle} onChange={(e) => setSubtitle(e.target.value)} /></Field>
         </div>
         <div style={{ marginTop: 12 }}>
-          <Field label="中文开场白 first_mes *"><UiTextArea className="textarea" style={{ minHeight: 56 }} value={greeting} onChange={(e) => setGreeting(e.target.value)} placeholder="输入角色的中文开场白…" /></Field>
-        </div>
-        <div style={{ marginTop: 12 }}>
-          <Field label="English opening greeting *"><UiTextArea className="textarea" style={{ minHeight: 56 }} value={greetingEn} onChange={(e) => setGreetingEn(e.target.value)} placeholder="Enter the character's English opening greeting…" /></Field>
+          <Field label="主开场白 first_mes *"><UiTextArea className="textarea" style={{ minHeight: 56 }} value={greeting} onChange={(e) => setGreeting(e.target.value)} placeholder="输入角色的主开场白…" /></Field>
         </div>
         <div style={{ marginTop: 12 }}>
           <div className="field">
@@ -922,11 +917,14 @@ async function loadMediaRefsByIds(ids, signal) {
 function CharacterEditorPage({ character, onBack, toast, onStatusChange }) {
   const [tab, setTab] = useState("basic");
   const [stage, setStage] = useState(character.status === "草稿" ? "草稿" : "已上架");
-  const [locale, setLocale] = useState("zh");
   const [tagDraft, setTagDraft] = useState("");
-  const [prompt, setPrompt] = useState({ zh: "", en: "" });
+  const [prompt, setPrompt] = useState("");
   const [platformSystemPrompt, setPlatformSystemPrompt] = useState(PLATFORM_SYSTEM_PROMPT);
   const [platformPromptLoading, setPlatformPromptLoading] = useState(true);
+  const [characterDetailReady, setCharacterDetailReady] = useState(false);
+  const [characterDetailError, setCharacterDetailError] = useState("");
+  const [saving, setSaving] = useState(false);
+  const [publishing, setPublishing] = useState(false);
   const [greetings, setGreetings] = useState([]);
   const [mesExamples, setMesExamples] = useState([]);
   const [cover, setCover] = useState(character.cardImage || character.image || "");
@@ -937,7 +935,6 @@ function CharacterEditorPage({ character, onBack, toast, onStatusChange }) {
   const [showVersions, setShowVersions] = useState(false);
   const [profile, setProfile] = useState({
     name: character.name,
-    nameEn: character.nameEn || character.name,
     version: "",
     creator: "",
     creatorNotes: "",
@@ -949,7 +946,13 @@ function CharacterEditorPage({ character, onBack, toast, onStatusChange }) {
     tags: character.tags || [],
   });
   useEffect(() => {
-    if (!Number.isInteger(Number(character.id))) return undefined;
+    setCharacterDetailReady(false);
+    setCharacterDetailError("");
+    if (!Number.isInteger(Number(character.id))) {
+      setGreetings([{ id: 1, primary: true, enabled: true, body: "" }]);
+      setCharacterDetailReady(true);
+      return undefined;
+    }
     let active = true;
     // 详情请求不绑定组件卸载信号，避免编辑器切换或 Vite 热更新把唯一请求标记为 canceled。
     // 组件卸载后仍通过 active 保护状态，防止旧角色详情回写到新编辑器。
@@ -957,48 +960,48 @@ function CharacterEditorPage({ character, onBack, toast, onStatusChange }) {
       .then(async (data) => {
         if (!active) return;
         const version = data?.draft || data?.published;
-        if (!version) return;
+        if (!version) {
+          setGreetings([{ id: 1, primary: true, enabled: true, body: "" }]);
+          setCharacterDetailReady(true);
+          return;
+        }
         const rawData = version.data || {};
-        // 角色内容已统一为英文；旧版本仍可能带有 zh-Hant 时，仅作为英文内容缺失时的兼容回退。
-        const en = rawData.en || rawData["zh-Hant"] || rawData;
-        const zh = en;
+        // 新角色使用单层 data；读取旧版本时仅在这里解开历史语言包装，保存后自动转成单层结构。
+        const content = rawData.en || rawData["zh-Hant"] || rawData;
         setProfile({
-          name: zh.name || character.name,
-          nameEn: en.name || character.nameEn || character.name,
+          name: content.name || character.name,
           // 版本输入框对应 char_versions.ver；旧数据没有 spec_version 时回退到旧快照字段。
-          version: String(version.ver ?? zh.spec_version ?? en.spec_version ?? zh.character_version ?? en.character_version ?? ""),
-          creator: zh.creator || en.creator || "",
-          creatorNotes: zh.creator_notes || en.creator_notes || "",
-          tagline: zh.tagline || "",
-          description: zh.description || "",
-          personality: zh.personality || "",
-          scenario: zh.scenario || "",
-          avatarNotes: zh.avatar_notes || "",
-          tags: zh.tags || [],
+          version: String(version.ver ?? content.spec_version ?? content.character_version ?? ""),
+          creator: content.creator || "",
+          creatorNotes: content.creator_notes || "",
+          tagline: content.tagline || "",
+          description: content.description || "",
+          personality: content.personality || "",
+          scenario: content.scenario || "",
+          avatarNotes: content.avatar_notes || "",
+          tags: content.tags || [],
         });
-        setPrompt({ zh: zh.prompt || "", en: en.prompt || "" });
-        const zhExamples = Array.isArray(en.mes_example) ? en.mes_example : Array.isArray(rawData.mes_example) ? rawData.mes_example : [];
-        const enExamples = zhExamples;
-        const exampleCount = Math.max(zhExamples.length, enExamples.length);
-        setMesExamples(Array.from({ length: exampleCount }, (_, index) => ({
+        setPrompt(content.prompt || "");
+        const examples = Array.isArray(content.mes_example) ? content.mes_example : [];
+        setMesExamples(examples.map((example, index) => ({
           id: index + 1,
-          zhUser: zhExamples[index]?.user || "",
-          zhCharacter: zhExamples[index]?.character || "",
-          enUser: enExamples[index]?.user || "",
-          enCharacter: enExamples[index]?.character || "",
+          user: example?.user || "",
+          character: example?.character || "",
         })));
-        const zhGreetings = Array.isArray(en.greetings) ? en.greetings : [];
-        const enGreetings = zhGreetings;
-        const greetingCount = Math.max(zhGreetings.length, enGreetings.length);
-        if (greetingCount) {
-          setGreetings(Array.from({ length: greetingCount }, (_, index) => ({
+        const greetingItems = Array.isArray(content.greetings) ? content.greetings : [];
+        if (greetingItems.length) {
+          // 兼容历史草稿：没有 kind=primary 时将第一条视为主开场，并保证保存后只有一个有效主开场。
+          const explicitPrimaryIndex = greetingItems.findIndex((greeting) => greeting?.kind === "primary");
+          const primaryIndex = explicitPrimaryIndex >= 0 ? explicitPrimaryIndex : 0;
+          setGreetings(greetingItems.map((greeting, index) => ({
             id: index + 1,
-            primary: (zhGreetings[index]?.kind || enGreetings[index]?.kind) === "primary",
-            enabled: zhGreetings[index]?.enabled ?? enGreetings[index]?.enabled ?? true,
-            // 开场白只保留英文编辑值，同时同步到兼容字段，避免旧接口结构导致发布校验误判。
-            zh: enGreetings[index]?.body || "",
-            en: enGreetings[index]?.body || "",
+            primary: index === primaryIndex,
+            enabled: index === primaryIndex ? true : greeting?.enabled ?? true,
+            body: typeof greeting === "string" ? greeting : greeting?.body || "",
           })));
+        } else {
+          // 空草稿也展示不可删除的主开场输入框，避免用户只能新增“备选开场”。
+          setGreetings([{ id: 1, primary: true, enabled: true, body: "" }]);
         }
         const bindings = version.assets || [];
         const previewRefs = await loadMediaRefsByIds(bindings.map((binding) => binding.preview_id));
@@ -1026,9 +1029,13 @@ function CharacterEditorPage({ character, onBack, toast, onStatusChange }) {
           if (coverBinding?.asset?.ref) setCover(coverBinding.asset.ref);
         }
         setStage(data.character?.state === "online" ? "已上架" : "草稿");
+        setCharacterDetailReady(true);
       })
       .catch((error) => {
-        if (active) toast(`角色详情请求失败：${error.message}`);
+        if (active) {
+          setCharacterDetailError(error.message);
+          toast(`角色详情请求失败：${error.message}`);
+        }
       });
     return () => { active = false; };
   }, [character.id]);
@@ -1145,8 +1152,7 @@ function CharacterEditorPage({ character, onBack, toast, onStatusChange }) {
   ];
 
   const isReadOnly = false;
-  const buildCharacterData = () => {
-    const zhContent = {
+  const buildCharacterData = () => ({
       name: profile.name,
       character_version: profile.version,
       creator: profile.creator,
@@ -1155,32 +1161,12 @@ function CharacterEditorPage({ character, onBack, toast, onStatusChange }) {
       description: profile.description,
       personality: profile.personality,
       scenario: profile.scenario,
-      prompt: prompt.en || prompt.zh,
-      mes_example: mesExamples.map((example) => ({ user: example.zhUser, character: example.zhCharacter })),
+      prompt,
+      mes_example: mesExamples.map((example) => ({ user: example.user, character: example.character })),
       avatar_notes: profile.avatarNotes,
-      greetings: greetings.map((greeting, index) => ({ kind: greeting.primary ? "primary" : "alternate", body: greeting.en || greeting.zh, enabled: greeting.enabled, sort: index })),
+      greetings: greetings.map((greeting, index) => ({ kind: greeting.primary ? "primary" : "alternate", body: greeting.body, enabled: greeting.primary ? true : greeting.enabled, sort: index })),
       tags: profile.tags,
-    };
-    const enContent = {
-      name: profile.nameEn,
-      character_version: profile.version,
-      creator: profile.creator,
-      creator_notes: profile.creatorNotes,
-      tagline: profile.tagline,
-      description: profile.description,
-      personality: profile.personality,
-      scenario: profile.scenario,
-      prompt: prompt.en,
-      mes_example: mesExamples.map((example) => ({ user: example.enUser, character: example.enCharacter })),
-      avatar_notes: profile.avatarNotes,
-      greetings: greetings.map((greeting, index) => ({ kind: greeting.primary ? "primary" : "alternate", body: greeting.en, enabled: greeting.enabled, sort: index })),
-      tags: profile.tags,
-    };
-    return {
-      "zh-Hant": zhContent,
-      en: enContent,
-    };
-  };
+  });
   const buildAssetBindings = () => Object.entries(assetItems).flatMap(([mode, items]) => items
     .filter((asset) => asset.assetId)
     .map((asset, index) => ({
@@ -1193,10 +1179,21 @@ function CharacterEditorPage({ character, onBack, toast, onStatusChange }) {
       sort: index,
     })));
   const save = async (silent = false) => {
+    if (!characterDetailReady) {
+      toast(characterDetailError ? "角色详情加载失败，请刷新页面后重试" : "角色详情仍在加载，请稍后再保存");
+      return false;
+    }
     if (platformPromptLoading) {
       toast("全局对话规则仍在加载，请稍后再保存");
       return false;
     }
+    const primaryGreeting = greetings.find((greeting) => greeting.primary);
+    if (!primaryGreeting || !String(primaryGreeting.body || "").trim()) {
+      setTab("basic");
+      toast("请先填写主开场白，再保存或上架角色");
+      return false;
+    }
+    setSaving(true);
     try {
       await adminApi.characters.saveDraft({ char_id: Number(character.id), ver: profile.version, data: buildCharacterData(), assets: buildAssetBindings(), platform_system_prompt: platformSystemPrompt });
       setStage("草稿");
@@ -1206,34 +1203,40 @@ function CharacterEditorPage({ character, onBack, toast, onStatusChange }) {
     } catch (error) {
       toast(`保存角色草稿失败：${error.message}`);
       return false;
+    } finally {
+      setSaving(false);
     }
   };
   const publish = async () => {
-    // 发布资格由后端基于即将保存的英文草稿最终判断，避免前端异步回填或旧数据结构造成误拦截。
-    if (!(await save(true))) return;
+    setPublishing(true);
     try {
+      // 先保存当前编辑值，再由后端对同一份草稿执行最终发布资格校验。
+      if (!(await save(true))) return;
       await adminApi.characters.publish({ char_id: Number(character.id) });
       setStage("已上架");
       onStatusChange(character.id, "已上架");
       toast("上架成功，新版本已对 C 端生效");
     } catch (error) {
       toast(`发布角色失败：${error.message}`);
+    } finally {
+      setPublishing(false);
     }
   };
 
   const updateGreeting = (id, value) =>
-    setGreetings((list) => list.map((g) => (g.id === id ? { ...g, zh: value, en: value } : g)));
+    setGreetings((list) => list.map((g) => (g.id === id ? { ...g, body: value } : g)));
   const addGreeting = () => {
     const nextId = Math.max(...greetings.map((g) => g.id), 0) + 1;
-    setGreetings((list) => [...list, { id: nextId, primary: false, enabled: true, zh: "", en: "" }]);
+    setGreetings((list) => [...list, { id: nextId, primary: false, enabled: true, body: "" }]);
   };
-  const deleteGreeting = (id) => setGreetings((list) => list.filter((g) => !g.primary && g.id !== id));
+  // 删除备选开场时必须保留主开场；旧条件会在删除任意备选项时一并过滤掉主开场。
+  const deleteGreeting = (id) => setGreetings((list) => list.filter((g) => g.primary || g.id !== id));
   const toggleGreeting = (id, enabled) => setGreetings((list) => list.map((g) => g.id === id ? { ...g, enabled } : g));
   const updateMesExample = (id, field, value) =>
     setMesExamples((list) => list.map((example) => (example.id === id ? { ...example, [field]: value } : example)));
   const addMesExample = () => {
     const nextId = Math.max(...mesExamples.map((example) => example.id), 0) + 1;
-    setMesExamples((list) => [...list, { id: nextId, zhUser: "", zhCharacter: "", enUser: "", enCharacter: "" }]);
+    setMesExamples((list) => [...list, { id: nextId, user: "", character: "" }]);
   };
   const deleteMesExample = (id) => setMesExamples((list) => list.filter((example) => example.id !== id));
 
@@ -1254,13 +1257,11 @@ function CharacterEditorPage({ character, onBack, toast, onStatusChange }) {
   };
 
   const primaryGreeting = greetings.find((g) => g.primary);
-  // 发布只检查英文内容；zh 字段仅为兼容旧接口保留，不再参与多语言必填判断。
-  const effectivePrompt = String(prompt.en || prompt.zh || "");
-  const effectivePrimaryGreeting = String(primaryGreeting?.en || primaryGreeting?.zh || "");
+  const effectivePrompt = String(prompt || "");
+  const effectivePrimaryGreeting = String(primaryGreeting?.body || "");
   const definitionChecks = [
-    { label: "对话规则已填写", pass: effectivePrompt.trim().length > 0 },
     { label: "主开场已完成，且未超过 4,096 字符", pass: Boolean(primaryGreeting && effectivePrimaryGreeting.trim() && effectivePrimaryGreeting.length <= 4096) },
-    { label: "对话规则未超过 32,000 字符", pass: effectivePrompt.length <= 32000 },
+    { label: "历史后指令未超过 32,000 字符（可选）", pass: effectivePrompt.length <= 32000 },
   ];
   const definitionReady = definitionChecks.every((item) => item.pass);
 
@@ -1279,10 +1280,12 @@ function CharacterEditorPage({ character, onBack, toast, onStatusChange }) {
         <span className={`definition-health ${definitionReady ? "is-ready" : ""}`}>
           {definitionReady ? <Check /> : <Warning />}{definitionReady ? "发布检查通过" : "发布检查未完成"}
         </span>
-        <UiButton className="btn" onClick={openVersions}>版本记录</UiButton>
-        <UiButton className="btn" onClick={() => save()}>保存草稿</UiButton>
-        <UiButton className="btn primary" onClick={publish}>上架</UiButton>
+        <UiButton className="btn" onClick={openVersions} disabled={!characterDetailReady || saving || publishing}>版本记录</UiButton>
+        <UiButton className="btn" onClick={() => save()} loading={saving} disabled={!characterDetailReady || publishing}>保存草稿</UiButton>
+        <UiButton className="btn primary" onClick={publish} loading={publishing} disabled={!characterDetailReady || saving}>上架</UiButton>
       </div>
+
+      {characterDetailError && <Alert type="error" showIcon message="角色详情加载失败" description={`${characterDetailError}。为避免空数据覆盖原草稿，保存和上架已禁用，请刷新页面后重试。`} />}
 
       <div className="editor-tabs">
         <Tabs activeKey={tab} items={tabs.map(([key, label]) => ({ key, label }))} onChange={setTab} />
@@ -1357,9 +1360,9 @@ function CharacterEditorPage({ character, onBack, toast, onStatusChange }) {
                         ? <Badge tone={g.enabled ? "green" : "gray"}>{g.enabled ? "启用" : "停用"}</Badge>
                         : <><Switch checked={g.enabled} onChange={(enabled) => toggleGreeting(g.id, enabled)} label={`启用备选开场 ${index}`} /><UiButton className="icon-text-btn danger-text" onClick={() => deleteGreeting(g.id)}>删除</UiButton></>}
                   </header>
-                  <Field label="English greeting">
-                    <UiTextArea className="textarea" value={g.en || g.zh} maxLength={4096} readOnly={isReadOnly} onChange={(e) => updateGreeting(g.id, e.target.value)} />
-                    <div className="greeting-foot"><span>{(g.en || g.zh).length} / 4096</span>{g.primary && <span>重置对话时恢复此条</span>}</div>
+                  <Field label="开场白">
+                    <UiTextArea className="textarea" value={g.body} maxLength={4096} readOnly={isReadOnly} onChange={(e) => updateGreeting(g.id, e.target.value)} />
+                    <div className="greeting-foot"><span>{g.body.length} / 4096</span>{g.primary && <span>重置对话时恢复此条</span>}</div>
                   </Field>
                 </div>
               ))}
@@ -1410,14 +1413,14 @@ function CharacterEditorPage({ character, onBack, toast, onStatusChange }) {
                 <header><b>历史后指令 post_history_instructions</b><span className="muted small">注入对话历史之后、生成回复之前的补充指令</span><span className="order">PROMPT SEGMENT 4</span></header>
                 <UiTextArea
                   className="textarea prompt-textarea"
-                  value={prompt.en || prompt.zh}
+                  value={prompt}
                   autoSize={{ minRows: 4, maxRows: 24 }}
                   maxLength={32000}
                   readOnly={isReadOnly}
-                  placeholder="输入角色对话规则…"
-                  onChange={(e) => setPrompt({ zh: e.target.value, en: e.target.value })}
+                  placeholder="可选：输入需要注入到对话历史之后的补充指令…"
+                  onChange={(e) => setPrompt(e.target.value)}
                 />
-                <div className="greeting-foot"><span>{(prompt.en || prompt.zh).length.toLocaleString()} / 32,000</span></div>
+                <div className="greeting-foot"><span>{prompt.length.toLocaleString()} / 32,000 · 选填</span></div>
               </div>
               <div className="prompt-checks">
                 {definitionChecks.map((item) => <span key={item.label} className={item.pass ? "is-pass" : ""}>{item.pass ? <Check /> : <Warning />}{item.label}</span>)}
@@ -1430,8 +1433,6 @@ function CharacterEditorPage({ character, onBack, toast, onStatusChange }) {
             <Card title="示例对话 / mes_example" sub="通过具体问答示范角色的回复方式；每组包含一条用户消息和一条角色回复">
               <Alert type="info" showIcon message="示例对话会作为角色定义的一部分提交给后端，建议使用真实、具体的对话场景。" />
               {mesExamples.map((example, index) => {
-                const userField = locale === "zh" ? "zhUser" : "enUser";
-                const characterField = locale === "zh" ? "zhCharacter" : "enCharacter";
                 return (
                   <div className="persona-block" key={example.id}>
                     <header>
@@ -1439,11 +1440,11 @@ function CharacterEditorPage({ character, onBack, toast, onStatusChange }) {
                       <UiButton className="icon-text-btn danger-text" onClick={() => deleteMesExample(example.id)}>删除</UiButton>
                     </header>
                     <Field label="User / 用户">
-                      <UiTextArea className="textarea" value={example[userField]} onChange={(event) => updateMesExample(example.id, userField, event.target.value)} placeholder="例如：今天加班到现在，脑子还是懵的。" />
+                      <UiTextArea className="textarea" value={example.user} onChange={(event) => updateMesExample(example.id, "user", event.target.value)} placeholder="例如：今天加班到现在，脑子还是懵的。" />
                     </Field>
                     <div style={{ marginTop: 10 }}>
                       <Field label="Character / 角色">
-                        <UiTextArea className="textarea" value={example[characterField]} onChange={(event) => updateMesExample(example.id, characterField, event.target.value)} placeholder="输入角色在这个场景下的回复…" />
+                        <UiTextArea className="textarea" value={example.character} onChange={(event) => updateMesExample(example.id, "character", event.target.value)} placeholder="输入角色在这个场景下的回复…" />
                       </Field>
                     </div>
                   </div>
@@ -2829,7 +2830,7 @@ function ProviderEditorPage({ provider, onClose, onSave, onDeleteModel }) {
                           <MediaModelSelect label="输出分辨率" options={item.provider_options} optionKey="resolution" values={["480P", "720P", "1080P"]} onChange={(options) => updateModel(type, index, "provider_options", options)} />
                         </div>}
                         {type === "image" && <div className="provider-media-options">
-                          <MediaModelSelect label="图片分辨率（resolution）" options={item.provider_options} optionKey="resolution" values={["512", "1k", "2k", "4k"]} onChange={(options) => updateModel(type, index, "provider_options", options)} />
+                          <MediaModelSelect label="图片分辨率（resolution）" options={item.provider_options} optionKey="resolution" values={["512", "1K", "2K", "4K"]} onChange={(options) => updateModel(type, index, "provider_options", options)} />
                           <MediaModelSelect label="生成质量（quality）" options={item.provider_options} optionKey="quality" values={["auto", "low", "medium", "high"]} onChange={(options) => updateModel(type, index, "provider_options", options)} />
                           <MediaModelSelect label="图片比例（aspect_ratio）" options={item.provider_options} optionKey="aspect_ratio" values={["16:9", "9:16", "1:1", "4:3", "3:4"]} onChange={(options) => updateModel(type, index, "provider_options", options)} />
                         </div>}
@@ -3066,7 +3067,7 @@ export default function Admin() {
     const controller = new AbortController();
     setApiState("loading");
     adminApi.characters.list(
-      { state: "all", locale: "zh-Hant", page: 1, page_size: 100 },
+      { state: "all", page: 1, page_size: 100 },
       { signal: controller.signal },
     ).then((data) => {
       const items = data?.items || [];
@@ -3077,7 +3078,6 @@ export default function Admin() {
           id: item.id,
           charCode: item.char_code,
           name: item.profile?.name || item.char_code,
-          nameEn: item.char_code,
           subtitle: item.profile?.tagline || "—",
           tags: item.profile?.tags || [],
           status: item.state === "online" ? "已上架" : "草稿",
@@ -3126,14 +3126,8 @@ export default function Admin() {
       const charCode = character.charCode;
       const asset = character.coverFile ? await adminApi.media.uploadFile(character.coverFile, charCode) : null;
       const data = character.data || {
-        "zh-Hant": {
-          name: character.name, tagline: character.subtitle, description: character.subtitle, prompt: "",
-          greetings: [{ kind: "primary", body: character.greeting, enabled: true, sort: 0 }], tags: character.tags,
-        },
-        en: {
-          name: character.nameEn, tagline: character.subtitle, description: character.subtitle, prompt: "",
-          greetings: [{ kind: "primary", body: character.greetingEn || character.greeting, enabled: true, sort: 0 }], tags: character.tags,
-        },
+        name: character.name, tagline: character.subtitle, description: character.subtitle, prompt: "",
+        greetings: [{ kind: "primary", body: character.greeting, enabled: true, sort: 0 }], tags: character.tags,
       };
       const created = await adminApi.characters.create({
           char_code: charCode,

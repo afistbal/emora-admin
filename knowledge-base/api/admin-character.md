@@ -32,7 +32,6 @@
 |---|---:|---|---|---|
 | keyword | 否 | string |  |  |
 | state | 否 | string | enum: "all" / "draft" / "online" |  |
-| locale | 否 | string | enum: "zh-Hant" / "en"; default: "zh-Hant" |  |
 | day | 否 | string | date |  |
 | page | 否 | integer | min: 1 |  |
 | page_size | 否 | integer | min: 1; max: 100 |  |
@@ -72,6 +71,7 @@
 | d.items[].profile.cover.state | 否 | string |  |  |
 | d.items[].profile.cover.sort | 否 | integer |  |  |
 | d.items[].profile.cover.asset | 否 | MediaAsset |  |  |
+| d.items[].profile.cover.preview | 否 | object |  | 独立预览媒体资源；视频首帧和私密媒体预览通过此字段返回。 |
 | d.items[].metrics | 否 | CharacterMetrics |  |  |
 | d.items[].metrics.day | 否 | string | date |  |
 | d.items[].metrics.chat_uv | 否 | integer |  |  |
@@ -178,25 +178,26 @@
 | d.published | 否 | object |  |  |
 | d.published.id | 否 | integer |  |  |
 | d.published.char_id | 否 | integer |  |  |
-| d.published.ver | 否 | integer |  |  |
+| d.published.ver | 否 | string | maxLength: 64 |  |
 | d.published.state | 否 | string | enum: "draft" / "published" / "archived" |  |
 | d.published.data | 否 | CharacterData |  |  |
-| d.published.data.zh-Hant | 否 | CharacterContent |  |  |
-| d.published.data.zh-Hant.name | 否 | string |  |  |
-| d.published.data.zh-Hant.tagline | 否 | string |  |  |
-| d.published.data.zh-Hant.description | 否 | string |  |  |
-| d.published.data.zh-Hant.prompt | 否 | string |  |  |
-| d.published.data.zh-Hant.avatar_notes | 否 | string |  |  |
-| d.published.data.zh-Hant.greetings | 否 | array<Greeting> |  |  |
-| d.published.data.zh-Hant.tags | 否 | array<string> |  |  |
-| d.published.data.en | 否 | CharacterContent |  |  |
-| d.published.data.en.name | 否 | string |  |  |
-| d.published.data.en.tagline | 否 | string |  |  |
-| d.published.data.en.description | 否 | string |  |  |
-| d.published.data.en.prompt | 否 | string |  |  |
-| d.published.data.en.avatar_notes | 否 | string |  |  |
-| d.published.data.en.greetings | 否 | array<Greeting> |  |  |
-| d.published.data.en.tags | 否 | array<string> |  |  |
+| d.published.data.character_version | 否 | string | maxLength: 64 |  |
+| d.published.data.creator | 否 | string | maxLength: 128 |  |
+| d.published.data.creator_notes | 否 | string | maxLength: 2000 |  |
+| d.published.data.name | 否 | string | maxLength: 100 |  |
+| d.published.data.tagline | 否 | string | maxLength: 100 |  |
+| d.published.data.description | 否 | string | maxLength: 500 |  |
+| d.published.data.personality | 否 | string |  |  |
+| d.published.data.scenario | 否 | string |  |  |
+| d.published.data.prompt | 否 | string |  | 选填的历史后指令；为空时不影响保存或发布。 |
+| d.published.data.avatar_notes | 否 | string |  |  |
+| d.published.data.mes_example | 否 | array<-> |  |  |
+| d.published.data.greetings | 否 | array<Greeting> |  |  |
+| d.published.data.greetings[].kind | 否 | string | enum: "primary" / "alternate" |  |
+| d.published.data.greetings[].body | 是 | string |  |  |
+| d.published.data.greetings[].enabled | 否 | boolean | default: true |  |
+| d.published.data.greetings[].sort | 否 | integer | min: 0 |  |
+| d.published.data.tags | 否 | array<string> |  |  |
 | d.published.hash | 否 | string |  |  |
 | d.published.created_by | 否 | integer |  |  |
 | d.published.pub_by | 否 | integer |  |  |
@@ -220,28 +221,35 @@
 | d.published.assets[].asset.preview_ref | 否 | string | uri | 视频 Poster 或预览资源的完整 URL。 |
 | d.published.assets[].asset.owner_id | 否 | integer |  |  |
 | d.published.assets[].asset.created_at | 否 | string | date-time |  |
+| d.published.assets[].preview | 否 | object |  | 独立预览媒体资源；视频首帧和私密媒体预览通过此字段返回。 |
+| d.published.assets[].preview.id | 否 | integer |  |  |
+| d.published.assets[].preview.type | 否 | string | enum: "image" / "video" |  |
+| d.published.assets[].preview.mime | 否 | string |  |  |
+| d.published.assets[].preview.state | 否 | string |  |  |
+| d.published.assets[].preview.ref | 否 | string | uri | 预览媒体的完整资源 URL。 |
 | d.draft | 否 | object |  |  |
 | d.draft.id | 否 | integer |  |  |
 | d.draft.char_id | 否 | integer |  |  |
-| d.draft.ver | 否 | integer |  |  |
+| d.draft.ver | 否 | string | maxLength: 64 |  |
 | d.draft.state | 否 | string | enum: "draft" / "published" / "archived" |  |
 | d.draft.data | 否 | CharacterData |  |  |
-| d.draft.data.zh-Hant | 否 | CharacterContent |  |  |
-| d.draft.data.zh-Hant.name | 否 | string |  |  |
-| d.draft.data.zh-Hant.tagline | 否 | string |  |  |
-| d.draft.data.zh-Hant.description | 否 | string |  |  |
-| d.draft.data.zh-Hant.prompt | 否 | string |  |  |
-| d.draft.data.zh-Hant.avatar_notes | 否 | string |  |  |
-| d.draft.data.zh-Hant.greetings | 否 | array<Greeting> |  |  |
-| d.draft.data.zh-Hant.tags | 否 | array<string> |  |  |
-| d.draft.data.en | 否 | CharacterContent |  |  |
-| d.draft.data.en.name | 否 | string |  |  |
-| d.draft.data.en.tagline | 否 | string |  |  |
-| d.draft.data.en.description | 否 | string |  |  |
-| d.draft.data.en.prompt | 否 | string |  |  |
-| d.draft.data.en.avatar_notes | 否 | string |  |  |
-| d.draft.data.en.greetings | 否 | array<Greeting> |  |  |
-| d.draft.data.en.tags | 否 | array<string> |  |  |
+| d.draft.data.character_version | 否 | string | maxLength: 64 |  |
+| d.draft.data.creator | 否 | string | maxLength: 128 |  |
+| d.draft.data.creator_notes | 否 | string | maxLength: 2000 |  |
+| d.draft.data.name | 否 | string | maxLength: 100 |  |
+| d.draft.data.tagline | 否 | string | maxLength: 100 |  |
+| d.draft.data.description | 否 | string | maxLength: 500 |  |
+| d.draft.data.personality | 否 | string |  |  |
+| d.draft.data.scenario | 否 | string |  |  |
+| d.draft.data.prompt | 否 | string |  | 选填的历史后指令；为空时不影响保存或发布。 |
+| d.draft.data.avatar_notes | 否 | string |  |  |
+| d.draft.data.mes_example | 否 | array<-> |  |  |
+| d.draft.data.greetings | 否 | array<Greeting> |  |  |
+| d.draft.data.greetings[].kind | 否 | string | enum: "primary" / "alternate" |  |
+| d.draft.data.greetings[].body | 是 | string |  |  |
+| d.draft.data.greetings[].enabled | 否 | boolean | default: true |  |
+| d.draft.data.greetings[].sort | 否 | integer | min: 0 |  |
+| d.draft.data.tags | 否 | array<string> |  |  |
 | d.draft.hash | 否 | string |  |  |
 | d.draft.created_by | 否 | integer |  |  |
 | d.draft.pub_by | 否 | integer |  |  |
@@ -265,6 +273,12 @@
 | d.draft.assets[].asset.preview_ref | 否 | string | uri | 视频 Poster 或预览资源的完整 URL。 |
 | d.draft.assets[].asset.owner_id | 否 | integer |  |  |
 | d.draft.assets[].asset.created_at | 否 | string | date-time |  |
+| d.draft.assets[].preview | 否 | object |  | 独立预览媒体资源；视频首帧和私密媒体预览通过此字段返回。 |
+| d.draft.assets[].preview.id | 否 | integer |  |  |
+| d.draft.assets[].preview.type | 否 | string | enum: "image" / "video" |  |
+| d.draft.assets[].preview.mime | 否 | string |  |  |
+| d.draft.assets[].preview.state | 否 | string |  |  |
+| d.draft.assets[].preview.ref | 否 | string | uri | 预览媒体的完整资源 URL。 |
 | d.metrics | 否 | CharacterMetrics |  |  |
 | d.metrics.day | 否 | string | date |  |
 | d.metrics.chat_uv | 否 | integer |  |  |
@@ -346,7 +360,7 @@
 | d | 是 | CharacterVersionsData |  |  |
 | d.items | 否 | array<VersionHistoryItem> |  |  |
 | d.items[].id | 否 | integer |  |  |
-| d.items[].ver | 否 | integer |  |  |
+| d.items[].ver | 否 | string | maxLength: 64 |  |
 | d.items[].state | 否 | string |  |  |
 | d.items[].hash | 否 | string |  |  |
 | d.items[].created_by | 否 | integer |  |  |
@@ -364,7 +378,7 @@
     "items": [
       {
         "id": 3,
-        "ver": 1,
+        "ver": "1",
         "state": "published",
         "hash": "sha256-hash",
         "created_by": 1,
@@ -396,30 +410,23 @@
 | char_code | 否 | string | maxLength: 64 |  |
 | ai | 否 | boolean | default: true |  |
 | data | 否 | CharacterData |  |  |
-| data.zh-Hant | 否 | CharacterContent |  |  |
-| data.zh-Hant.name | 否 | string |  |  |
-| data.zh-Hant.tagline | 否 | string |  |  |
-| data.zh-Hant.description | 否 | string |  |  |
-| data.zh-Hant.prompt | 否 | string |  |  |
-| data.zh-Hant.avatar_notes | 否 | string |  |  |
-| data.zh-Hant.greetings | 否 | array<Greeting> |  |  |
-| data.zh-Hant.greetings[].kind | 否 | string | enum: "primary" / "alternate" |  |
-| data.zh-Hant.greetings[].body | 是 | string |  |  |
-| data.zh-Hant.greetings[].enabled | 否 | boolean | default: true |  |
-| data.zh-Hant.greetings[].sort | 否 | integer | min: 0 |  |
-| data.zh-Hant.tags | 否 | array<string> |  |  |
-| data.en | 否 | CharacterContent |  |  |
-| data.en.name | 否 | string |  |  |
-| data.en.tagline | 否 | string |  |  |
-| data.en.description | 否 | string |  |  |
-| data.en.prompt | 否 | string |  |  |
-| data.en.avatar_notes | 否 | string |  |  |
-| data.en.greetings | 否 | array<Greeting> |  |  |
-| data.en.greetings[].kind | 否 | string | enum: "primary" / "alternate" |  |
-| data.en.greetings[].body | 是 | string |  |  |
-| data.en.greetings[].enabled | 否 | boolean | default: true |  |
-| data.en.greetings[].sort | 否 | integer | min: 0 |  |
-| data.en.tags | 否 | array<string> |  |  |
+| data.character_version | 否 | string | maxLength: 64 |  |
+| data.creator | 否 | string | maxLength: 128 |  |
+| data.creator_notes | 否 | string | maxLength: 2000 |  |
+| data.name | 否 | string | maxLength: 100 |  |
+| data.tagline | 否 | string | maxLength: 100 |  |
+| data.description | 否 | string | maxLength: 500 |  |
+| data.personality | 否 | string |  |  |
+| data.scenario | 否 | string |  |  |
+| data.prompt | 否 | string |  | 选填的历史后指令；为空时不影响保存或发布。 |
+| data.avatar_notes | 否 | string |  |  |
+| data.mes_example | 否 | array<-> |  |  |
+| data.greetings | 否 | array<Greeting> |  |  |
+| data.greetings[].kind | 否 | string | enum: "primary" / "alternate" |  |
+| data.greetings[].body | 是 | string |  |  |
+| data.greetings[].enabled | 否 | boolean | default: true |  |
+| data.greetings[].sort | 否 | integer | min: 0 |  |
+| data.tags | 否 | array<string> |  |  |
 | name | 否 | string |  |  |
 | tagline | 否 | string |  |  |
 | description | 否 | string |  |  |
@@ -462,25 +469,26 @@
 | d.published | 否 | object |  |  |
 | d.published.id | 否 | integer |  |  |
 | d.published.char_id | 否 | integer |  |  |
-| d.published.ver | 否 | integer |  |  |
+| d.published.ver | 否 | string | maxLength: 64 |  |
 | d.published.state | 否 | string | enum: "draft" / "published" / "archived" |  |
 | d.published.data | 否 | CharacterData |  |  |
-| d.published.data.zh-Hant | 否 | CharacterContent |  |  |
-| d.published.data.zh-Hant.name | 否 | string |  |  |
-| d.published.data.zh-Hant.tagline | 否 | string |  |  |
-| d.published.data.zh-Hant.description | 否 | string |  |  |
-| d.published.data.zh-Hant.prompt | 否 | string |  |  |
-| d.published.data.zh-Hant.avatar_notes | 否 | string |  |  |
-| d.published.data.zh-Hant.greetings | 否 | array<Greeting> |  |  |
-| d.published.data.zh-Hant.tags | 否 | array<string> |  |  |
-| d.published.data.en | 否 | CharacterContent |  |  |
-| d.published.data.en.name | 否 | string |  |  |
-| d.published.data.en.tagline | 否 | string |  |  |
-| d.published.data.en.description | 否 | string |  |  |
-| d.published.data.en.prompt | 否 | string |  |  |
-| d.published.data.en.avatar_notes | 否 | string |  |  |
-| d.published.data.en.greetings | 否 | array<Greeting> |  |  |
-| d.published.data.en.tags | 否 | array<string> |  |  |
+| d.published.data.character_version | 否 | string | maxLength: 64 |  |
+| d.published.data.creator | 否 | string | maxLength: 128 |  |
+| d.published.data.creator_notes | 否 | string | maxLength: 2000 |  |
+| d.published.data.name | 否 | string | maxLength: 100 |  |
+| d.published.data.tagline | 否 | string | maxLength: 100 |  |
+| d.published.data.description | 否 | string | maxLength: 500 |  |
+| d.published.data.personality | 否 | string |  |  |
+| d.published.data.scenario | 否 | string |  |  |
+| d.published.data.prompt | 否 | string |  | 选填的历史后指令；为空时不影响保存或发布。 |
+| d.published.data.avatar_notes | 否 | string |  |  |
+| d.published.data.mes_example | 否 | array<-> |  |  |
+| d.published.data.greetings | 否 | array<Greeting> |  |  |
+| d.published.data.greetings[].kind | 否 | string | enum: "primary" / "alternate" |  |
+| d.published.data.greetings[].body | 是 | string |  |  |
+| d.published.data.greetings[].enabled | 否 | boolean | default: true |  |
+| d.published.data.greetings[].sort | 否 | integer | min: 0 |  |
+| d.published.data.tags | 否 | array<string> |  |  |
 | d.published.hash | 否 | string |  |  |
 | d.published.created_by | 否 | integer |  |  |
 | d.published.pub_by | 否 | integer |  |  |
@@ -504,28 +512,35 @@
 | d.published.assets[].asset.preview_ref | 否 | string | uri | 视频 Poster 或预览资源的完整 URL。 |
 | d.published.assets[].asset.owner_id | 否 | integer |  |  |
 | d.published.assets[].asset.created_at | 否 | string | date-time |  |
+| d.published.assets[].preview | 否 | object |  | 独立预览媒体资源；视频首帧和私密媒体预览通过此字段返回。 |
+| d.published.assets[].preview.id | 否 | integer |  |  |
+| d.published.assets[].preview.type | 否 | string | enum: "image" / "video" |  |
+| d.published.assets[].preview.mime | 否 | string |  |  |
+| d.published.assets[].preview.state | 否 | string |  |  |
+| d.published.assets[].preview.ref | 否 | string | uri | 预览媒体的完整资源 URL。 |
 | d.draft | 否 | object |  |  |
 | d.draft.id | 否 | integer |  |  |
 | d.draft.char_id | 否 | integer |  |  |
-| d.draft.ver | 否 | integer |  |  |
+| d.draft.ver | 否 | string | maxLength: 64 |  |
 | d.draft.state | 否 | string | enum: "draft" / "published" / "archived" |  |
 | d.draft.data | 否 | CharacterData |  |  |
-| d.draft.data.zh-Hant | 否 | CharacterContent |  |  |
-| d.draft.data.zh-Hant.name | 否 | string |  |  |
-| d.draft.data.zh-Hant.tagline | 否 | string |  |  |
-| d.draft.data.zh-Hant.description | 否 | string |  |  |
-| d.draft.data.zh-Hant.prompt | 否 | string |  |  |
-| d.draft.data.zh-Hant.avatar_notes | 否 | string |  |  |
-| d.draft.data.zh-Hant.greetings | 否 | array<Greeting> |  |  |
-| d.draft.data.zh-Hant.tags | 否 | array<string> |  |  |
-| d.draft.data.en | 否 | CharacterContent |  |  |
-| d.draft.data.en.name | 否 | string |  |  |
-| d.draft.data.en.tagline | 否 | string |  |  |
-| d.draft.data.en.description | 否 | string |  |  |
-| d.draft.data.en.prompt | 否 | string |  |  |
-| d.draft.data.en.avatar_notes | 否 | string |  |  |
-| d.draft.data.en.greetings | 否 | array<Greeting> |  |  |
-| d.draft.data.en.tags | 否 | array<string> |  |  |
+| d.draft.data.character_version | 否 | string | maxLength: 64 |  |
+| d.draft.data.creator | 否 | string | maxLength: 128 |  |
+| d.draft.data.creator_notes | 否 | string | maxLength: 2000 |  |
+| d.draft.data.name | 否 | string | maxLength: 100 |  |
+| d.draft.data.tagline | 否 | string | maxLength: 100 |  |
+| d.draft.data.description | 否 | string | maxLength: 500 |  |
+| d.draft.data.personality | 否 | string |  |  |
+| d.draft.data.scenario | 否 | string |  |  |
+| d.draft.data.prompt | 否 | string |  | 选填的历史后指令；为空时不影响保存或发布。 |
+| d.draft.data.avatar_notes | 否 | string |  |  |
+| d.draft.data.mes_example | 否 | array<-> |  |  |
+| d.draft.data.greetings | 否 | array<Greeting> |  |  |
+| d.draft.data.greetings[].kind | 否 | string | enum: "primary" / "alternate" |  |
+| d.draft.data.greetings[].body | 是 | string |  |  |
+| d.draft.data.greetings[].enabled | 否 | boolean | default: true |  |
+| d.draft.data.greetings[].sort | 否 | integer | min: 0 |  |
+| d.draft.data.tags | 否 | array<string> |  |  |
 | d.draft.hash | 否 | string |  |  |
 | d.draft.created_by | 否 | integer |  |  |
 | d.draft.pub_by | 否 | integer |  |  |
@@ -549,6 +564,12 @@
 | d.draft.assets[].asset.preview_ref | 否 | string | uri | 视频 Poster 或预览资源的完整 URL。 |
 | d.draft.assets[].asset.owner_id | 否 | integer |  |  |
 | d.draft.assets[].asset.created_at | 否 | string | date-time |  |
+| d.draft.assets[].preview | 否 | object |  | 独立预览媒体资源；视频首帧和私密媒体预览通过此字段返回。 |
+| d.draft.assets[].preview.id | 否 | integer |  |  |
+| d.draft.assets[].preview.type | 否 | string | enum: "image" / "video" |  |
+| d.draft.assets[].preview.mime | 否 | string |  |  |
+| d.draft.assets[].preview.state | 否 | string |  |  |
+| d.draft.assets[].preview.ref | 否 | string | uri | 预览媒体的完整资源 URL。 |
 
 成功响应示例：
 
@@ -587,30 +608,23 @@
 |---|---:|---|---|---|
 | char_id | 是 | integer |  |  |
 | data | 否 | CharacterData |  |  |
-| data.zh-Hant | 否 | CharacterContent |  |  |
-| data.zh-Hant.name | 否 | string |  |  |
-| data.zh-Hant.tagline | 否 | string |  |  |
-| data.zh-Hant.description | 否 | string |  |  |
-| data.zh-Hant.prompt | 否 | string |  |  |
-| data.zh-Hant.avatar_notes | 否 | string |  |  |
-| data.zh-Hant.greetings | 否 | array<Greeting> |  |  |
-| data.zh-Hant.greetings[].kind | 否 | string | enum: "primary" / "alternate" |  |
-| data.zh-Hant.greetings[].body | 是 | string |  |  |
-| data.zh-Hant.greetings[].enabled | 否 | boolean | default: true |  |
-| data.zh-Hant.greetings[].sort | 否 | integer | min: 0 |  |
-| data.zh-Hant.tags | 否 | array<string> |  |  |
-| data.en | 否 | CharacterContent |  |  |
-| data.en.name | 否 | string |  |  |
-| data.en.tagline | 否 | string |  |  |
-| data.en.description | 否 | string |  |  |
-| data.en.prompt | 否 | string |  |  |
-| data.en.avatar_notes | 否 | string |  |  |
-| data.en.greetings | 否 | array<Greeting> |  |  |
-| data.en.greetings[].kind | 否 | string | enum: "primary" / "alternate" |  |
-| data.en.greetings[].body | 是 | string |  |  |
-| data.en.greetings[].enabled | 否 | boolean | default: true |  |
-| data.en.greetings[].sort | 否 | integer | min: 0 |  |
-| data.en.tags | 否 | array<string> |  |  |
+| data.character_version | 否 | string | maxLength: 64 |  |
+| data.creator | 否 | string | maxLength: 128 |  |
+| data.creator_notes | 否 | string | maxLength: 2000 |  |
+| data.name | 否 | string | maxLength: 100 |  |
+| data.tagline | 否 | string | maxLength: 100 |  |
+| data.description | 否 | string | maxLength: 500 |  |
+| data.personality | 否 | string |  |  |
+| data.scenario | 否 | string |  |  |
+| data.prompt | 否 | string |  | 选填的历史后指令；为空时不影响保存或发布。 |
+| data.avatar_notes | 否 | string |  |  |
+| data.mes_example | 否 | array<-> |  |  |
+| data.greetings | 否 | array<Greeting> |  |  |
+| data.greetings[].kind | 否 | string | enum: "primary" / "alternate" |  |
+| data.greetings[].body | 是 | string |  |  |
+| data.greetings[].enabled | 否 | boolean | default: true |  |
+| data.greetings[].sort | 否 | integer | min: 0 |  |
+| data.tags | 否 | array<string> |  |  |
 | assets | 否 | array<AssetBinding> |  |  |
 | assets[].asset_id | 是 | integer |  |  |
 | assets[].role | 是 | string | enum: "cover" / "gallery" / "private" / "poster" |  |
@@ -639,33 +653,26 @@
 | d | 是 | VersionPayload |  |  |
 | d.id | 否 | integer |  |  |
 | d.char_id | 否 | integer |  |  |
-| d.ver | 否 | integer |  |  |
+| d.ver | 否 | string | maxLength: 64 |  |
 | d.state | 否 | string | enum: "draft" / "published" / "archived" |  |
 | d.data | 否 | CharacterData |  |  |
-| d.data.zh-Hant | 否 | CharacterContent |  |  |
-| d.data.zh-Hant.name | 否 | string |  |  |
-| d.data.zh-Hant.tagline | 否 | string |  |  |
-| d.data.zh-Hant.description | 否 | string |  |  |
-| d.data.zh-Hant.prompt | 否 | string |  |  |
-| d.data.zh-Hant.avatar_notes | 否 | string |  |  |
-| d.data.zh-Hant.greetings | 否 | array<Greeting> |  |  |
-| d.data.zh-Hant.greetings[].kind | 否 | string | enum: "primary" / "alternate" |  |
-| d.data.zh-Hant.greetings[].body | 是 | string |  |  |
-| d.data.zh-Hant.greetings[].enabled | 否 | boolean | default: true |  |
-| d.data.zh-Hant.greetings[].sort | 否 | integer | min: 0 |  |
-| d.data.zh-Hant.tags | 否 | array<string> |  |  |
-| d.data.en | 否 | CharacterContent |  |  |
-| d.data.en.name | 否 | string |  |  |
-| d.data.en.tagline | 否 | string |  |  |
-| d.data.en.description | 否 | string |  |  |
-| d.data.en.prompt | 否 | string |  |  |
-| d.data.en.avatar_notes | 否 | string |  |  |
-| d.data.en.greetings | 否 | array<Greeting> |  |  |
-| d.data.en.greetings[].kind | 否 | string | enum: "primary" / "alternate" |  |
-| d.data.en.greetings[].body | 是 | string |  |  |
-| d.data.en.greetings[].enabled | 否 | boolean | default: true |  |
-| d.data.en.greetings[].sort | 否 | integer | min: 0 |  |
-| d.data.en.tags | 否 | array<string> |  |  |
+| d.data.character_version | 否 | string | maxLength: 64 |  |
+| d.data.creator | 否 | string | maxLength: 128 |  |
+| d.data.creator_notes | 否 | string | maxLength: 2000 |  |
+| d.data.name | 否 | string | maxLength: 100 |  |
+| d.data.tagline | 否 | string | maxLength: 100 |  |
+| d.data.description | 否 | string | maxLength: 500 |  |
+| d.data.personality | 否 | string |  |  |
+| d.data.scenario | 否 | string |  |  |
+| d.data.prompt | 否 | string |  | 选填的历史后指令；为空时不影响保存或发布。 |
+| d.data.avatar_notes | 否 | string |  |  |
+| d.data.mes_example | 否 | array<-> |  |  |
+| d.data.greetings | 否 | array<Greeting> |  |  |
+| d.data.greetings[].kind | 否 | string | enum: "primary" / "alternate" |  |
+| d.data.greetings[].body | 是 | string |  |  |
+| d.data.greetings[].enabled | 否 | boolean | default: true |  |
+| d.data.greetings[].sort | 否 | integer | min: 0 |  |
+| d.data.tags | 否 | array<string> |  |  |
 | d.hash | 否 | string |  |  |
 | d.created_by | 否 | integer |  |  |
 | d.pub_by | 否 | integer |  |  |
@@ -689,6 +696,12 @@
 | d.assets[].asset.preview_ref | 否 | string | uri | 视频 Poster 或预览资源的完整 URL。 |
 | d.assets[].asset.owner_id | 否 | integer |  |  |
 | d.assets[].asset.created_at | 否 | string | date-time |  |
+| d.assets[].preview | 否 | object |  | 独立预览媒体资源；视频首帧和私密媒体预览通过此字段返回。 |
+| d.assets[].preview.id | 否 | integer |  |  |
+| d.assets[].preview.type | 否 | string | enum: "image" / "video" |  |
+| d.assets[].preview.mime | 否 | string |  |  |
+| d.assets[].preview.state | 否 | string |  |  |
+| d.assets[].preview.ref | 否 | string | uri | 预览媒体的完整资源 URL。 |
 
 成功响应示例：
 
@@ -699,7 +712,7 @@
   "d": {
     "id": 4,
     "char_id": 1,
-    "ver": 2,
+    "ver": "2",
     "state": "draft",
     "data": {},
     "hash": "sha256-hash",
@@ -758,25 +771,26 @@
 | d.published | 否 | object |  |  |
 | d.published.id | 否 | integer |  |  |
 | d.published.char_id | 否 | integer |  |  |
-| d.published.ver | 否 | integer |  |  |
+| d.published.ver | 否 | string | maxLength: 64 |  |
 | d.published.state | 否 | string | enum: "draft" / "published" / "archived" |  |
 | d.published.data | 否 | CharacterData |  |  |
-| d.published.data.zh-Hant | 否 | CharacterContent |  |  |
-| d.published.data.zh-Hant.name | 否 | string |  |  |
-| d.published.data.zh-Hant.tagline | 否 | string |  |  |
-| d.published.data.zh-Hant.description | 否 | string |  |  |
-| d.published.data.zh-Hant.prompt | 否 | string |  |  |
-| d.published.data.zh-Hant.avatar_notes | 否 | string |  |  |
-| d.published.data.zh-Hant.greetings | 否 | array<Greeting> |  |  |
-| d.published.data.zh-Hant.tags | 否 | array<string> |  |  |
-| d.published.data.en | 否 | CharacterContent |  |  |
-| d.published.data.en.name | 否 | string |  |  |
-| d.published.data.en.tagline | 否 | string |  |  |
-| d.published.data.en.description | 否 | string |  |  |
-| d.published.data.en.prompt | 否 | string |  |  |
-| d.published.data.en.avatar_notes | 否 | string |  |  |
-| d.published.data.en.greetings | 否 | array<Greeting> |  |  |
-| d.published.data.en.tags | 否 | array<string> |  |  |
+| d.published.data.character_version | 否 | string | maxLength: 64 |  |
+| d.published.data.creator | 否 | string | maxLength: 128 |  |
+| d.published.data.creator_notes | 否 | string | maxLength: 2000 |  |
+| d.published.data.name | 否 | string | maxLength: 100 |  |
+| d.published.data.tagline | 否 | string | maxLength: 100 |  |
+| d.published.data.description | 否 | string | maxLength: 500 |  |
+| d.published.data.personality | 否 | string |  |  |
+| d.published.data.scenario | 否 | string |  |  |
+| d.published.data.prompt | 否 | string |  | 选填的历史后指令；为空时不影响保存或发布。 |
+| d.published.data.avatar_notes | 否 | string |  |  |
+| d.published.data.mes_example | 否 | array<-> |  |  |
+| d.published.data.greetings | 否 | array<Greeting> |  |  |
+| d.published.data.greetings[].kind | 否 | string | enum: "primary" / "alternate" |  |
+| d.published.data.greetings[].body | 是 | string |  |  |
+| d.published.data.greetings[].enabled | 否 | boolean | default: true |  |
+| d.published.data.greetings[].sort | 否 | integer | min: 0 |  |
+| d.published.data.tags | 否 | array<string> |  |  |
 | d.published.hash | 否 | string |  |  |
 | d.published.created_by | 否 | integer |  |  |
 | d.published.pub_by | 否 | integer |  |  |
@@ -800,28 +814,35 @@
 | d.published.assets[].asset.preview_ref | 否 | string | uri | 视频 Poster 或预览资源的完整 URL。 |
 | d.published.assets[].asset.owner_id | 否 | integer |  |  |
 | d.published.assets[].asset.created_at | 否 | string | date-time |  |
+| d.published.assets[].preview | 否 | object |  | 独立预览媒体资源；视频首帧和私密媒体预览通过此字段返回。 |
+| d.published.assets[].preview.id | 否 | integer |  |  |
+| d.published.assets[].preview.type | 否 | string | enum: "image" / "video" |  |
+| d.published.assets[].preview.mime | 否 | string |  |  |
+| d.published.assets[].preview.state | 否 | string |  |  |
+| d.published.assets[].preview.ref | 否 | string | uri | 预览媒体的完整资源 URL。 |
 | d.draft | 否 | object |  |  |
 | d.draft.id | 否 | integer |  |  |
 | d.draft.char_id | 否 | integer |  |  |
-| d.draft.ver | 否 | integer |  |  |
+| d.draft.ver | 否 | string | maxLength: 64 |  |
 | d.draft.state | 否 | string | enum: "draft" / "published" / "archived" |  |
 | d.draft.data | 否 | CharacterData |  |  |
-| d.draft.data.zh-Hant | 否 | CharacterContent |  |  |
-| d.draft.data.zh-Hant.name | 否 | string |  |  |
-| d.draft.data.zh-Hant.tagline | 否 | string |  |  |
-| d.draft.data.zh-Hant.description | 否 | string |  |  |
-| d.draft.data.zh-Hant.prompt | 否 | string |  |  |
-| d.draft.data.zh-Hant.avatar_notes | 否 | string |  |  |
-| d.draft.data.zh-Hant.greetings | 否 | array<Greeting> |  |  |
-| d.draft.data.zh-Hant.tags | 否 | array<string> |  |  |
-| d.draft.data.en | 否 | CharacterContent |  |  |
-| d.draft.data.en.name | 否 | string |  |  |
-| d.draft.data.en.tagline | 否 | string |  |  |
-| d.draft.data.en.description | 否 | string |  |  |
-| d.draft.data.en.prompt | 否 | string |  |  |
-| d.draft.data.en.avatar_notes | 否 | string |  |  |
-| d.draft.data.en.greetings | 否 | array<Greeting> |  |  |
-| d.draft.data.en.tags | 否 | array<string> |  |  |
+| d.draft.data.character_version | 否 | string | maxLength: 64 |  |
+| d.draft.data.creator | 否 | string | maxLength: 128 |  |
+| d.draft.data.creator_notes | 否 | string | maxLength: 2000 |  |
+| d.draft.data.name | 否 | string | maxLength: 100 |  |
+| d.draft.data.tagline | 否 | string | maxLength: 100 |  |
+| d.draft.data.description | 否 | string | maxLength: 500 |  |
+| d.draft.data.personality | 否 | string |  |  |
+| d.draft.data.scenario | 否 | string |  |  |
+| d.draft.data.prompt | 否 | string |  | 选填的历史后指令；为空时不影响保存或发布。 |
+| d.draft.data.avatar_notes | 否 | string |  |  |
+| d.draft.data.mes_example | 否 | array<-> |  |  |
+| d.draft.data.greetings | 否 | array<Greeting> |  |  |
+| d.draft.data.greetings[].kind | 否 | string | enum: "primary" / "alternate" |  |
+| d.draft.data.greetings[].body | 是 | string |  |  |
+| d.draft.data.greetings[].enabled | 否 | boolean | default: true |  |
+| d.draft.data.greetings[].sort | 否 | integer | min: 0 |  |
+| d.draft.data.tags | 否 | array<string> |  |  |
 | d.draft.hash | 否 | string |  |  |
 | d.draft.created_by | 否 | integer |  |  |
 | d.draft.pub_by | 否 | integer |  |  |
@@ -845,6 +866,12 @@
 | d.draft.assets[].asset.preview_ref | 否 | string | uri | 视频 Poster 或预览资源的完整 URL。 |
 | d.draft.assets[].asset.owner_id | 否 | integer |  |  |
 | d.draft.assets[].asset.created_at | 否 | string | date-time |  |
+| d.draft.assets[].preview | 否 | object |  | 独立预览媒体资源；视频首帧和私密媒体预览通过此字段返回。 |
+| d.draft.assets[].preview.id | 否 | integer |  |  |
+| d.draft.assets[].preview.type | 否 | string | enum: "image" / "video" |  |
+| d.draft.assets[].preview.mime | 否 | string |  |  |
+| d.draft.assets[].preview.state | 否 | string |  |  |
+| d.draft.assets[].preview.ref | 否 | string | uri | 预览媒体的完整资源 URL。 |
 
 成功响应示例：
 
@@ -912,25 +939,26 @@
 | d.published | 否 | object |  |  |
 | d.published.id | 否 | integer |  |  |
 | d.published.char_id | 否 | integer |  |  |
-| d.published.ver | 否 | integer |  |  |
+| d.published.ver | 否 | string | maxLength: 64 |  |
 | d.published.state | 否 | string | enum: "draft" / "published" / "archived" |  |
 | d.published.data | 否 | CharacterData |  |  |
-| d.published.data.zh-Hant | 否 | CharacterContent |  |  |
-| d.published.data.zh-Hant.name | 否 | string |  |  |
-| d.published.data.zh-Hant.tagline | 否 | string |  |  |
-| d.published.data.zh-Hant.description | 否 | string |  |  |
-| d.published.data.zh-Hant.prompt | 否 | string |  |  |
-| d.published.data.zh-Hant.avatar_notes | 否 | string |  |  |
-| d.published.data.zh-Hant.greetings | 否 | array<Greeting> |  |  |
-| d.published.data.zh-Hant.tags | 否 | array<string> |  |  |
-| d.published.data.en | 否 | CharacterContent |  |  |
-| d.published.data.en.name | 否 | string |  |  |
-| d.published.data.en.tagline | 否 | string |  |  |
-| d.published.data.en.description | 否 | string |  |  |
-| d.published.data.en.prompt | 否 | string |  |  |
-| d.published.data.en.avatar_notes | 否 | string |  |  |
-| d.published.data.en.greetings | 否 | array<Greeting> |  |  |
-| d.published.data.en.tags | 否 | array<string> |  |  |
+| d.published.data.character_version | 否 | string | maxLength: 64 |  |
+| d.published.data.creator | 否 | string | maxLength: 128 |  |
+| d.published.data.creator_notes | 否 | string | maxLength: 2000 |  |
+| d.published.data.name | 否 | string | maxLength: 100 |  |
+| d.published.data.tagline | 否 | string | maxLength: 100 |  |
+| d.published.data.description | 否 | string | maxLength: 500 |  |
+| d.published.data.personality | 否 | string |  |  |
+| d.published.data.scenario | 否 | string |  |  |
+| d.published.data.prompt | 否 | string |  | 选填的历史后指令；为空时不影响保存或发布。 |
+| d.published.data.avatar_notes | 否 | string |  |  |
+| d.published.data.mes_example | 否 | array<-> |  |  |
+| d.published.data.greetings | 否 | array<Greeting> |  |  |
+| d.published.data.greetings[].kind | 否 | string | enum: "primary" / "alternate" |  |
+| d.published.data.greetings[].body | 是 | string |  |  |
+| d.published.data.greetings[].enabled | 否 | boolean | default: true |  |
+| d.published.data.greetings[].sort | 否 | integer | min: 0 |  |
+| d.published.data.tags | 否 | array<string> |  |  |
 | d.published.hash | 否 | string |  |  |
 | d.published.created_by | 否 | integer |  |  |
 | d.published.pub_by | 否 | integer |  |  |
@@ -954,28 +982,35 @@
 | d.published.assets[].asset.preview_ref | 否 | string | uri | 视频 Poster 或预览资源的完整 URL。 |
 | d.published.assets[].asset.owner_id | 否 | integer |  |  |
 | d.published.assets[].asset.created_at | 否 | string | date-time |  |
+| d.published.assets[].preview | 否 | object |  | 独立预览媒体资源；视频首帧和私密媒体预览通过此字段返回。 |
+| d.published.assets[].preview.id | 否 | integer |  |  |
+| d.published.assets[].preview.type | 否 | string | enum: "image" / "video" |  |
+| d.published.assets[].preview.mime | 否 | string |  |  |
+| d.published.assets[].preview.state | 否 | string |  |  |
+| d.published.assets[].preview.ref | 否 | string | uri | 预览媒体的完整资源 URL。 |
 | d.draft | 否 | object |  |  |
 | d.draft.id | 否 | integer |  |  |
 | d.draft.char_id | 否 | integer |  |  |
-| d.draft.ver | 否 | integer |  |  |
+| d.draft.ver | 否 | string | maxLength: 64 |  |
 | d.draft.state | 否 | string | enum: "draft" / "published" / "archived" |  |
 | d.draft.data | 否 | CharacterData |  |  |
-| d.draft.data.zh-Hant | 否 | CharacterContent |  |  |
-| d.draft.data.zh-Hant.name | 否 | string |  |  |
-| d.draft.data.zh-Hant.tagline | 否 | string |  |  |
-| d.draft.data.zh-Hant.description | 否 | string |  |  |
-| d.draft.data.zh-Hant.prompt | 否 | string |  |  |
-| d.draft.data.zh-Hant.avatar_notes | 否 | string |  |  |
-| d.draft.data.zh-Hant.greetings | 否 | array<Greeting> |  |  |
-| d.draft.data.zh-Hant.tags | 否 | array<string> |  |  |
-| d.draft.data.en | 否 | CharacterContent |  |  |
-| d.draft.data.en.name | 否 | string |  |  |
-| d.draft.data.en.tagline | 否 | string |  |  |
-| d.draft.data.en.description | 否 | string |  |  |
-| d.draft.data.en.prompt | 否 | string |  |  |
-| d.draft.data.en.avatar_notes | 否 | string |  |  |
-| d.draft.data.en.greetings | 否 | array<Greeting> |  |  |
-| d.draft.data.en.tags | 否 | array<string> |  |  |
+| d.draft.data.character_version | 否 | string | maxLength: 64 |  |
+| d.draft.data.creator | 否 | string | maxLength: 128 |  |
+| d.draft.data.creator_notes | 否 | string | maxLength: 2000 |  |
+| d.draft.data.name | 否 | string | maxLength: 100 |  |
+| d.draft.data.tagline | 否 | string | maxLength: 100 |  |
+| d.draft.data.description | 否 | string | maxLength: 500 |  |
+| d.draft.data.personality | 否 | string |  |  |
+| d.draft.data.scenario | 否 | string |  |  |
+| d.draft.data.prompt | 否 | string |  | 选填的历史后指令；为空时不影响保存或发布。 |
+| d.draft.data.avatar_notes | 否 | string |  |  |
+| d.draft.data.mes_example | 否 | array<-> |  |  |
+| d.draft.data.greetings | 否 | array<Greeting> |  |  |
+| d.draft.data.greetings[].kind | 否 | string | enum: "primary" / "alternate" |  |
+| d.draft.data.greetings[].body | 是 | string |  |  |
+| d.draft.data.greetings[].enabled | 否 | boolean | default: true |  |
+| d.draft.data.greetings[].sort | 否 | integer | min: 0 |  |
+| d.draft.data.tags | 否 | array<string> |  |  |
 | d.draft.hash | 否 | string |  |  |
 | d.draft.created_by | 否 | integer |  |  |
 | d.draft.pub_by | 否 | integer |  |  |
@@ -999,6 +1034,12 @@
 | d.draft.assets[].asset.preview_ref | 否 | string | uri | 视频 Poster 或预览资源的完整 URL。 |
 | d.draft.assets[].asset.owner_id | 否 | integer |  |  |
 | d.draft.assets[].asset.created_at | 否 | string | date-time |  |
+| d.draft.assets[].preview | 否 | object |  | 独立预览媒体资源；视频首帧和私密媒体预览通过此字段返回。 |
+| d.draft.assets[].preview.id | 否 | integer |  |  |
+| d.draft.assets[].preview.type | 否 | string | enum: "image" / "video" |  |
+| d.draft.assets[].preview.mime | 否 | string |  |  |
+| d.draft.assets[].preview.state | 否 | string |  |  |
+| d.draft.assets[].preview.ref | 否 | string | uri | 预览媒体的完整资源 URL。 |
 
 成功响应示例：
 
@@ -1074,6 +1115,12 @@
 | d.asset.preview_ref | 否 | string | uri | 视频 Poster 或预览资源的完整 URL。 |
 | d.asset.owner_id | 否 | integer |  |  |
 | d.asset.created_at | 否 | string | date-time |  |
+| d.preview | 否 | object |  | 独立预览媒体资源；视频首帧和私密媒体预览通过此字段返回。 |
+| d.preview.id | 否 | integer |  |  |
+| d.preview.type | 否 | string | enum: "image" / "video" |  |
+| d.preview.mime | 否 | string |  |  |
+| d.preview.state | 否 | string |  |  |
+| d.preview.ref | 否 | string | uri | 预览媒体的完整资源 URL。 |
 
 成功响应示例：
 
