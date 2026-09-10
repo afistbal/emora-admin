@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { Alert, Button, Card, Descriptions, Empty, Form, Image, InputNumber, Pagination, Select, Space, Spin, Table, Tag, Typography } from "antd";
 import { ArrowLeft, ArrowsClockwise, ChatCircleDots, MagnifyingGlass, WarningCircle } from "@phosphor-icons/react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate } from "umi";
 import { adminApi } from "./api/client.js";
 import "./messages.css";
 
@@ -187,7 +187,7 @@ function MessageListPage({ adminToken, onOpen }) {
     { title: "消息状态", dataIndex: "status", width: 140, render: (value) => <MessageStatus value={value} /> },
     { title: "发送时间", dataIndex: "created_at", width: 200, render: time },
     { title: "生成时间", dataIndex: "completed_at", width: 200, render: time },
-    { title: "操作", key: "action", width: 90, fixed: "right", render: (_, record) => <Button onClick={(event) => { event.stopPropagation(); onOpen(record.id); }}>详情</Button> },
+    { title: "操作", key: "action", width: 80, fixed: "right", render: (_, record) => <Button size="small" color="blue" variant="filled" onClick={(event) => { event.stopPropagation(); onOpen(record.id); }}>详情</Button> },
   ];
 
   const search = () => { setFilters(Object.fromEntries(Object.entries(draft).filter(([, value]) => value !== ""))); setPage(1); };

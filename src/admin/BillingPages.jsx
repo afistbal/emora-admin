@@ -87,8 +87,7 @@ export default function BillingPage({ subscription = false, adminToken }) {
     { title: "订阅 / 用户", key: "identity", width: 130, render: (_, item) => <DetailLines><span>订阅 ID：<strong>{show(item.id)}</strong></span><span>用户 ID：<strong>{show(item.user_id)}</strong></span></DetailLines> },
     { title: "订单号", key: "order_numbers", width: 300, render: (_, item) => {
       const isGoogle = Number(item.platform) === 99;
-      // 兼容后端修复部署前的 UNION 字段错位：旧响应把 Google 订单号放在 original_transaction_id。
-      const platformOrderId = isGoogle ? (item.google_order_id || item.original_transaction_id) : item.transaction_id;
+      const platformOrderId = isGoogle ? item.google_order_id : item.transaction_id;
       return <DetailLines><OrderNumber label="系统订单号" value={item.pay_no} /><OrderNumber label={isGoogle ? "Google 订单号" : "Apple 交易号"} value={platformOrderId} />{!isGoogle && item.original_transaction_id && <OrderNumber label="Apple 原始交易号" value={item.original_transaction_id} />}</DetailLines>;
     } },
     { title: "金额", key: "amount", width: 110, render: (_, item) => <DetailLines><strong>{show(item.amount)}</strong><small>{item.currency || "币种未记录"}</small></DetailLines> },
@@ -97,8 +96,7 @@ export default function BillingPage({ subscription = false, adminToken }) {
     { title: "时间", key: "time", width: 275, render: (_, item) => <DetailLines><span>开始：{formatDateTime(item.start_time)}</span><span>到期：{formatDateTime(item.expiry_time)}</span>{item.next_billing_at && <span>下次扣款：{formatDateTime(item.next_billing_at)}</span>}<span>更新：{formatDateTime(item.updated_at)}</span></DetailLines> },
     { title: "商品 / 平台", key: "product", width: 280, render: (_, item) => {
       const isGoogle = Number(item.platform) === 99;
-      // 旧响应把 base_plan_id 错放在 transaction_id；后端发布后自动优先使用正确字段。
-      const basePlanId = item.base_plan_id || (isGoogle ? item.transaction_id : null);
+      const basePlanId = item.base_plan_id;
       return <DetailLines><strong>{show(item.product_name)}</strong><span>商店商品 ID：{show(item.store_product_id)}</span><small>{PLATFORMS[item.platform] || `平台 ${item.platform}`}</small>{isGoogle && <span>Google 基础计划 ID：{show(basePlanId)}</span>}</DetailLines>;
     } },
   ];

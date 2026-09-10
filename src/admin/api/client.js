@@ -1,6 +1,7 @@
 import environments from "../../config/environments.json";
 
-const environmentKey = import.meta.env.MODE === "prod" || import.meta.env.MODE === "production" ? "prod" : "dev";
+// Umi 在构建时固化目标环境，继续复用原来的 dev/prod 接口配置，不改变任何请求契约。
+const environmentKey = process.env.EMORA_ENV === "prod" ? "prod" : "dev";
 export const API_ENVIRONMENT = environments[environmentKey];
 export const API_BASE_URL = API_ENVIRONMENT.apiBaseUrl;
 
@@ -40,6 +41,13 @@ async function jsonPost(path, body = {}, options = {}) {
     body: JSON.stringify(body),
     signal: options.signal,
   });
+
+  if (token && options.withToken !== false && (response.status === 401 || response.status === 403)) {
+    // 不再额外请求角色列表验证权限；由真实业务请求的鉴权结果统一通知后台退出登录。
+    window.dispatchEvent(new CustomEvent("emora:admin-auth-invalid", {
+      detail: { status: response.status },
+    }));
+  }
 
   let payload = null;
   try {

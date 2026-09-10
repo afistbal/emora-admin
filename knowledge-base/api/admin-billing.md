@@ -18,7 +18,7 @@ platform 仅支持98/99。页码分页未传 platform 时同时返回 Apple 与 
 
 summary 包含 total（记录数）、users（去重用户数）、statuses（状态码到数量的映射）。统计当前筛选全集，不受 before_id 影响；不是续费次数、转化率或实时 VIP 权益判断。并发支付回调可能使汇总与明细在瞬间出现差异。
 
-明细包含 id、user_id、pay_no、pkg_name、status、subscription_state、auto_renewing、expiry_time、amount、created_at、updated_at、product_name、store_product_id、start_time、subscription_type、platform。Apple 另含 transaction_id、original_transaction_id、environment、currency；Google 另含 base_plan_id、google_order_id、next_billing_at。`base_plan_id` 是 Google 基础计划配置 ID，不是 Google 订单号，因此展示在“商品 / 平台”；Google 订单号取 `google_order_id`，通常为 GPA 格式，展示在“订单号”。前端临时兼容后端修复部署前 UNION 字段错位的旧响应，后端发布后优先使用正确字段。当前订阅表未记录本次实际使用的 offer ID，因此后台不从商品当前优惠配置反推历史订单。周/月/年从关联订单对应的当前商品配置读取，无法关联时为 null；Apple start_time 为购买时间，不伪称初次订阅时间。列表时间统一格式为 `YYYY-MM-DD HH:mm:ss`，商品与平台列不展示环境或时间。Google 金额币种缺失时显示未记录。订单号复制统一使用 Ant `Typography.Text copyable` 的文本后置小图标，不显示独立边框按钮。
+明细包含 id、user_id、pay_no、pkg_name、status、subscription_state、auto_renewing、expiry_time、amount、created_at、updated_at、product_name、store_product_id、start_time、subscription_type、platform。Apple 另含 transaction_id、original_transaction_id、environment、currency；Google 另含 base_plan_id、google_order_id、next_billing_at。`base_plan_id` 是 Google 基础计划配置 ID，不是 Google 订单号，因此展示在“商品 / 平台”；Google 订单号只读取 `google_order_id`，通常为 GPA 格式，展示在“订单号”，不再兼容修复前 UNION 字段错位的旧响应。当前订阅表未记录本次实际使用的 offer ID，因此后台不从商品当前优惠配置反推历史订单。周/月/年从关联订单对应的当前商品配置读取，无法关联时为 null；Apple start_time 为购买时间，不伪称初次订阅时间。列表时间统一格式为 `YYYY-MM-DD HH:mm:ss`，商品与平台列不展示环境或时间。Google 金额币种缺失时显示未记录。订单号复制统一使用 Ant `Typography.Text copyable` 的文本后置小图标，不显示独立边框按钮。
 
 不返回 purchase_token、app_account_token、verify_data、latest_payload。无 H5 专用订阅表，不编造 H5 或续费次数统计。
 

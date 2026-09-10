@@ -2,7 +2,8 @@ node_modules/
 dist/
 .env
 .env.local
-.vite/
+.umi/
+.umi-production/
 *.log
 .DS_Store
 dist-dev/

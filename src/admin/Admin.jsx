@@ -32,7 +32,7 @@ import {
   X,
 } from "@phosphor-icons/react";
 import { adminApi, getAdminToken, setAdminToken } from "./api/client.js";
-import { useLocation, useNavigate } from "react-router-dom";
+import { useLocation, useNavigate } from "umi";
 
 /* ================= 共享小组件 ================= */
 
@@ -99,7 +99,7 @@ function ProviderRouteLabel({ route }) {
 
 function ToggleRow({ label, desc, checked, onChange, disabled = false }) {
   return (
-    <div style={{ display: "flex", alignItems: "center", gap: 12, padding: "10px 0", borderBottom: "1px solid #181818" }}>
+    <div style={{ display: "flex", alignItems: "center", gap: 12, padding: "10px 0", borderBottom: "1px solid var(--line)" }}>
       <div style={{ flex: 1 }}>
         <div style={{ fontSize: 13, fontWeight: 600 }}>{label}</div>
         {desc && <div className="muted small" style={{ marginTop: 3 }}>{desc}</div>}
@@ -179,16 +179,6 @@ function ConfirmDialog({ title, desc, confirmText = "确认", onConfirm, onClose
   );
 }
 
-function ApiAccessGate() {
-  return (
-    <div className="api-access-gate">
-      <div className="api-access-icon"><LockKey weight="fill" /></div>
-      <Spin size="large" />
-      <h2>正在验证后台权限…</h2>
-    </div>
-  );
-}
-
 function AdminLogin({ state, onSubmit }) {
   const [email, setEmail] = useState("");
   const [code, setCode] = useState("");
@@ -255,12 +245,83 @@ function AdminLogin({ state, onSubmit }) {
 
 /* ================= 仪表盘 ================= */
 
+const DASHBOARD_PRIMARY_METRICS = [
+  { key: "dau", label: "日活用户", note: "当前周期内的活跃用户", icon: Users, tone: "blue" },
+  { key: "chat_view_users", label: "聊天用户", note: "进入聊天场景的用户", icon: ChatCircleDots, tone: "cyan" },
+  { key: "generation_success_rate", label: "生成成功率", note: "成功数 / 生成提交数", icon: Sparkle, tone: "purple" },
+  { key: "membership_purchase_results", label: "会员购买结果", note: "服务端记录的购买结果", icon: CrownSimple, tone: "gold" },
+];
+
+const DASHBOARD_METRIC_GROUPS = [
+  {
+    key: "reach",
+    title: "内容触达与互动",
+    description: "从启动、曝光到私密内容解锁的用户行为",
+    icon: ChartLineUp,
+    tone: "blue",
+    metrics: ["app_opens", "character_exposure_pv", "character_exposure_uv", "private_unlock_clicks", "private_unlock_successes", "private_unlock_rate"],
+  },
+  {
+    key: "generation",
+    title: "内容生成质量",
+    description: "生成请求的规模、结果与失败情况",
+    icon: Sparkle,
+    tone: "purple",
+    metrics: ["generation_submits", "generation_successes", "generation_failures"],
+  },
+  {
+    key: "commerce",
+    title: "商业化转化",
+    description: "金币商城、会员页面和购买结果的完整漏斗",
+    icon: Coins,
+    tone: "gold",
+    wide: true,
+    metrics: ["coin_store_views", "coin_store_view_users", "coin_pack_purchases", "coin_transactions", "coin_purchase_results", "membership_views", "membership_view_users", "membership_plan_selections", "membership_expires"],
+  },
+];
+
+function DashboardMetric({ metricKey, kpis, primaryMetric }) {
+  const Icon = primaryMetric?.icon;
+  const tone = primaryMetric?.tone || "neutral";
+  return (
+    <div className={`dashboard-metric ${primaryMetric ? "dashboard-metric--primary" : ""} dashboard-tone--${tone}`}>
+      <div className="dashboard-metric-head">
+        {Icon && <span className="dashboard-metric-icon"><Icon weight="duotone" /></span>}
+        <span>{primaryMetric?.label || ANALYTICS_KPI_META[metricKey] || metricKey}</span>
+      </div>
+      <strong>{formatAnalyticsKpi(metricKey, kpis?.[metricKey])}</strong>
+      {primaryMetric?.note && <small>{primaryMetric.note}</small>}
+    </div>
+  );
+}
+
+function DashboardMetricGroup({ group, kpis }) {
+  const Icon = group.icon;
+  return (
+    <AntCard className={`dashboard-section-card dashboard-section-card--${group.tone} ${group.wide ? "dashboard-section-card--wide" : ""}`}>
+      <div className="dashboard-section-heading">
+        <span className="dashboard-section-icon"><Icon weight="duotone" /></span>
+        <div>
+          <Typography.Title level={4}>{group.title}</Typography.Title>
+          <Typography.Text type="secondary">{group.description}</Typography.Text>
+        </div>
+      </div>
+      <div className="dashboard-secondary-grid">
+        {group.metrics.map((metricKey) => <DashboardMetric key={metricKey} metricKey={metricKey} kpis={kpis} />)}
+      </div>
+    </AntCard>
+  );
+}
+
 function DashboardPage({ toast }) {
   const [range, setRange] = useState("今日");
   const [liveSummary, setLiveSummary] = useState(null);
+  const [loadError, setLoadError] = useState("");
 
   useEffect(() => {
     const controller = new AbortController();
+    setLiveSummary(null);
+    setLoadError("");
     const end = new Date();
     const start = new Date(end);
     start.setDate(end.getDate() - (range === "30 日" ? 29 : range === "7 日" ? 6 : 0));
@@ -274,20 +335,38 @@ function DashboardPage({ toast }) {
     }, { signal: controller.signal })
       .then(setLiveSummary)
       .catch((error) => {
-        if (error.name !== "AbortError") toast(`仪表盘统计请求失败：${error.message}`);
+        if (error.name !== "AbortError") {
+          setLoadError(error.message);
+          toast(`仪表盘统计请求失败：${error.message}`);
+        }
       });
     return () => controller.abort();
   }, [range]);
 
   return (
-    <div className="section-gap">
-      <div className="filter-bar">
-        {["今日", "7 日", "30 日"].map((r) => (
-          <AntButton key={r} type={range === r ? "primary" : "default"} onClick={() => setRange(r)}>{r}</AntButton>
-        ))}
-      </div>
+    <div className="section-gap dashboard-page">
+      <AntCard className="dashboard-overview-card">
+        <div className="dashboard-toolbar">
+          <div className="dashboard-heading">
+            <span className="dashboard-eyebrow"><Gauge weight="duotone" />运营概览</span>
+            <Typography.Title level={2}>业务健康概览</Typography.Title>
+            <Typography.Text type="secondary">聚合用户活跃、内容生成与商业转化指标 · Asia/Shanghai</Typography.Text>
+          </div>
+          <Segmented value={range} options={["今日", "7 日", "30 日"]} onChange={setRange} />
+        </div>
 
-      {liveSummary?.kpis ? <LiveAnalyticsKpis kpis={liveSummary.kpis} /> : <LoadingState text="正在加载仪表盘数据…" />}
+        {liveSummary?.kpis && (
+          <div className="dashboard-primary-grid">
+            {DASHBOARD_PRIMARY_METRICS.map((metric) => <DashboardMetric key={metric.key} metricKey={metric.key} kpis={liveSummary.kpis} primaryMetric={metric} />)}
+          </div>
+        )}
+      </AntCard>
+
+      {loadError
+        ? <Alert type="error" showIcon message="仪表盘数据加载失败" description={loadError} />
+        : liveSummary?.kpis
+          ? <div className="dashboard-section-grid">{DASHBOARD_METRIC_GROUPS.map((group) => <DashboardMetricGroup key={group.key} group={group} kpis={liveSummary.kpis} />)}</div>
+          : <LoadingState text="正在加载仪表盘数据…" />}
     </div>
   );
 }
@@ -478,7 +557,6 @@ function TokenUsagePage({ toast, adminToken }) {
     setLoading(true);
     setUsage(null);
     setLoadError("");
-    // 复用已有统计接口，token_usage 是向后兼容的可选响应字段；旧后端仍可正常返回原统计数据。
     adminApi.analytics.query({
       tab: "all",
       start_date: startDate,
@@ -486,7 +564,7 @@ function TokenUsagePage({ toast, adminToken }) {
       user_type: "all",
       timezone: "Asia/Shanghai",
     }, { signal: controller.signal })
-      .then((data) => setUsage(data?.token_usage || null))
+      .then((data) => setUsage(data.token_usage))
       .catch((error) => {
         if (error.name !== "AbortError") {
           setLoadError(error.message);
@@ -762,7 +840,7 @@ function CharacterListPage({ list, onEdit, onCreate, onImport }) {
             { title: "消息次数", key: "messages", align: "right", render: (_, character) => <>{character.msgCount.toLocaleString()}<div className="muted" style={{ fontSize: 11 }}>人均 {character.msgPer} 轮</div></> },
             { title: "卡曝光 pv/uv", key: "exposure", align: "right", render: (_, character) => `${character.expPv.toLocaleString()} / ${character.expUv.toLocaleString()}` },
             { title: "生成提交 → 成功率", key: "generation", align: "right", render: (_, character) => `${character.genSubmit.toLocaleString()} → ${character.genRate}` },
-            { title: "操作", key: "action", render: (_, character) => <AntButton onClick={(event) => { event.stopPropagation(); onEdit(character); }}>编辑</AntButton> },
+            { title: "操作", key: "action", render: (_, character) => <AntButton size="small" color="blue" variant="filled" onClick={(event) => { event.stopPropagation(); onEdit(character); }}>编辑</AntButton> },
           ]}
         />
       </div>
@@ -890,7 +968,7 @@ function CharacterEditorPage({ character, onBack, toast, onStatusChange }) {
       return undefined;
     }
     let active = true;
-    // 详情请求不绑定组件卸载信号，避免编辑器切换或 Vite 热更新把唯一请求标记为 canceled。
+    // 详情请求不绑定组件卸载信号，避免编辑器切换或开发热更新把唯一请求标记为 canceled。
     // 组件卸载后仍通过 active 保护状态，防止旧角色详情回写到新编辑器。
     adminApi.characters.detail({ char_id: Number(character.id) })
       .then(async (data) => {
@@ -1495,7 +1573,7 @@ function CharacterEditorPage({ character, onBack, toast, onStatusChange }) {
                 { title: "版本", dataIndex: "ver", render: (value) => `v${value}` },
                 { title: "状态", dataIndex: "state", render: (value) => <Badge tone={value === "published" ? "green" : "gray"}>{value}</Badge> },
                 { title: "创建时间", dataIndex: "created_at", render: (value) => <span className="muted">{value || "—"}</span> },
-                { title: "操作", key: "action", render: (_, version) => <AntButton disabled={version.state !== "published"} onClick={() => rollbackVersion(version)}>回滚到此版本</AntButton> },
+                { title: "操作", key: "action", render: (_, version) => <AntButton size="small" color="gold" variant="filled" disabled={version.state !== "published"} onClick={() => rollbackVersion(version)}>回滚到此版本</AntButton> },
               ]} />
             </div>
             {!versions.length && <p className="muted small">暂无版本记录</p>}
@@ -1656,7 +1734,7 @@ function PresetsPage({ toast, adminToken }) {
           { title: "标签名", dataIndex: "tag", width: 170, render: (value, preset) => <AntInput value={value} maxLength={64} aria-label="标签名" onChange={(event) => updatePreset(mode, preset.id, "tag", event.target.value)} /> },
           { title: "英文提示词", dataIndex: "promptEn", render: (value, preset) => <AntInput value={value} maxLength={4096} aria-label="英文提示词" onChange={(event) => updatePreset(mode, preset.id, "promptEn", event.target.value)} /> },
           { title: "状态", dataIndex: "active", width: 76, render: (value, preset) => <AntSwitch checked={value} onChange={(checked) => setPresetStatus(mode, preset, checked)} aria-label={preset.tag} /> },
-          { title: "操作", key: "action", width: 160, render: (_, preset, index) => <Space><AntButton disabled={!preset.tag.trim() || !preset.promptEn.trim()} onClick={() => savePreset(mode, preset, index)}>保存</AntButton><AntButton danger onClick={() => setConfirmDel({ mode, id: preset.id, tag: preset.tag })}>删除</AntButton></Space> },
+          { title: "操作", key: "action", width: 150, render: (_, preset, index) => <Space size={6}><AntButton size="small" color="green" variant="filled" disabled={!preset.tag.trim() || !preset.promptEn.trim()} onClick={() => savePreset(mode, preset, index)}>保存</AntButton><AntButton size="small" danger onClick={() => setConfirmDel({ mode, id: preset.id, tag: preset.tag })}>删除</AntButton></Space> },
         ]} />
       </div>
     </Card>
@@ -1761,10 +1839,12 @@ function UsersPage({ toast, adminToken }) {
     adminApi.users.list({ page, page_size: pageSize, ...(keyword.trim() ? { keyword: keyword.trim() } : {}) }, { signal: controller.signal })
       .then((data) => {
         setTotalUsers(Number(data?.total || 0));
-        setUsers((data?.items || []).map((user) => ({
+        setUsers((data?.items || []).map((user, index) => ({
           // internal_id 才是 users 表主键，所有需要 user_id 的后台操作统一使用它。
           // 接口的 user_id 参数保持字符串类型；值使用 users.id，避免 Laravel string 校验拒绝数字 JSON。
           id: String(user.internal_id),
+          // ID 列只表示当前排序下的跨页数据序号，不能用于详情、流水或权限操作。
+          sequence: (page - 1) * pageSize + index + 1,
           publicUserId: user.user_id,
           userUuid: user.user_uuid || "—",
           email: user.email || "—",
@@ -1874,7 +1954,7 @@ function UsersPage({ toast, adminToken }) {
       if (controller.signal.aborted) return;
       setSelected((current) => current?.id === user.id ? {
           ...user,
-          userUuid: data.user_uuid || data.profile?.user_uuid || user.userUuid,
+          userUuid: data.user_uuid,
           email: data.profile?.email || user.email || "—",
           nick: data.profile?.nickname || user.nick,
           gender: data.profile?.gender || "—",
@@ -1889,8 +1969,7 @@ function UsersPage({ toast, adminToken }) {
           coins: data.wallet?.balance || 0,
           sessions: data.session_count ?? "—",
           status: data.status === "normal" ? "正常" : data.status,
-          // 兼容后端灰度发布期间的旧详情响应，未返回字段时沿用列表状态。
-          isAdmin: data.is_admin === undefined ? user.isAdmin : Boolean(data.is_admin),
+          isAdmin: Boolean(data.is_admin),
         } : current);
     } catch (error) {
       if (error.name !== "AbortError") toast(`用户详情请求失败：${error.message}`);
@@ -1933,11 +2012,12 @@ function UsersPage({ toast, adminToken }) {
     <div>
       <Card title="用户列表" sub={`共 ${totalUsers} 位用户`}>
         <div className="filter-bar" style={{ marginBottom: 14 }}>
-        <AntInput style={{ width: 320 }} placeholder="按 ID / user_uuid / 邮箱 / 昵称搜索" value={keyword} onChange={(e) => { setKeyword(e.target.value); setPage(1); }} />
+        <AntInput style={{ width: 320 }} placeholder="按用户 ID / user_uuid / 邮箱 / 昵称搜索" value={keyword} onChange={(e) => { setKeyword(e.target.value); setPage(1); }} />
         </div>
         <div className="table-wrap">
-          <AntTable className="table users-table" tableLayout="auto" scroll={{ x: 1240 }} pagination={false} rowKey="id" dataSource={filtered} rowClassName={() => "clickable"} onRow={(user) => ({ onClick: () => openUser(user) })} columns={[
-            { title: "ID", dataIndex: "id", width: 100, render: (value) => <span className="user-copy-value" onClick={(event) => event.stopPropagation()}><Typography.Text copyable={{ text: String(value), tooltips: ["复制 ID", "已复制"] }}>{value}</Typography.Text></span> },
+          <AntTable className="table users-table" tableLayout="auto" scroll={{ x: 1320 }} pagination={false} rowKey="id" dataSource={filtered} rowClassName={() => "clickable"} onRow={(user) => ({ onClick: () => openUser(user) })} columns={[
+            { title: "ID", dataIndex: "sequence", width: 72, render: (value) => <span className="muted">{value}</span> },
+            { title: "用户 ID", dataIndex: "id", width: 110, render: (value) => <span className="user-copy-value" onClick={(event) => event.stopPropagation()}><Typography.Text copyable={{ text: String(value), tooltips: ["复制用户 ID", "已复制"] }}>{value}</Typography.Text></span> },
             { title: "user_uuid", dataIndex: "userUuid", width: 170, render: (value) => <span className="user-copy-value" onClick={(event) => event.stopPropagation()}><Typography.Text copyable={value && value !== "—" ? { text: String(value), tooltips: ["复制 user_uuid", "已复制"] } : false}>{value}</Typography.Text></span> },
             { title: "邮箱", dataIndex: "email", width: 220, ellipsis: { showTitle: true }, render: (value) => <span className="muted">{value}</span> },
             { title: "昵称", dataIndex: "nick", width: 150 },
@@ -1946,7 +2026,7 @@ function UsersPage({ toast, adminToken }) {
             { title: "金币余额", dataIndex: "coins", width: 100, align: "right", render: (value) => value.toLocaleString() },
             { title: "会话数", dataIndex: "sessions", width: 78, align: "right" },
             { title: "状态", dataIndex: "status", width: 80, render: (value) => <Badge tone={statusTone(value)}>{value}</Badge> },
-            { title: "操作", key: "action", width: 180, render: (_, user) => <Space size={8}><AntButton onClick={(event) => { event.stopPropagation(); openUser(user); }}>详情</AntButton><AntButton onClick={(event) => { event.stopPropagation(); openWalletRecords(user); }}>流水</AntButton></Space> },
+            { title: "操作", key: "action", width: 150, render: (_, user) => <Space size={6}><AntButton size="small" color="blue" variant="filled" onClick={(event) => { event.stopPropagation(); openUser(user); }}>详情</AntButton><AntButton size="small" color="cyan" variant="filled" onClick={(event) => { event.stopPropagation(); openWalletRecords(user); }}>流水</AntButton></Space> },
           ]} />
         </div>
         {totalUsers > 0 && <div className="admin-pagination"><Pagination current={page} pageSize={pageSize} total={totalUsers} showSizeChanger pageSizeOptions={[10, 20, 50, 100]} showTotal={(total) => `共 ${total} 条`} onChange={(nextPage, nextPageSize) => { setPageSize(nextPageSize); setPage(nextPageSize !== pageSize ? 1 : nextPage); }} /></div>}
@@ -1958,7 +2038,7 @@ function UsersPage({ toast, adminToken }) {
               {detailLoading && <div className="user-detail-loading"><Spin /><span>正在加载完整资料…</span></div>}
               <div className="card">
                 <div className="summary-kv user-detail-kv">
-                  <div><span>ID</span><b>{selected.id}</b></div>
+                  <div><span>用户 ID</span><b>{selected.id}</b></div>
                   <div><span>user_uuid</span><b>{selected.userUuid || "—"}</b></div>
                   <div><span>性别 / 语言</span><b>{selected.gender} · {selected.lang}</b></div>
                   <div><span>注册渠道</span><b>{selected.channel}</b></div>
@@ -2128,6 +2208,11 @@ function ProductDiscountConfig({ value, onChange, onSave }) {
       <span>优惠方案</span>
       <span className="muted small">独立配置当前商品的订阅优惠</span>
     </div>
+    {!discounts.length && (
+      <div className="subscription-discount-empty">
+        <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="暂无优惠方案，请点击下方按钮添加" />
+      </div>
+    )}
     {discounts.map((discount, index) => {
       const enabled = discount?.enabled === true || discount?.enabled === 1 || discount?.enabled === "1" || discount?.enabled === "true";
       const method = discount?.method || "fixed_price";
@@ -2166,9 +2251,11 @@ function ProductDiscountConfig({ value, onChange, onSave }) {
         </div>
       </div>;
     })}
-    <AntButton disabled={disabled} onClick={() => updateDiscounts([...discounts, { enabled: false, offer_id: "", type: "first_subscription", method: "fixed_price", value: "" }])}>+ 添加优惠方案</AntButton>
-    {disabled && <span className="muted small">请先将 extra 编辑为有效的 JSON 对象。</span>}
-    {!disabled && <span className="muted small">每一行都是当前商品独立的优惠方案，保存到 extra.discounts。</span>}
+    <div className="subscription-discount-add">
+      <AntButton type="primary" block disabled={disabled} onClick={() => updateDiscounts([...discounts, { enabled: false, offer_id: "", type: "first_subscription", method: "fixed_price", value: "" }])}>+ 添加优惠方案</AntButton>
+      {disabled && <span className="muted small">请先将 extra 编辑为有效的 JSON 对象。</span>}
+      {!disabled && <span className="muted small">每一行都是当前商品独立的优惠方案，保存到 extra.discounts。</span>}
+    </div>
   </div>;
 }
 
@@ -2269,7 +2356,7 @@ function CommercePage({ toast, adminToken }) {
   const [showAddProduct, setShowAddProduct] = useState(null);
 
   const applyProductList = (data) => {
-    const items = Array.isArray(data) ? data : data?.items || data?.list || [];
+    const items = data?.items || [];
     const coinItems = items.filter((item) => Number(item.type) === 1);
     const memberItems = items.filter((item) => Number(item.type) === 2);
     setPacks(coinItems.map((item) => ({
@@ -2708,12 +2795,21 @@ function ProviderEditorPage({ provider, onClose, onSave, onDeleteModel }) {
             { title: <Typography.Link onClick={onClose}>中转站列表</Typography.Link> },
             { title: editing ? provider.name : "新建中转站" },
           ]} />
-          <h2>{editing ? `编辑中转站 · ${provider.name}` : "新建中转站"}</h2>
+          <div className="provider-editor-title-row">
+            <span className="provider-editor-title-icon"><GearSix weight="duotone" /></span>
+            <div>
+              <h2>{editing ? `编辑中转站 · ${provider.name}` : "新建中转站"}</h2>
+              <Typography.Text type="secondary">配置 Provider 连接、鉴权信息及模型能力</Typography.Text>
+            </div>
+            <Tag color={form.status === "enabled" ? "success" : "default"}>{form.status === "enabled" ? "已启用" : "已停用"}</Tag>
+          </div>
         </div>
       </header>
 
       <Card
-        title="基础配置"
+        className="provider-basics-card"
+        title="连接与基础信息"
+        sub="用于后台调用第三方模型服务，修改后保存生效"
         actions={(
           <Space size={8}>
             <AntButton disabled={saving || deletingModel !== null} onClick={onClose}>取消</AntButton>
@@ -2721,18 +2817,41 @@ function ProviderEditorPage({ provider, onClose, onSave, onDeleteModel }) {
           </Space>
         )}
       >
-        <div className="provider-editor-basics">
-          <Form.Item label="名称（driver）*"><AntInput maxLength={128} value={form.name} onChange={(event) => update("name", event.target.value)} placeholder="如：主用中转站" /></Form.Item>
-          <Form.Item label="API 地址 / 中转域名 *"><AntInput value={form.baseUrl} onChange={(event) => update("baseUrl", event.target.value)} placeholder="https://api.example.com/v1" /></Form.Item>
-          <Form.Item label={`API Key ${editing ? "（留空则保留）" : "*"}`}><AntInput type="text" value={form.apiKey} onChange={(event) => update("apiKey", event.target.value)} placeholder={editing ? `当前：${maskApiKey(provider.api_key)}` : "sk-..."} autoComplete="new-password" /></Form.Item>
-          <Form.Item label="备注"><AntInput.TextArea autoSize={{ minRows: 2, maxRows: 6 }} value={form.remark} onChange={(event) => update("remark", event.target.value)} placeholder="填写中转站内部说明" /></Form.Item>
-          <Form.Item label="状态">
-            <div className="provider-status-control">
-              <AntSwitch checked={form.status === "enabled"} aria-label="中转站状态" onChange={(checked) => update("status", checked ? "enabled" : "disabled")} />
-              <Typography.Text type="secondary">{form.status === "enabled" ? "已启用" : "已停用"}</Typography.Text>
-            </div>
-          </Form.Item>
-        </div>
+        <Form layout="vertical" component={false}>
+          <div className="provider-editor-basics">
+            <section className="provider-connection-fields">
+              <div className="provider-field-grid">
+                <Form.Item label="名称（driver）" required><AntInput maxLength={128} value={form.name} onChange={(event) => update("name", event.target.value)} placeholder="如：OpenRouter" /></Form.Item>
+                <Form.Item label="API 地址 / 中转域名" required><AntInput value={form.baseUrl} onChange={(event) => update("baseUrl", event.target.value)} placeholder="https://api.example.com/v1" /></Form.Item>
+              </div>
+              <Form.Item label="备注" className="provider-remark-field"><AntInput.TextArea autoSize={{ minRows: 3, maxRows: 6 }} value={form.remark} onChange={(event) => update("remark", event.target.value)} placeholder="填写该中转站的用途、负责人或内部说明" /></Form.Item>
+            </section>
+
+            <aside className="provider-security-panel">
+              <div className="provider-security-heading">
+                <span><LockKey weight="duotone" /></span>
+                <div><strong>鉴权与可用状态</strong><small>密钥只在保存时提交，不会在页面中展示明文</small></div>
+              </div>
+              <Form.Item
+                label="API Key"
+                required={!editing}
+                extra={editing ? "留空则继续使用当前密钥" : "新建中转站时必须填写"}
+              >
+                <AntInput.Password value={form.apiKey} onChange={(event) => update("apiKey", event.target.value)} placeholder={editing ? `已配置：${maskApiKey(provider.api_key)}` : "sk-..."} autoComplete="new-password" />
+              </Form.Item>
+              <div className="provider-status-panel">
+                <div>
+                  <strong>启用中转站</strong>
+                  <Typography.Text type="secondary">停用后该中转站不会参与模型调用</Typography.Text>
+                </div>
+                <div className="provider-status-control">
+                  <AntSwitch checked={form.status === "enabled"} aria-label="中转站状态" onChange={(checked) => update("status", checked ? "enabled" : "disabled")} />
+                  <Typography.Text type="secondary">{form.status === "enabled" ? "已启用" : "已停用"}</Typography.Text>
+                </div>
+              </div>
+            </aside>
+          </div>
+        </Form>
       </Card>
 
       <div className="provider-editor-models">
@@ -2889,7 +3008,7 @@ function ModelConfigPage({ toast, adminToken }) {
           { title: "API 地址", dataIndex: "base_url", width: 210, ellipsis: { showTitle: true }, render: (value) => <span className="muted mono">{value}</span> },
           { title: "API Key", dataIndex: "api_key", render: (value) => <span className="muted mono" style={{ whiteSpace: "nowrap" }}>{maskApiKey(value)}</span> },
           ...MODEL_PROFILES.map((profile) => ({ title: `${profile.label}模型`, key: profile.type, render: (_, provider) => { const routes = getProviderRoutes(provider, profile.type); const active = routes.find((route) => route.enabled) || routes[0]; return <div style={{ minWidth: 220 }}>{routes.length ? <AntSelect style={{ width: "100%" }} value={active?.id || ""} disabled={provider.status !== "enabled"} onChange={(value) => switchRoute(provider, profile, value)} options={routes.map((route) => ({ value: route.id, label: <ProviderRouteLabel route={route} /> }))} /> : <span className="muted">—</span>}</div>; } })),
-          { title: "操作", key: "action", render: (_, provider) => <Space wrap><AntButton onClick={() => setEditing(provider)}>编辑</AntButton><AntButton onClick={() => toggleProvider(provider)}>{provider.status === "enabled" ? "停用" : "启用中转站"}</AntButton><AntButton danger onClick={() => setConfirmDelete(provider)}>删除</AntButton></Space> },
+          { title: "操作", key: "action", render: (_, provider) => <Space size={6} wrap><AntButton size="small" color="blue" variant="filled" onClick={() => setEditing(provider)}>编辑</AntButton><AntButton size="small" color="gold" variant="filled" onClick={() => toggleProvider(provider)}>{provider.status === "enabled" ? "停用" : "启用中转站"}</AntButton><AntButton size="small" danger onClick={() => setConfirmDelete(provider)}>删除</AntButton></Space> },
         ]} /></div>}
       </Card>
       <Card title="业务模型路由" sub="后端支持的业务 profile_key；当前页面展示文本、图片、视频三类调用路由"><Space size={[4, 4]} wrap>{profileKeys.map((key) => <Tag key={key}>{key}</Tag>)}</Space></Card>
@@ -2967,7 +3086,10 @@ export default function Admin() {
   const [editing, setEditing] = useState(null); // 角色编辑器中的角色
   const [charList, setCharList] = useState([]);
   const [adminToken, setAdminTokenState] = useState(getAdminToken());
-  const [apiState, setApiState] = useState("loading");
+  const [apiState, setApiState] = useState(() => (getAdminToken() ? "connected" : "token-required"));
+  const [characterLoadState, setCharacterLoadState] = useState("idle");
+  const [characterLoadError, setCharacterLoadError] = useState("");
+  const [characterRetryKey, setCharacterRetryKey] = useState(0);
   const [openNavGroups, setOpenNavGroups] = useState(() => {
     try {
       const savedGroups = JSON.parse(window.localStorage.getItem("emora-admin-open-nav-groups") || "null");
@@ -2999,8 +3121,22 @@ export default function Admin() {
   };
 
   useEffect(() => {
+    const handleInvalidAuth = (event) => {
+      const status = Number(event.detail?.status || 401);
+      setAdminToken("");
+      setAdminTokenState("");
+      setApiState(status === 403 ? "forbidden" : "unauthorized");
+    };
+    window.addEventListener("emora:admin-auth-invalid", handleInvalidAuth);
+    return () => window.removeEventListener("emora:admin-auth-invalid", handleInvalidAuth);
+  }, []);
+
+  useEffect(() => {
+    if (page !== "characters" || editing || !adminToken) return undefined;
+
     const controller = new AbortController();
-    setApiState("loading");
+    setCharacterLoadState("loading");
+    setCharacterLoadError("");
     adminApi.characters.list(
       { state: "all", page: 1, page_size: 100 },
       { signal: controller.signal },
@@ -3031,25 +3167,24 @@ export default function Admin() {
           genRate: metrics.gen_rate == null ? "—" : `${metrics.gen_rate}%`,
         };
       }));
-      setApiState("connected");
+      setCharacterLoadState("loaded");
     }).catch((error) => {
       if (error.name === "AbortError") return;
-      setApiState(error.status === 401 ? (adminToken ? "unauthorized" : "token-required") : error.status === 403 ? "forbidden" : "error");
-      if (adminToken) toast(error.status === 401 ? "登录已过期" : `角色数据加载失败：${error.message}`);
+      setCharacterLoadState("error");
+      setCharacterLoadError(error.message);
     });
 
     return () => controller.abort();
-  }, [adminToken]);
+  }, [adminToken, characterRetryKey, editing, page]);
 
   useEffect(() => {
     if (!activeRoute && location.pathname !== "/login") navigate("/", { replace: true });
   }, [activeRoute, navigate]);
 
   useEffect(() => {
-    const unauthenticated = apiState === "token-required" || apiState === "unauthorized" || apiState === "forbidden" || (apiState === "error" && !adminToken);
-    if (unauthenticated && location.pathname !== "/login") navigate("/login", { replace: true });
-    if (apiState === "connected" && location.pathname === "/login") navigate("/", { replace: true });
-  }, [apiState, adminToken, location.pathname, navigate]);
+    if (!adminToken && location.pathname !== "/login") navigate("/login", { replace: true });
+    if (adminToken && location.pathname === "/login") navigate("/", { replace: true });
+  }, [adminToken, location.pathname, navigate]);
 
   const navTo = (id) => {
     const route = NAV.find((item) => item.id === id);
@@ -3105,8 +3240,8 @@ export default function Admin() {
     setEditing((current) => (current?.id === id ? { ...current, status } : current));
   };
 
-  if (location.pathname === "/login") {
-    return <AdminLogin state={apiState} onSubmit={(token) => { setAdminToken(token); setAdminTokenState(token); }} />;
+  if (!adminToken || location.pathname === "/login") {
+    return <AdminLogin state={apiState} onSubmit={(token) => { setAdminToken(token); setAdminTokenState(token); setApiState("connected"); }} />;
   }
 
   const activeNav = NAV.find((n) => n.id === page);
@@ -3128,7 +3263,7 @@ export default function Admin() {
 
   return (
     <AntLayout hasSider className="admin-shell">
-      <AntLayout.Sider className="admin-sidebar" width={232} theme={theme}>
+      <AntLayout.Sider className="admin-sidebar" width={232} theme="dark">
         <Flex className="admin-brand" align="center" gap={10}>
           <img className="admin-brand-mark" src="/assets/emora-logo.png" alt="Emora" />
           <Typography.Text strong>Emora 运营后台</Typography.Text>
@@ -3136,7 +3271,7 @@ export default function Admin() {
         <AntMenu
           className="admin-nav"
           mode="inline"
-          theme={theme}
+          theme="dark"
           openKeys={openNavGroups}
           onOpenChange={setOpenNavGroups}
           inlineIndent={16}
@@ -3156,7 +3291,7 @@ export default function Admin() {
                 <Avatar size={36} icon={<UserCircle weight="fill" />} />
                 <Flex className="admin-user-copy" vertical>
                   <Typography.Text strong>管理员</Typography.Text>
-                  <Typography.Text type="secondary">已通过后台鉴权</Typography.Text>
+                  <Typography.Text type="secondary">已使用本地登录状态</Typography.Text>
                 </Flex>
               </Space>
               <AntButton
@@ -3167,17 +3302,24 @@ export default function Admin() {
               >
                 {theme === "dark" ? "白色模式" : "黑色模式"}
               </AntButton>
-              <AntButton type="text" onClick={() => { setAdminToken(""); setAdminTokenState(""); navigate("/login", { replace: true }); }}>退出</AntButton>
+              <AntButton type="text" onClick={() => { setAdminToken(""); setAdminTokenState(""); setApiState("token-required"); navigate("/login", { replace: true }); }}>退出</AntButton>
             </Space>
           </Flex>
         </AntLayout.Header>
 
         <AntLayout.Content className="admin-content">
-          {apiState !== "connected" ? (
-            <ApiAccessGate />
-          ) : <>
           {page === "dashboard" && <DashboardPage toast={toast} adminToken={adminToken} />}
-          {page === "characters" && !editing && <CharacterListPage list={charList} onEdit={setEditing} onCreate={createCharacter} onImport={importCharacter} />}
+          {page === "characters" && !editing && characterLoadState === "loading" && <LoadingState text="正在加载角色数据…" />}
+          {page === "characters" && !editing && characterLoadState === "error" && (
+            <Alert
+              type="error"
+              showIcon
+              message="角色数据加载失败"
+              description={characterLoadError}
+              action={<AntButton onClick={() => setCharacterRetryKey((key) => key + 1)}>重新加载</AntButton>}
+            />
+          )}
+          {page === "characters" && !editing && characterLoadState === "loaded" && <CharacterListPage list={charList} onEdit={setEditing} onCreate={createCharacter} onImport={importCharacter} />}
           {page === "characters" && editing && (
             <CharacterEditorPage
               key={editing.id}
@@ -3199,7 +3341,6 @@ export default function Admin() {
           {page === "analytics" && <AnalyticsPage toast={toast} adminToken={adminToken} />}
           {page === "token-usage" && <TokenUsagePage toast={toast} adminToken={adminToken} />}
           {page === "settings" && <SettingsPage adminToken={adminToken} />}
-          </>}
         </AntLayout.Content>
       </AntLayout>
 
