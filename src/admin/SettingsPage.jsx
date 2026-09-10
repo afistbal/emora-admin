@@ -234,7 +234,7 @@ export default function SettingsPage({ adminToken }) {
     { title: "状态", dataIndex: "status", key: "status", width: 110, render: (status, item) => <Switch checked={Number(status) === 1} loading={savingId === item.id && savingField === "status"} disabled={savingId !== null} checkedChildren="启用" unCheckedChildren="停用" onChange={(checked) => toggleStatus(item, checked)} /> },
     { title: "版本", dataIndex: "version", key: "version", width: 90, render: (value) => <Tag color="blue">v{value}</Tag> },
     { title: "最后更新", key: "updated", width: 190, render: (_, item) => <div className="settings-meta"><span>{item.updated_at || "—"}</span><small>操作人：{item.updated_by || "—"}</small></div> },
-    { title: "操作", key: "action", width: 80, render: (_, item) => <Button size="small" type="link" disabled={savingId !== null} onClick={() => { const itemValueType = item.value_type || inferValueType(item.value); setEditing({ ...item, valueType: itemValueType, isPublic: Number(item.is_public) === 1, status: Number(item.status) === 1, valueText: formatSettingEditorValue(item.value, itemValueType) }); }}>编辑</Button> },
+    { title: "操作", key: "action", width: 80, render: (_, item) => <Button type="link" disabled={savingId !== null} onClick={() => { const itemValueType = item.value_type || inferValueType(item.value); setEditing({ ...item, valueType: itemValueType, isPublic: Number(item.is_public) === 1, status: Number(item.status) === 1, valueText: formatSettingEditorValue(item.value, itemValueType) }); }}>编辑</Button> },
   ];
 
   return <div className="section-gap settings-page">

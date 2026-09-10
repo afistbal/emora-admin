@@ -189,16 +189,11 @@ button { color: inherit; cursor: pointer; }
 .muted { color: var(--muted); }
 .small { font-size: 12px; }
 
-/* 表单 */
-.field { display: grid; gap: 7px; }
-.field > span { color: var(--muted); font-size: 12px; font-weight: 600; }
-
 /* 表格 */
 .table-wrap { overflow-x: auto; }
 .users-table .user-email { min-width: 190px; overflow-wrap: anywhere; }
 .users-table .ant-table-cell { vertical-align: middle; }
 .user-copy-value { display: inline-flex; white-space: nowrap; }
-.ant-table-cell .pill-row { max-height: 82px; overflow-y: auto; }
 .table tr.clickable { cursor: pointer; }
 .table .num { font-variant-numeric: tabular-nums; }
 .character-list-table .ant-table { min-width: 100%; }
@@ -224,7 +219,6 @@ button { color: inherit; cursor: pointer; }
   -webkit-box-orient:vertical;
   -webkit-line-clamp:2;
 }
-.ant-table-cell .character-list-tags { max-height:50px; overflow:hidden; align-content:flex-start; }
 
 /* KPI 卡 */
 .kpi-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 14px; }
@@ -239,7 +233,6 @@ button { color: inherit; cursor: pointer; }
 .live-kpi span { overflow: hidden; color: var(--muted); font-size: 11px; text-overflow: ellipsis; white-space: nowrap; }
 .live-kpi b { color: var(--accent); font-size: 20px; }
 .stacked-inputs { display: grid; gap: 6px; }
-.stacked-inputs .input { height: 32px; }
 
 /* 区块网格 */
 .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
@@ -325,11 +318,6 @@ button { color: inherit; cursor: pointer; }
   padding-top: 20px;
   border-top: 1px solid var(--line);
 }
-:is(.persona-settings-card, .rules-settings-card) .textarea {
-  min-height: 0;
-  resize: none;
-}
-
 .locale-tabs { margin-left: auto; }
 .locale-tabs button { min-width: 70px; }
 .definition-guide {
@@ -479,8 +467,6 @@ button { color: inherit; cursor: pointer; }
 .matrix .ok { color: var(--accent); }
 .matrix .no { color: var(--faint); }
 
-.pill-row { display: flex; flex-wrap: wrap; gap: 8px; }
-.tag-pill { padding: 4px 11px; border-radius: 999px; background: var(--surface-2); color: var(--text); font-size: 11px; font-weight: 600; }
 .character-tag-entry.ant-space-compact { width: min(420px, 100%); }
 .character-tag-entry .ant-input { min-width: 0; flex: 1; }
 
@@ -488,7 +474,6 @@ button { color: inherit; cursor: pointer; }
 .filter-bar { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
 .admin-pagination { display:flex; align-items:center; justify-content:flex-end; gap:16px; margin-top:20px; padding-top:16px; border-top:1px solid var(--line); }
 .pagination-edit-note { margin-right:auto; color:var(--muted); font-size:12px; }
-.filter-bar .select { width: auto; min-width: 130px; }
 
 .page-desc { margin: -10px 0 18px; color: var(--muted); font-size: 13px; }
 
@@ -526,7 +511,6 @@ button { color: inherit; cursor: pointer; }
 /* 中转站编辑使用独立页面；三类模型横向分列，每列中的模型纵向追加。 */
 .provider-editor-header { display: flex; align-items: flex-start; justify-content: space-between; gap: 24px; }
 .provider-editor-heading { display: grid; gap: 8px; }
-.provider-breadcrumb-link.ant-btn { height: auto; padding: 0; font: inherit; }
 .provider-editor-header h2 { margin: 0; font-size: 23px; }
 .provider-editor-basics { display: grid; grid-template-columns: minmax(0, 1fr); gap: 16px; }
 .provider-status-control { display: flex; align-items: center; gap: 9px; min-height: 32px; }
@@ -557,7 +541,7 @@ button { color: inherit; cursor: pointer; }
 .provider-model-caption strong { min-width: 0; font-size: 13px; overflow-wrap: anywhere; }
 .provider-model-status { flex-shrink: 0; color: var(--muted); font-size: 11px; white-space: nowrap; }
 .provider-model-status.is-enabled { color: #16816a; }
-.provider-model-fields { display: grid; grid-template-columns: minmax(0, 1fr) 82px; gap: 12px; align-items: end; }
+.provider-model-fields { display: grid; grid-template-columns: minmax(220px, 1fr) minmax(140px, .45fr); gap: 12px; align-items: end; }
 .provider-model-actions { display: flex; gap: 8px; align-items: center; justify-content: flex-end; }
 .provider-media-options { display: grid; gap: 10px; margin-top: 12px; padding-top: 12px; border-top: 1px solid color-mix(in srgb, var(--model-color) 14%, var(--line)); }
 
@@ -578,7 +562,7 @@ button { color: inherit; cursor: pointer; }
 }
 :root[data-theme="dark"] .provider-model-status.is-enabled { color: #55b49a; }
 @media (max-width: 600px) {
-  .provider-model-fields { grid-template-columns: minmax(0, 1fr) 80px; }
+  .provider-model-fields { grid-template-columns: minmax(0, 1fr); }
   .provider-model-status { display: none; }
   .provider-model-count { display: none; }
 }

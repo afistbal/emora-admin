@@ -187,7 +187,7 @@ function MessageListPage({ adminToken, onOpen }) {
     { title: "消息状态", dataIndex: "status", width: 140, render: (value) => <MessageStatus value={value} /> },
     { title: "发送时间", dataIndex: "created_at", width: 200, render: time },
     { title: "生成时间", dataIndex: "completed_at", width: 200, render: time },
-    { title: "操作", key: "action", width: 90, fixed: "right", render: (_, record) => <Button size="small" onClick={(event) => { event.stopPropagation(); onOpen(record.id); }}>详情</Button> },
+    { title: "操作", key: "action", width: 90, fixed: "right", render: (_, record) => <Button onClick={(event) => { event.stopPropagation(); onOpen(record.id); }}>详情</Button> },
   ];
 
   const search = () => { setFilters(Object.fromEntries(Object.entries(draft).filter(([, value]) => value !== ""))); setPage(1); };

@@ -1,0 +1,50 @@
+.user-ledger-heading {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.user-ledger-heading h2 {
+  margin: 0 0 4px;
+}
+
+.user-ledger-heading p {
+  margin: 0;
+}
+
+.user-ledger-filters {
+  row-gap: 16px;
+}
+
+.user-ledger-filters .ant-input {
+  width: 300px;
+}
+
+.user-ledger-filters .ant-select {
+  width: 140px;
+}
+
+.user-ledger-identity {
+  display: grid;
+  gap: 3px;
+  min-width: 0;
+}
+
+.user-ledger-identity .ant-typography {
+  min-width: 0;
+  margin: 0;
+}
+
+@media (max-width: 760px) {
+  .user-ledger-heading {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .user-ledger-filters .ant-form-item,
+  .user-ledger-filters .ant-input,
+  .user-ledger-filters .ant-select {
+    width: 100%;
+  }
+}

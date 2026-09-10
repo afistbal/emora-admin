@@ -2,7 +2,7 @@
 
 > 基址：`https://testapi.weshow.cc/api`  
 > 鉴权：`Authorization: Bearer <admin-token>`  
-> 本页共 5 个接口；全部使用 JSON POST。
+> 本页共 6 个接口；全部使用 JSON POST。
 
 ## 目录
 
@@ -10,6 +10,7 @@
 - [查询后台用户详情](#adminuserdetail) — `/admin/users/detail`
 - [设置或取消管理员](#adminuseradminstatus) — `/admin/users/admin/status`
 - [查询用户金币流水](#adminuserwallethistory) — `/admin/users/wallet/history`
+- [查询全局用户流水](#adminuserwalletflows) — `/admin/users/wallet/flows`
 - [后台补发金币](#adminusergrantcoins) — `/admin/users/coins/grant`
 
 <a id="adminuserlist"></a>
@@ -330,6 +331,76 @@
     "next_cursor": null,
     "has_more": false
   }
+}
+```
+
+---
+
+<a id="adminuserwalletflows"></a>
+## 查询全局用户流水
+
+- **操作 ID**：`adminUserWalletFlows`
+- **请求**：`POST https://testapi.weshow.cc/api/admin/users/wallet/flows`
+- **鉴权**：Bearer Admin Token
+- **Content-Type**：`application/json`
+- **说明**：供运营管理中的“用户流水”页面使用。按不可变金币流水 ID 倒序分页，并在同一次查询中返回关联用户信息；不会逐条请求用户详情。
+
+### 请求字段
+
+| 字段 | 必填 | 类型 | 约束 | 说明 |
+|---|---:|---|---|---|
+| keyword | 否 | string | maxLength: 100 | 按用户内部 ID、unique_id、user_uuid、邮箱或昵称查询。 |
+| type | 否 | integer | enum: 1 / 2 | 流水方向：1 收入，2 支出。 |
+| page | 否 | integer | default: 1; min: 1 | 页码。 |
+| page_size | 否 | integer | default: 20; min: 1; max: 100 | 每页数量。 |
+
+### 请求示例
+
+```json
+{
+  "keyword": "1234567890",
+  "type": 2,
+  "page": 1,
+  "page_size": 20
+}
+```
+
+### 响应
+
+| 状态码 | 定义 |
+|---:|---|
+| 200 | 全局用户流水列表 |
+| 401 | 未登录或 token 无效 |
+| 403 | 无权限 |
+| 422 | 参数校验失败 |
+
+成功响应数据：
+
+```json
+{
+  "items": [
+    {
+      "id": 21,
+      "internal_user_id": 12,
+      "user_id": "u_8f2k1a90",
+      "user_uuid": "1234567890",
+      "nickname": "深夜电台常客",
+      "email": "user@example.com",
+      "change": -20,
+      "balance_after": 1360,
+      "type": 2,
+      "source_type": "generation_charge",
+      "title_key": "generation_charge",
+      "note": null,
+      "target": 601,
+      "occurred_at": 1786415200
+    }
+  ],
+  "page": 1,
+  "page_size": 20,
+  "total": 1,
+  "keyword": "1234567890",
+  "type": 2
 }
 ```
 

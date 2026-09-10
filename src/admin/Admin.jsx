@@ -1,8 +1,9 @@
 import BillingPage from "./BillingPages.jsx";
 import MessagesPage from "./MessagesPage.jsx";
 import SettingsPage from "./SettingsPage.jsx";
-import { Children, isValidElement, useEffect, useRef, useState } from "react";
-import { Alert, App as AntApp, Avatar, Badge as AntBadge, Breadcrumb, Button as AntButton, Card as AntCard, Collapse as AntCollapse, DatePicker, Drawer as AntDrawer, Empty, Flex, Input as AntInput, InputNumber as AntInputNumber, Layout as AntLayout, Menu as AntMenu, Modal as AntModal, Pagination, Progress as AntProgress, Segmented, Select as AntSelect, Space, Spin, Switch as AntSwitch, Table as AntTable, Tabs, Tag, Typography, Upload } from "antd";
+import UserLedgerPage from "./UserLedgerPage.jsx";
+import { useEffect, useRef, useState } from "react";
+import { Alert, App as AntApp, Avatar, Badge as AntBadge, Breadcrumb, Button as AntButton, Card as AntCard, Collapse as AntCollapse, DatePicker, Drawer as AntDrawer, Empty, Flex, Form, Input as AntInput, InputNumber as AntInputNumber, Layout as AntLayout, Menu as AntMenu, Modal as AntModal, Pagination, Progress as AntProgress, Segmented, Select as AntSelect, Space, Spin, Switch as AntSwitch, Table as AntTable, Tabs, Tag, Typography, Upload } from "antd";
 import dayjs from "dayjs";
 import {
   ArrowLeft,
@@ -63,80 +64,6 @@ function statusTone(status) {
   return "gray";
 }
 
-function Switch({ checked, onChange, label, disabled = false }) {
-  return <AntSwitch checked={checked} disabled={disabled} onChange={onChange} aria-label={label} />;
-}
-
-function UiButton({ type, className = "", children, ...props }) {
-  const classes = className.split(/\s+/).filter(Boolean);
-  const isPrimary = classes.includes("primary");
-  const isLink = classes.includes("icon-text-btn") || classes.includes("danger-text");
-  const isText = classes.includes("ghost") || classes.includes("asset-del");
-  const isDanger = classes.includes("danger") || classes.includes("danger-ghost");
-  const legacyClasses = new Set(["btn", "primary", "ghost", "danger", "danger-ghost", "sm", "icon-text-btn", "danger-text"]);
-  const antClassName = classes.filter((name) => !legacyClasses.has(name)).join(" ");
-  return <AntButton
-    {...props}
-    className={antClassName || undefined}
-    htmlType={type === "submit" ? "submit" : "button"}
-    type={isPrimary || classes.includes("danger") ? "primary" : isLink ? "link" : isText ? "text" : "default"}
-    danger={isDanger}
-  >{children}</AntButton>;
-}
-
-function UiInput({ type, onChange, style, ...props }) {
-  if (type === "number") {
-    return <AntInputNumber {...props} style={{ width: "100%", ...style }} onChange={(value) => onChange?.({ target: { value: value ?? "" } })} />;
-  }
-  return <AntInput {...props} type={type} style={style} onChange={onChange} />;
-}
-
-function UiTextArea(props) {
-  return <AntInput.TextArea {...props} />;
-}
-
-function UiSelect({ children, onChange, style, ...props }) {
-  const options = Children.toArray(children)
-    .filter((option) => isValidElement(option) && option.type === "option")
-    .map((option) => ({ value: option.props.value ?? option.props.children, label: option.props.children, disabled: option.props.disabled }));
-  return <AntSelect {...props} style={{ width: "100%", ...style }} options={options} onChange={(value) => onChange?.({ target: { value } })} />;
-}
-
-function UiTable({ children, className = "", tableLayout = "fixed", scroll, ...props }) {
-  const sections = Children.toArray(children).filter(isValidElement);
-  const head = sections.find((section) => section.type === "thead");
-  const body = sections.find((section) => section.type === "tbody");
-  const headRow = Children.toArray(head?.props.children).find((row) => isValidElement(row) && row.type === "tr");
-  const headerCells = Children.toArray(headRow?.props.children).filter(isValidElement);
-  const rows = Children.toArray(body?.props.children).filter((row) => isValidElement(row) && row.type === "tr");
-  const emptyRow = rows.find((row) => Children.toArray(row.props.children).some((cell) => isValidElement(cell) && cell.props.colSpan));
-  const records = rows.filter((row) => row !== emptyRow).map((row, index) => ({ key: row.key ?? index, row, cells: Children.toArray(row.props.children).filter(isValidElement) }));
-  const columns = headerCells.map((cell, index) => ({
-    key: index,
-    title: cell.props.children,
-    width: cell.props.width,
-    render: (_, record) => record.cells[index]?.props.children ?? null,
-    onCell: (record) => {
-      const { children: cellChildren, ...cellProps } = record.cells[index]?.props || {};
-      return cellProps;
-    },
-  }));
-  const emptyText = emptyRow ? Children.toArray(emptyRow.props.children).find(isValidElement)?.props.children : "暂无数据";
-  return <AntTable
-    {...props}
-    className={className}
-    columns={columns}
-    dataSource={records}
-    pagination={false}
-    size={className.includes("compact") ? "small" : "middle"}
-    locale={{ emptyText }}
-    tableLayout={tableLayout}
-    rowClassName={(record) => record.row.props.className || ""}
-    onRow={(record) => ({ onClick: record.row.props.onClick })}
-    scroll={scroll ?? { x: Math.max(900, columns.length * 150) }}
-  />;
-}
-
 function ImageUploadCard({ src, alt, disabled = false, onSelect }) {
   return (
     <Upload
@@ -177,7 +104,7 @@ function ToggleRow({ label, desc, checked, onChange, disabled = false }) {
         <div style={{ fontSize: 13, fontWeight: 600 }}>{label}</div>
         {desc && <div className="muted small" style={{ marginTop: 3 }}>{desc}</div>}
       </div>
-      <Switch checked={checked} onChange={onChange} label={label} disabled={disabled} />
+      <AntSwitch checked={checked} onChange={onChange} aria-label={label} disabled={disabled} />
     </div>
   );
 }
@@ -310,17 +237,17 @@ function AdminLogin({ state, onSubmit }) {
           <Badge tone="yellow">内部系统</Badge>
           <h1>登录后台</h1>
         </div>
-        <form className="login-form" onSubmit={(event) => { event.preventDefault(); challengeId ? login() : sendCode(); }}>
-          <Field label="管理员邮箱">
-            <UiInput className="input" type="email" value={email} onChange={(event) => setEmail(event.target.value)} placeholder="name@example.com" disabled={Boolean(challengeId)} autoFocus autoComplete="email" />
-          </Field>
-          {challengeId && <Field label="6 位邮箱验证码">
-            <UiInput className="input code-input" inputMode="numeric" value={code} onChange={(event) => setCode(event.target.value.replace(/\D/g, "").slice(0, 6))} placeholder="000000" autoFocus autoComplete="one-time-code" />
-          </Field>}
+        <Form className="login-form" layout="vertical" onFinish={() => { challengeId ? login() : sendCode(); }}>
+          <Form.Item label="管理员邮箱">
+            <AntInput type="email" value={email} onChange={(event) => setEmail(event.target.value)} placeholder="name@example.com" disabled={Boolean(challengeId)} autoFocus autoComplete="email" />
+          </Form.Item>
+          {challengeId && <Form.Item label="6 位邮箱验证码">
+            <AntInput className="code-input" inputMode="numeric" value={code} onChange={(event) => setCode(event.target.value.replace(/\D/g, "").slice(0, 6))} placeholder="000000" autoFocus autoComplete="one-time-code" />
+          </Form.Item>}
           {(formError || stateError) && <Alert type="error" showIcon message={formError || stateError} />}
           <AntButton type="primary" htmlType="submit" className="login-submit" loading={busy} disabled={!email.trim() || (challengeId && code.length !== 6)}>{challengeId ? "登录后台" : "发送验证码"}</AntButton>
           {challengeId && <AntButton type="text" disabled={busy} onClick={() => { setChallengeId(""); setCode(""); setFormError(""); }}>更换邮箱</AntButton>}
-        </form>
+        </Form>
       </div>
     </div>
   );
@@ -356,7 +283,7 @@ function DashboardPage({ toast }) {
     <div className="section-gap">
       <div className="filter-bar">
         {["今日", "7 日", "30 日"].map((r) => (
-          <UiButton key={r} className={`btn sm ${range === r ? "primary" : ""}`} onClick={() => setRange(r)}>{r}</UiButton>
+          <AntButton key={r} type={range === r ? "primary" : "default"} onClick={() => setRange(r)}>{r}</AntButton>
         ))}
       </div>
 
@@ -642,15 +569,23 @@ function TokenUsagePage({ toast, adminToken }) {
         </div>
 
         <Card title="模型消耗排行" sub={`共 ${models.length} 个模型 · 按总 Token 降序`}>
-          {sortedModels.length ? <div className="table-wrap"><UiTable className="table compact" tableLayout="auto" scroll={{ x: 900 }}><thead><tr><th>模型</th><th>Provider</th><th>调用次数</th><th>输入</th><th>输出</th><th>推理</th><th>总 Token / 占比</th><th>预估成本</th></tr></thead><tbody>
-            {sortedModels.map((item) => { const itemTotal = tokenMetric(item, "total_tokens"); const percent = tokenShare(itemTotal, totalTokens); return <tr key={`${item.provider || "default"}-${item.model}`}><td><b>{item.model || "—"}</b></td><td className="muted">{item.provider || "未标注"}</td><td className="num">{formatTokenNumber(tokenMetric(item, "requests"))}</td><td className="num">{formatTokenNumber(tokenMetric(item, "input_tokens"))}</td><td className="num">{formatTokenNumber(tokenMetric(item, "output_tokens"))}</td><td className="num">{formatTokenNumber(tokenMetric(item, "reasoning_tokens"))}</td><td><div className="token-table-share"><b>{formatTokenNumber(itemTotal)}</b><AntProgress percent={percent} size="small" showInfo={false} /></div></td><td className="num">{formatTokenCost(tokenMetric(item, "estimated_cost"))}</td></tr>; })}
-          </tbody></UiTable></div> : <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="后端暂无模型维度数据" />}
+          {sortedModels.length ? <div className="table-wrap"><AntTable className="table compact" tableLayout="auto" scroll={{ x: 900 }} pagination={false} rowKey={(item) => `${item.provider || "default"}-${item.model}`} dataSource={sortedModels} columns={[
+            { title: "模型", dataIndex: "model", render: (value) => <b>{value || "—"}</b> },
+            { title: "Provider", dataIndex: "provider", render: (value) => <span className="muted">{value || "未标注"}</span> },
+            ...[["调用次数", "requests"], ["输入", "input_tokens"], ["输出", "output_tokens"], ["推理", "reasoning_tokens"]].map(([title, key]) => ({ title, key, align: "right", render: (_, item) => formatTokenNumber(tokenMetric(item, key)) })),
+            { title: "总 Token / 占比", key: "share", render: (_, item) => { const itemTotal = tokenMetric(item, "total_tokens"); return <div className="token-table-share"><b>{formatTokenNumber(itemTotal)}</b><AntProgress percent={tokenShare(itemTotal, totalTokens)} showInfo={false} /></div>; } },
+            { title: "预估成本", key: "cost", align: "right", render: (_, item) => formatTokenCost(tokenMetric(item, "estimated_cost")) },
+          ]} /></div> : <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="后端暂无模型维度数据" />}
         </Card>
 
         <Card title="业务类型消耗" sub="用于识别聊天、图片、视频等调用成本">
-          {sortedTypes.length ? <div className="table-wrap"><UiTable className="table compact" tableLayout="auto" scroll={{ x: 780 }}><thead><tr><th>业务类型</th><th>调用次数</th><th>输入 Token</th><th>输出 Token</th><th>推理 Token</th><th>总 Token</th><th>占比</th><th>预估成本</th></tr></thead><tbody>
-            {sortedTypes.map((item) => { const itemTotal = tokenMetric(item, "total_tokens"); return <tr key={item.type}><td><Tag color="blue">{item.type || "未标注"}</Tag></td><td className="num">{formatTokenNumber(tokenMetric(item, "requests"))}</td><td className="num">{formatTokenNumber(tokenMetric(item, "input_tokens"))}</td><td className="num">{formatTokenNumber(tokenMetric(item, "output_tokens"))}</td><td className="num">{formatTokenNumber(tokenMetric(item, "reasoning_tokens"))}</td><td className="num"><b>{formatTokenNumber(itemTotal)}</b></td><td className="num">{tokenShare(itemTotal, totalTokens).toFixed(1)}%</td><td className="num">{formatTokenCost(tokenMetric(item, "estimated_cost"))}</td></tr>; })}
-          </tbody></UiTable></div> : <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="后端暂无业务类型数据" />}
+          {sortedTypes.length ? <div className="table-wrap"><AntTable className="table compact" tableLayout="auto" scroll={{ x: 780 }} pagination={false} rowKey="type" dataSource={sortedTypes} columns={[
+            { title: "业务类型", dataIndex: "type", render: (value) => <Tag color="blue">{value || "未标注"}</Tag> },
+            ...[["调用次数", "requests"], ["输入 Token", "input_tokens"], ["输出 Token", "output_tokens"], ["推理 Token", "reasoning_tokens"]].map(([title, key]) => ({ title, key, align: "right", render: (_, item) => formatTokenNumber(tokenMetric(item, key)) })),
+            { title: "总 Token", key: "total", align: "right", render: (_, item) => <b>{formatTokenNumber(tokenMetric(item, "total_tokens"))}</b> },
+            { title: "占比", key: "share", align: "right", render: (_, item) => `${tokenShare(tokenMetric(item, "total_tokens"), totalTokens).toFixed(1)}%` },
+            { title: "预估成本", key: "cost", align: "right", render: (_, item) => formatTokenCost(tokenMetric(item, "estimated_cost")) },
+          ]} /></div> : <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="后端暂无业务类型数据" />}
         </Card>
       </>}
     </div>
@@ -770,24 +705,23 @@ function NewCharacterDialog({ onClose, onCreate }) {
         <AntButton key="submit" type="primary" loading={submitting} disabled={!valid} onClick={confirm}>创建并进入编辑器</AntButton>,
       ]}
     >
-        <Field label="角色编码 char_code *"><UiInput className="input" maxLength={64} value={charCode} onChange={(e) => setCharCode(e.target.value)} placeholder="如：char_night_walker" autoFocus /></Field>
+        <Form.Item label="角色编码 char_code *"><AntInput maxLength={64} value={charCode} onChange={(e) => setCharCode(e.target.value)} placeholder="如：char_night_walker" autoFocus /></Form.Item>
         <div style={{ marginTop: 12 }}>
-        <Field label="名称 *"><UiInput className="input" value={name} onChange={(e) => setName(e.target.value)} placeholder="如：星野" /></Field>
+        <Form.Item label="名称 *"><AntInput value={name} onChange={(e) => setName(e.target.value)} placeholder="如：星野" /></Form.Item>
         </div>
         <div style={{ marginTop: 12 }}>
-          <Field label="标签（逗号分隔，≤4 个）"><UiInput className="input" value={tags} onChange={(e) => setTags(e.target.value)} placeholder="如：元气， 校园， 歌手" /></Field>
+          <Form.Item label="标签（逗号分隔，≤4 个）"><AntInput value={tags} onChange={(e) => setTags(e.target.value)} placeholder="如：元气， 校园， 歌手" /></Form.Item>
         </div>
         <div style={{ marginTop: 12 }}>
-          <Field label="简介"><UiTextArea className="textarea" style={{ minHeight: 56 }} value={subtitle} onChange={(e) => setSubtitle(e.target.value)} /></Field>
+          <Form.Item label="简介"><AntInput.TextArea style={{ minHeight: 56 }} value={subtitle} onChange={(e) => setSubtitle(e.target.value)} /></Form.Item>
         </div>
         <div style={{ marginTop: 12 }}>
-          <Field label="主开场白 first_mes *"><UiTextArea className="textarea" style={{ minHeight: 56 }} value={greeting} onChange={(e) => setGreeting(e.target.value)} placeholder="输入角色的主开场白…" /></Field>
+          <Form.Item label="主开场白 first_mes *"><AntInput.TextArea style={{ minHeight: 56 }} value={greeting} onChange={(e) => setGreeting(e.target.value)} placeholder="输入角色的主开场白…" /></Form.Item>
         </div>
         <div style={{ marginTop: 12 }}>
-          <div className="field">
-            <span>封面（本地上传）*</span>
+          <Form.Item label="封面（本地上传）*">
             <ImageUploadCard src={cover} alt="封面预览" onSelect={(file) => { setCoverFile(file); setCover(URL.createObjectURL(file)); }} />
-          </div>
+          </Form.Item>
         </div>
         {submitError && <Alert type="error" showIcon message={submitError} style={{ marginTop: 12 }} />}
         <p className="muted small" style={{ margin: "10px 0 0", textAlign: "center" }}>新角色以「草稿」状态创建</p>
@@ -809,65 +743,31 @@ function CharacterListPage({ list, onEdit, onCreate, onImport }) {
       )}
     >
       <div className="table-wrap">
-        <UiTable className="table character-list-table" tableLayout="auto" scroll={{ x: "max-content" }}>
-          <thead>
-            <tr><th>ID</th><th>角色</th><th>状态</th><th>标签</th><th>今日聊天用户数</th><th>消息次数</th><th>卡曝光 pv/uv</th><th>生成提交 → 成功率</th><th>操作</th></tr>
-          </thead>
-          <tbody>
-            {list.map((c) => (
-              <tr key={c.id} className="clickable" onClick={() => onEdit(c)}>
-                <td className="muted">{c.id}</td>
-                <td>
-                  <div className="character-list-role">
-                    {/* 使用 Ant Design 头像统一图片加载与失败兜底，放大后便于在列表中辨识角色。 */}
-                    <Avatar
-                      className="character-list-avatar"
-                      shape="square"
-                      size={80}
-                      src={c.image || undefined}
-                      alt={c.name}
-                    >
-                      {c.name?.trim().charAt(0) || "?"}
-                    </Avatar>
-                    <div className="character-list-role-copy"><b>{c.name}</b>{c.subtitle && <div className="muted character-list-summary" title={c.subtitle}>{c.subtitle}</div>}</div>
-                  </div>
-                </td>
-                <td>
-                  <Badge tone={c.status === "草稿" ? "yellow" : "green"}>{c.status}</Badge>
-                  <div className="character-status-note">{c.status === "草稿" ? "未影响线上版本" : "C 端可见"}</div>
-                </td>
-                <td><div className="pill-row character-list-tags">{c.tags.slice(0, 4).map((t) => <span className="tag-pill" key={t}>{t}</span>)}</div></td>
-                <td className="num">{c.chats.toLocaleString()}</td>
-                <td className="num">{c.msgCount.toLocaleString()}<div className="muted" style={{ fontSize: 11 }}>人均 {c.msgPer} 轮</div></td>
-                <td className="num">{c.expPv.toLocaleString()} / {c.expUv.toLocaleString()}</td>
-                <td className="num">{c.genSubmit.toLocaleString()} → {c.genRate}</td>
-                <td>
-                  <UiButton size="small" className="btn sm" onClick={(e) => { e.stopPropagation(); onEdit(c); }}>编辑</UiButton>
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </UiTable>
+        <AntTable
+          className="table character-list-table"
+          tableLayout="auto"
+          scroll={{ x: "max-content" }}
+          pagination={false}
+          rowKey="id"
+          dataSource={list}
+          rowClassName={() => "clickable"}
+          onRow={(character) => ({ onClick: () => onEdit(character) })}
+          columns={[
+            { title: "ID", dataIndex: "id", render: (value) => <span className="muted">{value}</span> },
+            { title: "角色", key: "role", render: (_, character) => <div className="character-list-role"><Avatar className="character-list-avatar" shape="square" size={80} src={character.image || undefined} alt={character.name}>{character.name?.trim().charAt(0) || "?"}</Avatar><div className="character-list-role-copy"><b>{character.name}</b>{character.subtitle && <div className="muted character-list-summary" title={character.subtitle}>{character.subtitle}</div>}</div></div> },
+            { title: "状态", key: "status", render: (_, character) => <><Badge tone={character.status === "草稿" ? "yellow" : "green"}>{character.status}</Badge><div className="character-status-note">{character.status === "草稿" ? "未影响线上版本" : "C 端可见"}</div></> },
+            { title: "标签", dataIndex: "tags", render: (tags) => <Space size={[4, 4]} wrap>{tags.slice(0, 4).map((tag) => <Tag key={tag}>{tag}</Tag>)}</Space> },
+            { title: "今日聊天用户数", dataIndex: "chats", align: "right", render: (value) => value.toLocaleString() },
+            { title: "消息次数", key: "messages", align: "right", render: (_, character) => <>{character.msgCount.toLocaleString()}<div className="muted" style={{ fontSize: 11 }}>人均 {character.msgPer} 轮</div></> },
+            { title: "卡曝光 pv/uv", key: "exposure", align: "right", render: (_, character) => `${character.expPv.toLocaleString()} / ${character.expUv.toLocaleString()}` },
+            { title: "生成提交 → 成功率", key: "generation", align: "right", render: (_, character) => `${character.genSubmit.toLocaleString()} → ${character.genRate}` },
+            { title: "操作", key: "action", render: (_, character) => <AntButton onClick={(event) => { event.stopPropagation(); onEdit(character); }}>编辑</AntButton> },
+          ]}
+        />
       </div>
       {showNew && <NewCharacterDialog onClose={() => setShowNew(false)} onCreate={onCreate} />}
     </Card>
   );
-}
-
-function Field({ label, children }) {
-  let control = children;
-  if (isValidElement(children) && children.type === "input" && children.props.type !== "file") {
-    control = <AntInput {...children.props} />;
-  } else if (isValidElement(children) && children.type === "textarea") {
-    control = <AntInput.TextArea {...children.props} />;
-  } else if (isValidElement(children) && children.type === "select") {
-    const { children: optionChildren, onChange, ...selectProps } = children.props;
-    const options = Children.toArray(optionChildren)
-      .filter((option) => isValidElement(option) && option.type === "option")
-      .map((option) => ({ value: option.props.value, label: option.props.children, disabled: option.props.disabled }));
-    control = <AntSelect {...selectProps} options={options} onChange={(value) => onChange?.({ target: { value } })} />;
-  }
-  return <div className="field"><span>{label}</span>{control}</div>;
 }
 
 async function createBlurredPreviewFile(file) {
@@ -1269,7 +1169,7 @@ function CharacterEditorPage({ character, onBack, toast, onStatusChange }) {
     <div>
       <div className="editor-toolbar">
         <Breadcrumb items={[
-          { title: <a href="/characters" onClick={(event) => { event.preventDefault(); onBack(); }}>角色管理</a> },
+          { title: <Typography.Link onClick={onBack}>角色管理</Typography.Link> },
           { title: `编辑 ${character.name}` },
         ]} />
         <Badge tone={stage === "草稿" ? "yellow" : "green"}>{stage}</Badge>
@@ -1280,9 +1180,9 @@ function CharacterEditorPage({ character, onBack, toast, onStatusChange }) {
         <span className={`definition-health ${definitionReady ? "is-ready" : ""}`}>
           {definitionReady ? <Check /> : <Warning />}{definitionReady ? "发布检查通过" : "发布检查未完成"}
         </span>
-        <UiButton className="btn" onClick={openVersions} disabled={!characterDetailReady || saving || publishing}>版本记录</UiButton>
-        <UiButton className="btn" onClick={() => save()} loading={saving} disabled={!characterDetailReady || publishing}>保存草稿</UiButton>
-        <UiButton className="btn primary" onClick={publish} loading={publishing} disabled={!characterDetailReady || saving}>上架</UiButton>
+        <AntButton onClick={openVersions} disabled={!characterDetailReady || saving || publishing}>版本记录</AntButton>
+        <AntButton onClick={() => save()} loading={saving} disabled={!characterDetailReady || publishing}>保存草稿</AntButton>
+        <AntButton type="primary" onClick={publish} loading={publishing} disabled={!characterDetailReady || saving}>上架</AntButton>
       </div>
 
       {characterDetailError && <Alert type="error" showIcon message="角色详情加载失败" description={`${characterDetailError}。为避免空数据覆盖原草稿，保存和上架已禁用，请刷新页面后重试。`} />}
@@ -1309,39 +1209,36 @@ function CharacterEditorPage({ character, onBack, toast, onStatusChange }) {
         <div className="section-gap">
           {tab === "basic" && (
             <Card title="基础信息" sub="角色数据对应 chara_card_v2 规范（spec: chara_card_v2 / spec_version 2.0）">
-              <Field label="名称 name *"><UiInput className="input" value={profile.name} onChange={(event) => setProfile((value) => ({ ...value, name: event.target.value }))} readOnly={isReadOnly} /></Field>
+              <Form.Item label="名称 name *"><AntInput value={profile.name} onChange={(event) => setProfile((value) => ({ ...value, name: event.target.value }))} readOnly={isReadOnly} /></Form.Item>
               <div style={{ marginTop: 14 }}>
-                <Field label="标签 tags（数组，可增删）">
-                  <div className="pill-row" style={{ marginBottom: 8 }}>
+                <Form.Item label="标签 tags（数组，可增删）">
+                  <Space size={[4, 4]} wrap style={{ marginBottom: 8 }}>
                     {profile.tags.map((tag) => (
-                      <span className="tag-pill" key={tag}>
-                        {tag}
-                        {!isReadOnly && <UiButton type="button" aria-label={`删除标签 ${tag}`} onClick={() => deleteProfileTag(tag)} style={{ background: "none", border: "none", color: "inherit", cursor: "pointer", padding: 0, marginLeft: 6, display: "inline-flex" }}><X size={12} /></UiButton>}
-                      </span>
+                      <Tag key={tag} closable={!isReadOnly} onClose={(event) => { event.preventDefault(); deleteProfileTag(tag); }}>{tag}</Tag>
                     ))}
-                  </div>
+                  </Space>
                   {!isReadOnly && (
                     <Space.Compact className="character-tag-entry">
-                      <UiInput className="input" value={tagDraft} placeholder="输入标签，回车添加" onChange={(event) => setTagDraft(event.target.value)} onPressEnter={confirmProfileTag} />
-                      <UiButton type="button" className="btn sm" onClick={addProfileTag} disabled={!tagDraft.trim()}>+ 添加标签</UiButton>
+                      <AntInput value={tagDraft} placeholder="输入标签，回车添加" onChange={(event) => setTagDraft(event.target.value)} onPressEnter={confirmProfileTag} />
+                      <AntButton onClick={addProfileTag} disabled={!tagDraft.trim()}>+ 添加标签</AntButton>
                     </Space.Compact>
                   )}
-                </Field>
+                </Form.Item>
               </div>
               <div className="grid-2" style={{ marginTop: 14 }}>
-                <Field label="版本号 character_version"><UiInput className="input" value={profile.version} onChange={(event) => setProfile((value) => ({ ...value, version: event.target.value }))} readOnly={isReadOnly} placeholder="如：v2.3.1" /></Field>
-                <Field label="创建者 creator"><UiInput className="input" value={profile.creator} onChange={(event) => setProfile((value) => ({ ...value, creator: event.target.value }))} readOnly={isReadOnly} placeholder="如：Luma 内容组" /></Field>
+                <Form.Item label="版本号 character_version"><AntInput value={profile.version} onChange={(event) => setProfile((value) => ({ ...value, version: event.target.value }))} readOnly={isReadOnly} placeholder="如：v2.3.1" /></Form.Item>
+                <Form.Item label="创建者 creator"><AntInput value={profile.creator} onChange={(event) => setProfile((value) => ({ ...value, creator: event.target.value }))} readOnly={isReadOnly} placeholder="如：Luma 内容组" /></Form.Item>
               </div>
               <div style={{ marginTop: 14 }}>
-                <Field label="AI 标识"><UiInput className="input" value="AI（常量展示，不伪装真人）" readOnly /></Field>
+                <Form.Item label="AI 标识"><AntInput value="AI（常量展示，不伪装真人）" readOnly /></Form.Item>
               </div>
               <div style={{ marginTop: 14 }}>
-                <Field label="角色备注 creator_notes"><UiTextArea className="textarea" value={profile.creatorNotes} onChange={(event) => setProfile((value) => ({ ...value, creatorNotes: event.target.value }))} readOnly={isReadOnly} placeholder="补充角色的运营备注…" /></Field>
+                <Form.Item label="角色备注 creator_notes"><AntInput.TextArea value={profile.creatorNotes} onChange={(event) => setProfile((value) => ({ ...value, creatorNotes: event.target.value }))} readOnly={isReadOnly} placeholder="补充角色的运营备注…" /></Form.Item>
               </div>
               <div style={{ marginTop: 14 }}>
-                <Field label="封面 avatar（本地上传）">
+                <Form.Item label="封面 avatar（本地上传）">
                   <ImageUploadCard src={cover} alt="封面预览" disabled={isReadOnly} onSelect={changeCover} />
-                </Field>
+                </Form.Item>
               </div>
             </Card>
           )}
@@ -1358,15 +1255,15 @@ function CharacterEditorPage({ character, onBack, toast, onStatusChange }) {
                       ? <Badge tone="yellow">主开场</Badge>
                       : isReadOnly
                         ? <Badge tone={g.enabled ? "green" : "gray"}>{g.enabled ? "启用" : "停用"}</Badge>
-                        : <><Switch checked={g.enabled} onChange={(enabled) => toggleGreeting(g.id, enabled)} label={`启用备选开场 ${index}`} /><UiButton className="icon-text-btn danger-text" onClick={() => deleteGreeting(g.id)}>删除</UiButton></>}
+                        : <><AntSwitch checked={g.enabled} onChange={(enabled) => toggleGreeting(g.id, enabled)} aria-label={`启用备选开场 ${index}`} /><AntButton type="link" danger onClick={() => deleteGreeting(g.id)}>删除</AntButton></>}
                   </header>
-                  <Field label="开场白">
-                    <UiTextArea className="textarea" value={g.body} maxLength={4096} readOnly={isReadOnly} onChange={(e) => updateGreeting(g.id, e.target.value)} />
+                  <Form.Item label="开场白">
+                    <AntInput.TextArea value={g.body} maxLength={4096} readOnly={isReadOnly} onChange={(e) => updateGreeting(g.id, e.target.value)} />
                     <div className="greeting-foot"><span>{g.body.length} / 4096</span>{g.primary && <span>重置对话时恢复此条</span>}</div>
-                  </Field>
+                  </Form.Item>
                 </div>
               ))}
-              {!isReadOnly && <UiButton className="btn" style={{ marginTop: 12 }} disabled={greetings.length >= 6} onClick={addGreeting}>+ 新增备选开场 {greetings.length >= 6 ? "（已达上限）" : `${greetings.length - 1} / 5`}</UiButton>}
+              {!isReadOnly && <AntButton style={{ marginTop: 12 }} disabled={greetings.length >= 6} onClick={addGreeting}>+ 新增备选开场 {greetings.length >= 6 ? "（已达上限）" : `${greetings.length - 1} / 5`}</AntButton>}
             </Card>
           )}
 
@@ -1374,19 +1271,19 @@ function CharacterEditorPage({ character, onBack, toast, onStatusChange }) {
             <Card className="persona-settings-card" title="人设设定" sub="chara_card_v2 规范字段 · 组装顺序从上到下">
               <div className="persona-block">
                 <header><b>Description / 角色简介</b><span className="muted small">介绍角色身份、背景和整体定位</span><span className="order">PROMPT SEGMENT 1</span></header>
-                <UiTextArea className="textarea" autoSize={{ minRows: 2, maxRows: 16 }} showCount value={profile.description} onChange={(event) => setProfile((value) => ({ ...value, description: event.target.value }))} readOnly={isReadOnly} />
+                <AntInput.TextArea autoSize={{ minRows: 2, maxRows: 16 }} showCount value={profile.description} onChange={(event) => setProfile((value) => ({ ...value, description: event.target.value }))} readOnly={isReadOnly} />
               </div>
               <div className="persona-block">
                 <header><b>Personality / 人格设定</b><span className="muted small">定义性格、情绪表达、行为倾向和语气</span><span className="order">PROMPT SEGMENT 2</span></header>
-                <UiTextArea className="textarea" autoSize={{ minRows: 2, maxRows: 16 }} value={profile.personality} onChange={(event) => setProfile((value) => ({ ...value, personality: event.target.value }))} readOnly={isReadOnly} placeholder="描述角色的性格、情绪表达、行为倾向和语气…" />
+                <AntInput.TextArea autoSize={{ minRows: 2, maxRows: 16 }} value={profile.personality} onChange={(event) => setProfile((value) => ({ ...value, personality: event.target.value }))} readOnly={isReadOnly} placeholder="描述角色的性格、情绪表达、行为倾向和语气…" />
               </div>
               <div className="persona-block">
                 <header><b>Scenario / 场景设定</b><span className="muted small">定义用户与 AI 的关系、身份和聊天背景</span><span className="order">PROMPT SEGMENT 3</span></header>
-                <UiTextArea className="textarea" autoSize={{ minRows: 2, maxRows: 16 }} value={profile.scenario} onChange={(event) => setProfile((value) => ({ ...value, scenario: event.target.value }))} readOnly={isReadOnly} placeholder="描述用户与 AI 的关系、身份和聊天背景…" />
+                <AntInput.TextArea autoSize={{ minRows: 2, maxRows: 16 }} value={profile.scenario} onChange={(event) => setProfile((value) => ({ ...value, scenario: event.target.value }))} readOnly={isReadOnly} placeholder="描述用户与 AI 的关系、身份和聊天背景…" />
               </div>
               <div className="persona-block">
                 <header><b>Avatar notes / 视觉备注</b><span className="muted small">内部可见，不进入模型</span></header>
-                <UiTextArea className="textarea" autoSize={{ minRows: 2, maxRows: 16 }} value={profile.avatarNotes} onChange={(event) => setProfile((value) => ({ ...value, avatarNotes: event.target.value }))} readOnly={isReadOnly} />
+                <AntInput.TextArea autoSize={{ minRows: 2, maxRows: 16 }} value={profile.avatarNotes} onChange={(event) => setProfile((value) => ({ ...value, avatarNotes: event.target.value }))} readOnly={isReadOnly} />
               </div>
             </Card>
           )}
@@ -1399,8 +1296,8 @@ function CharacterEditorPage({ character, onBack, toast, onStatusChange }) {
             >
               <div className="persona-block">
                 <header><b>平台安全规则 system_prompt</b><span className="muted small">全局统一维护</span><span className="order">可编辑</span></header>
-                <UiTextArea
-                  className="textarea prompt-textarea"
+                <AntInput.TextArea
+                  className="prompt-textarea"
                   value={platformSystemPrompt}
                   autoSize={{ minRows: 4, maxRows: 24 }}
                   maxLength={32000}
@@ -1411,8 +1308,8 @@ function CharacterEditorPage({ character, onBack, toast, onStatusChange }) {
               </div>
               <div className="persona-block">
                 <header><b>历史后指令 post_history_instructions</b><span className="muted small">注入对话历史之后、生成回复之前的补充指令</span><span className="order">PROMPT SEGMENT 4</span></header>
-                <UiTextArea
-                  className="textarea prompt-textarea"
+                <AntInput.TextArea
+                  className="prompt-textarea"
                   value={prompt}
                   autoSize={{ minRows: 4, maxRows: 24 }}
                   maxLength={32000}
@@ -1437,20 +1334,20 @@ function CharacterEditorPage({ character, onBack, toast, onStatusChange }) {
                   <div className="persona-block" key={example.id}>
                     <header>
                       <b>示例对话 {index + 1}</b>
-                      <UiButton className="icon-text-btn danger-text" onClick={() => deleteMesExample(example.id)}>删除</UiButton>
+                      <AntButton type="link" danger onClick={() => deleteMesExample(example.id)}>删除</AntButton>
                     </header>
-                    <Field label="User / 用户">
-                      <UiTextArea className="textarea" value={example.user} onChange={(event) => updateMesExample(example.id, "user", event.target.value)} placeholder="例如：今天加班到现在，脑子还是懵的。" />
-                    </Field>
+                    <Form.Item label="User / 用户">
+                      <AntInput.TextArea value={example.user} onChange={(event) => updateMesExample(example.id, "user", event.target.value)} placeholder="例如：今天加班到现在，脑子还是懵的。" />
+                    </Form.Item>
                     <div style={{ marginTop: 10 }}>
-                      <Field label="Character / 角色">
-                        <UiTextArea className="textarea" value={example.character} onChange={(event) => updateMesExample(example.id, "character", event.target.value)} placeholder="输入角色在这个场景下的回复…" />
-                      </Field>
+                      <Form.Item label="Character / 角色">
+                        <AntInput.TextArea value={example.character} onChange={(event) => updateMesExample(example.id, "character", event.target.value)} placeholder="输入角色在这个场景下的回复…" />
+                      </Form.Item>
                     </div>
                   </div>
                 );
               })}
-              <UiButton className="btn" style={{ marginTop: 12 }} onClick={addMesExample}>+ 新增示例对话</UiButton>
+              <AntButton style={{ marginTop: 12 }} onClick={addMesExample}>+ 新增示例对话</AntButton>
             </Card>
           )}
 
@@ -1468,13 +1365,13 @@ function CharacterEditorPage({ character, onBack, toast, onStatusChange }) {
                     <div className="thumb">
                       <img src={a.previewSrc || a.src} alt={a.label} style={a.blurred && !a.previewSrc ? { filter: "blur(14px)" } : undefined} />
                       <span className="corner"><Badge tone={a.active ? "green" : "gray"}>{a.active ? "已上架" : "已下架"}</Badge></span>
-                      <UiButton className="asset-del" aria-label={`删除 ${a.label}`} onClick={() => setConfirmDelAsset({ mode: assetTab, id: a.id, label: a.label })}><X /></UiButton>
+                      <AntButton type="text" danger aria-label={`删除 ${a.label}`} onClick={() => setConfirmDelAsset({ mode: assetTab, id: a.id, label: a.label })}><X /></AntButton>
                     </div>
                     <div className="meta">
                       <b>{a.label}</b>
                       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginTop: 6 }}>
                         <span>{a.kind}{a.price ? ` · ${a.price} 金币` : ""}</span>
-                        <Switch checked={a.active} onChange={(v) => toggleAsset(assetTab, a.id, v)} label={a.label} />
+                        <AntSwitch checked={a.active} onChange={(v) => toggleAsset(assetTab, a.id, v)} aria-label={a.label} />
                       </div>
                     </div>
                   </div>
@@ -1503,17 +1400,12 @@ function CharacterEditorPage({ character, onBack, toast, onStatusChange }) {
       {showVersions && (
         <AntModal open title={`版本记录 · ${profile.name}`} width={720} footer={<AntButton onClick={() => setShowVersions(false)}>关闭</AntButton>} onCancel={() => setShowVersions(false)}>
             <div className="table-wrap">
-              <UiTable className="table">
-                <thead><tr><th>版本</th><th>状态</th><th>创建时间</th><th>操作</th></tr></thead>
-                <tbody>{versions.map((version) => (
-                  <tr key={version.id}>
-                    <td>v{version.ver}</td>
-                    <td><Badge tone={version.state === "published" ? "green" : "gray"}>{version.state}</Badge></td>
-                    <td className="muted">{version.created_at || "—"}</td>
-                    <td><UiButton size="small" className="btn sm" disabled={version.state !== "published"} onClick={() => rollbackVersion(version)}>回滚到此版本</UiButton></td>
-                  </tr>
-                ))}</tbody>
-              </UiTable>
+              <AntTable className="table" pagination={false} rowKey="id" dataSource={versions} columns={[
+                { title: "版本", dataIndex: "ver", render: (value) => `v${value}` },
+                { title: "状态", dataIndex: "state", render: (value) => <Badge tone={value === "published" ? "green" : "gray"}>{value}</Badge> },
+                { title: "创建时间", dataIndex: "created_at", render: (value) => <span className="muted">{value || "—"}</span> },
+                { title: "操作", key: "action", render: (_, version) => <AntButton disabled={version.state !== "published"} onClick={() => rollbackVersion(version)}>回滚到此版本</AntButton> },
+              ]} />
             </div>
             {!versions.length && <p className="muted small">暂无版本记录</p>}
         </AntModal>
@@ -1538,8 +1430,8 @@ function AddPresetDialog({ mode, onClose, onAdd }) {
         <AntButton key="submit" type="primary" disabled={!tag.trim() || !promptEn.trim()} onClick={() => onAdd(tag.trim(), promptEn.trim())}>确认新增</AntButton>,
       ]}
     >
-        <Field label="标签名 *"><UiInput className="input" value={tag} maxLength={64} onChange={(e) => setTag(e.target.value)} placeholder="如：胶片感" /></Field>
-        <div style={{ marginTop: 12 }}><Field label="英文提示词 *"><UiTextArea className="textarea" autoSize={{ minRows: 6, maxRows: 16 }} maxLength={4096} value={promptEn} onChange={(e) => setPromptEn(e.target.value)} /></Field></div>
+        <Form.Item label="标签名 *"><AntInput value={tag} maxLength={64} onChange={(e) => setTag(e.target.value)} placeholder="如：胶片感" /></Form.Item>
+        <div style={{ marginTop: 12 }}><Form.Item label="英文提示词 *"><AntInput.TextArea autoSize={{ minRows: 6, maxRows: 16 }} maxLength={4096} value={promptEn} onChange={(e) => setPromptEn(e.target.value)} /></Form.Item></div>
     </AntModal>
   );
 }
@@ -1666,22 +1558,15 @@ function PresetsPage({ toast, adminToken }) {
 
   const presetBlock = (mode, title) => (
     <Card title={title} sub={`共 ${presets[mode].length} 个标签 · 改动 C 端实时生效`}
-      actions={<UiButton className="btn sm primary" onClick={() => setShowAdd(mode)}>+ 新增预设</UiButton>}>
+      actions={<AntButton type="primary" onClick={() => setShowAdd(mode)}>+ 新增预设</AntButton>}>
       <div className="table-wrap">
-        <UiTable className="table">
-          <thead><tr><th style={{ width: 46 }}>排序</th><th style={{ width: 170 }}>标签名</th><th>英文提示词</th><th style={{ width: 76 }}>状态</th><th style={{ width: 132 }}>操作</th></tr></thead>
-          <tbody>
-            {presets[mode].map((p, i) => (
-              <tr key={p.id}>
-                <td className="muted num">{i + 1}</td>
-                <td><UiInput className="input" value={p.tag} maxLength={64} aria-label="标签名" onChange={(e) => updatePreset(mode, p.id, "tag", e.target.value)} /></td>
-                <td><UiInput className="input" value={p.promptEn} maxLength={4096} aria-label="英文提示词" onChange={(e) => updatePreset(mode, p.id, "promptEn", e.target.value)} /></td>
-                <td><Switch checked={p.active} onChange={(value) => setPresetStatus(mode, p, value)} label={p.tag} /></td>
-                <td><div style={{ display: "flex", gap: 6 }}><UiButton size="small" className="btn sm" disabled={!p.tag.trim() || !p.promptEn.trim()} onClick={() => savePreset(mode, p, i)}>保存</UiButton><UiButton size="small" className="btn sm danger-ghost" onClick={() => setConfirmDel({ mode, id: p.id, tag: p.tag })}>删除</UiButton></div></td>
-              </tr>
-            ))}
-          </tbody>
-        </UiTable>
+        <AntTable className="table" pagination={false} rowKey="id" dataSource={presets[mode]} columns={[
+          { title: "排序", key: "sort", width: 70, align: "right", render: (_, _preset, index) => <span className="muted">{index + 1}</span> },
+          { title: "标签名", dataIndex: "tag", width: 170, render: (value, preset) => <AntInput value={value} maxLength={64} aria-label="标签名" onChange={(event) => updatePreset(mode, preset.id, "tag", event.target.value)} /> },
+          { title: "英文提示词", dataIndex: "promptEn", render: (value, preset) => <AntInput value={value} maxLength={4096} aria-label="英文提示词" onChange={(event) => updatePreset(mode, preset.id, "promptEn", event.target.value)} /> },
+          { title: "状态", dataIndex: "active", width: 76, render: (value, preset) => <AntSwitch checked={value} onChange={(checked) => setPresetStatus(mode, preset, checked)} aria-label={preset.tag} /> },
+          { title: "操作", key: "action", width: 160, render: (_, preset, index) => <Space><AntButton disabled={!preset.tag.trim() || !preset.promptEn.trim()} onClick={() => savePreset(mode, preset, index)}>保存</AntButton><AntButton danger onClick={() => setConfirmDel({ mode, id: preset.id, tag: preset.tag })}>删除</AntButton></Space> },
+        ]} />
       </div>
     </Card>
   );
@@ -1703,14 +1588,14 @@ function PresetsPage({ toast, adminToken }) {
           <div className="grid-2 system-prompt-grid">
             {[["image", "图片系统预设", "作为图片生成的全局系统预设，仅在客户端使用自定义提示词时自动加入。"], ["video", "视频系统预设", "作为视频生成的全局系统预设，仅在客户端使用自定义提示词时自动加入。"]].map(([type, title, description]) => (
               <Card key={type} title={title} actions={
-                <UiButton className="btn sm primary" disabled={!systemPrompts[type].trim() || Boolean(savingSystemPrompt)} onClick={() => saveSystemPrompt(type)}>
+                <AntButton type="primary" disabled={!systemPrompts[type].trim() || Boolean(savingSystemPrompt)} onClick={() => saveSystemPrompt(type)}>
                   {savingSystemPrompt === type ? "保存中…" : "保存"}
-                </UiButton>
+                </AntButton>
               }>
-                <Field label="系统预设（System Prompt）">
-                  <UiTextArea className="textarea" style={{ minHeight: 150 }} maxLength={32000} value={systemPrompts[type]}
+                <Form.Item label="系统预设（System Prompt）" layout="vertical">
+                  <AntInput.TextArea style={{ minHeight: 150 }} maxLength={32000} value={systemPrompts[type]}
                     onChange={(event) => setSystemPrompts((current) => ({ ...current, [type]: event.target.value }))} />
-                </Field>
+                </Form.Item>
                 <p className="muted small" style={{ margin: "10px 0 0" }}>{description}</p>
               </Card>
             ))}
@@ -1751,20 +1636,13 @@ const txTone = { 购买: "green", 解锁: "yellow", 生成: "gray", 退款: "yel
 function TxTable({ rows }) {
   return (
     <div className="table-wrap">
-      <UiTable className="table">
-        <thead><tr><th>时间</th><th>类型</th><th>变动</th><th>变动后余额</th><th>备注</th></tr></thead>
-        <tbody>
-          {rows.map((t, i) => (
-            <tr key={t.time + i}>
-              <td className="muted">{t.time}</td>
-              <td><Badge tone={txTone[t.type] || "gray"}>{t.type}</Badge></td>
-              <td className="num" style={{ color: t.delta > 0 ? "#4ade80" : "#f04a44", fontWeight: 700 }}>{t.delta > 0 ? `+${t.delta.toLocaleString()}` : t.delta.toLocaleString()}</td>
-              <td className="num">{t.balance.toLocaleString()}</td>
-              <td>{t.note}</td>
-            </tr>
-          ))}
-        </tbody>
-      </UiTable>
+      <AntTable className="table" pagination={false} rowKey={(record, index) => `${record.time}-${index}`} dataSource={rows} columns={[
+        { title: "时间", dataIndex: "time", render: (value) => <span className="muted">{value}</span> },
+        { title: "类型", dataIndex: "type", render: (value) => <Badge tone={txTone[value] || "gray"}>{value}</Badge> },
+        { title: "变动", dataIndex: "delta", align: "right", render: (value) => <span style={{ color: value > 0 ? "#4ade80" : "#f04a44", fontWeight: 700 }}>{value > 0 ? `+${value.toLocaleString()}` : value.toLocaleString()}</span> },
+        { title: "变动后余额", dataIndex: "balance", align: "right", render: (value) => value.toLocaleString() },
+        { title: "备注", dataIndex: "note" },
+      ]} />
     </div>
   );
 }
@@ -1947,7 +1825,7 @@ function UsersPage({ toast, adminToken }) {
     return (
       <div className="section-gap">
         <div className="filter-bar">
-          <UiButton className="btn" onClick={() => setView("list")}><ArrowLeft />返回</UiButton>
+          <AntButton onClick={() => setView("list")}><ArrowLeft />返回</AntButton>
           <span className="muted small">用户管理 / {recordsUser.nick} / 金币流水</span>
           <div style={{ marginLeft: "auto" }}>
             <AntSelect value={txFilter} onChange={setTxFilter} options={txTypes.map((value) => ({ value, label: value }))} />
@@ -1964,33 +1842,21 @@ function UsersPage({ toast, adminToken }) {
     <div>
       <Card title="用户列表" sub={`共 ${totalUsers} 位用户`}>
         <div className="filter-bar" style={{ marginBottom: 14 }}>
-        <UiInput className="input" style={{ width: 320 }} placeholder="按 ID / user_uuid / 邮箱 / 昵称搜索" value={keyword} onChange={(e) => { setKeyword(e.target.value); setPage(1); }} />
+        <AntInput style={{ width: 320 }} placeholder="按 ID / user_uuid / 邮箱 / 昵称搜索" value={keyword} onChange={(e) => { setKeyword(e.target.value); setPage(1); }} />
         </div>
         <div className="table-wrap">
-          <UiTable className="table users-table" tableLayout="auto" scroll={{ x: 1240 }}>
-            <thead><tr><th width={100}>ID</th><th width={170}>user_uuid</th><th width={220}>邮箱</th><th width={150}>昵称</th><th width={125}>注册时间</th><th width={190}>会员状态</th><th width={100}>金币余额</th><th width={78}>会话数</th><th width={80}>状态</th><th width={180}>操作</th></tr></thead>
-            <tbody>
-              {filtered.map((u) => (
-                <tr key={u.id} className="clickable" onClick={() => openUser(u)}>
-                  <td><span className="user-copy-value" onClick={(event) => event.stopPropagation()}><Typography.Text copyable={{ text: String(u.id), tooltips: ["复制 ID", "已复制"] }}>{u.id}</Typography.Text></span></td>
-                  <td><span className="user-copy-value" onClick={(event) => event.stopPropagation()}><Typography.Text copyable={u.userUuid && u.userUuid !== "—" ? { text: String(u.userUuid), tooltips: ["复制 user_uuid", "已复制"] } : false}>{u.userUuid}</Typography.Text></span></td>
-                  <td className="muted user-email" title={u.email}>{u.email}</td>
-                  <td>{u.nick}</td>
-                  <td className="muted">{u.registered}</td>
-                  <td><Badge tone={u.member === "有效会员" ? "green" : "gray"}>{u.member}{u.member === "有效会员" ? ` · ${u.memberUntil}` : ""}</Badge></td>
-                  <td className="num">{u.coins.toLocaleString()}</td>
-                  <td className="num">{u.sessions}</td>
-                  <td><Badge tone={statusTone(u.status)}>{u.status}</Badge></td>
-                  <td>
-                    <Space size={8}>
-                      <AntButton size="small" onClick={(event) => { event.stopPropagation(); openUser(u); }}>详情</AntButton>
-                      <AntButton size="small" onClick={(event) => { event.stopPropagation(); openWalletRecords(u); }}>流水</AntButton>
-                    </Space>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </UiTable>
+          <AntTable className="table users-table" tableLayout="auto" scroll={{ x: 1240 }} pagination={false} rowKey="id" dataSource={filtered} rowClassName={() => "clickable"} onRow={(user) => ({ onClick: () => openUser(user) })} columns={[
+            { title: "ID", dataIndex: "id", width: 100, render: (value) => <span className="user-copy-value" onClick={(event) => event.stopPropagation()}><Typography.Text copyable={{ text: String(value), tooltips: ["复制 ID", "已复制"] }}>{value}</Typography.Text></span> },
+            { title: "user_uuid", dataIndex: "userUuid", width: 170, render: (value) => <span className="user-copy-value" onClick={(event) => event.stopPropagation()}><Typography.Text copyable={value && value !== "—" ? { text: String(value), tooltips: ["复制 user_uuid", "已复制"] } : false}>{value}</Typography.Text></span> },
+            { title: "邮箱", dataIndex: "email", width: 220, ellipsis: { showTitle: true }, render: (value) => <span className="muted">{value}</span> },
+            { title: "昵称", dataIndex: "nick", width: 150 },
+            { title: "注册时间", dataIndex: "registered", width: 125, render: (value) => <span className="muted">{value}</span> },
+            { title: "会员状态", key: "member", width: 190, render: (_, user) => <Badge tone={user.member === "有效会员" ? "green" : "gray"}>{user.member}{user.member === "有效会员" ? ` · ${user.memberUntil}` : ""}</Badge> },
+            { title: "金币余额", dataIndex: "coins", width: 100, align: "right", render: (value) => value.toLocaleString() },
+            { title: "会话数", dataIndex: "sessions", width: 78, align: "right" },
+            { title: "状态", dataIndex: "status", width: 80, render: (value) => <Badge tone={statusTone(value)}>{value}</Badge> },
+            { title: "操作", key: "action", width: 180, render: (_, user) => <Space size={8}><AntButton onClick={(event) => { event.stopPropagation(); openUser(user); }}>详情</AntButton><AntButton onClick={(event) => { event.stopPropagation(); openWalletRecords(user); }}>流水</AntButton></Space> },
+          ]} />
         </div>
         {totalUsers > 0 && <div className="admin-pagination"><Pagination current={page} pageSize={pageSize} total={totalUsers} showSizeChanger pageSizeOptions={[10, 20, 50, 100]} showTotal={(total) => `共 ${total} 条`} onChange={(nextPage, nextPageSize) => { setPageSize(nextPageSize); setPage(nextPageSize !== pageSize ? 1 : nextPage); }} /></div>}
       </Card>
@@ -1998,7 +1864,7 @@ function UsersPage({ toast, adminToken }) {
       {selected && (
         <AntModal open title={`用户详情 · ${selected.nick}`} width={760} footer={null} onCancel={closeUser} destroyOnHidden className="user-detail-modal">
             <div className="section-gap">
-              {detailLoading && <div className="user-detail-loading"><Spin size="small" /><span>正在加载完整资料…</span></div>}
+              {detailLoading && <div className="user-detail-loading"><Spin /><span>正在加载完整资料…</span></div>}
               <div className="card">
                 <div className="summary-kv user-detail-kv">
                   <div><span>ID</span><b>{selected.id}</b></div>
@@ -2023,33 +1889,33 @@ function UsersPage({ toast, adminToken }) {
               <div className="card">
                 <div className="card-head"><h2>金币</h2><span className="sub">余额 {selected.coins.toLocaleString()} · 高危操作</span></div>
                 <div style={{ display: "flex", gap: 10, alignItems: "flex-end" }}>
-                  <Field label="增加数量">
-                    <UiInput className="input" style={{ width: 120 }} type="number" min={1} value={addAmount} onChange={(e) => setAddAmount(e.target.value)} />
-                  </Field>
-                  <Field label="备注">
-                    <UiInput className="input" value={addNote} onChange={(e) => setAddNote(e.target.value)} />
-                  </Field>
-                  <UiButton className="btn primary" onClick={addCoins}>确认增加</UiButton>
+                  <Form.Item label="增加数量">
+                    <AntInputNumber style={{ width: 120 }} min={1} value={addAmount} onChange={(nextValue) => setAddAmount(nextValue ?? "")} />
+                  </Form.Item>
+                  <Form.Item label="备注">
+                    <AntInput value={addNote} onChange={(e) => setAddNote(e.target.value)} />
+                  </Form.Item>
+                  <AntButton type="primary" onClick={addCoins}>确认增加</AntButton>
                 </div>
               </div>
               <div className="card">
                 <div className="card-head">
                   <h2>金币流水</h2><span className="sub">最近 3 条</span>
                   <div className="spacer" />
-                  <UiButton className="btn sm" onClick={() => openWalletRecords(selected)}>查看全部流水</UiButton>
+                  <AntButton onClick={() => openWalletRecords(selected)}>查看全部流水</AntButton>
                 </div>
                 <TxTable rows={records.slice(0, 3)} />
               </div>
               <div className="card">
                 <div className="card-head"><h2>处置操作</h2><span className="sub">全部留痕 · 即时生效于 C 端</span></div>
                 <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
-                  <UiButton className={`btn ${selected.isAdmin ? "danger-ghost" : "primary"}`} disabled={adminBusyUserId === selected.id} onClick={() => requestAdminToggle(selected)}>
+                  <AntButton type={selected.isAdmin ? "default" : "primary"} danger={selected.isAdmin} disabled={adminBusyUserId === selected.id} onClick={() => requestAdminToggle(selected)}>
                     {adminBusyUserId === selected.id ? "处理中…" : selected.isAdmin ? "取消管理员" : "设置管理员"}
-                  </UiButton>
-                  <UiButton className="btn" disabled title="暂无对应后台接口">重置免费额度</UiButton>
-                  <UiButton className={`btn ${selected.status === "正常" ? "danger-ghost" : ""}`} disabled title="暂无对应后台接口">
+                  </AntButton>
+                  <AntButton disabled title="暂无对应后台接口">重置免费额度</AntButton>
+                  <AntButton danger={selected.status === "正常"} disabled title="暂无对应后台接口">
                     {selected.status === "正常" ? "封禁用户" : "解除封禁"}
-                  </UiButton>
+                  </AntButton>
                 </div>
               </div>
             </div>
@@ -2130,11 +1996,11 @@ function ProductOriginalPrice({ value, onChange }) {
     onChange(JSON.stringify(nextExtra, null, 2));
   };
 
-  return <Field label="划线价（USD）">
-    <UiInput className="input" type="number" min="0" step="0.01" value={originalPrice} disabled={disabled}
-      onChange={(event) => updateOriginalPrice(event.target.value)} placeholder="例如 39.00；留空则不显示" />
+  return <Form.Item label="划线价（USD）">
+    <AntInputNumber style={{ width: "100%" }} min={0} step={0.01} value={originalPrice} disabled={disabled}
+      onChange={(nextValue) => updateOriginalPrice(nextValue ?? "")} placeholder="例如 39.00；留空则不显示" />
     {disabled && <span className="muted small">请先将 extra 编辑为有效的 JSON 对象。</span>}
-  </Field>;
+  </Form.Item>;
 }
 
 function ProductSubscriptionType({ value, onChange, defaultType }) {
@@ -2148,14 +2014,13 @@ function ProductSubscriptionType({ value, onChange, defaultType }) {
     && [1, 2, 3].includes(Number(type))
     ? String(Number(type))
     : ([1, 2, 3].includes(Number(defaultType)) ? String(Number(defaultType)) : "");
-  return <Field label="订阅类型">
-    <UiSelect className="select" disabled={disabled} value={selectedType}
-      onChange={(event) => onChange(JSON.stringify({ ...(extra || {}), subscription_type: Number(event.target.value) }, null, 2))}>
-      <option value="" disabled>请选择</option>
-      <option value="1">周</option><option value="2">月</option><option value="3">年</option>
-    </UiSelect>
+  return <Form.Item label="订阅类型">
+    <AntSelect style={{ width: "100%" }} disabled={disabled} value={selectedType || undefined}
+      placeholder="请选择"
+      options={[{ value: "1", label: "周" }, { value: "2", label: "月" }, { value: "3", label: "年" }]}
+      onChange={(nextValue) => onChange(JSON.stringify({ ...(extra || {}), subscription_type: Number(nextValue) }, null, 2))} />
     {disabled && <span className="muted small">请先将 extra 编辑为有效的 JSON 对象。</span>}
-  </Field>;
+  </Form.Item>;
 }
 
 // 每个订阅商品独立维护优惠方案列表，最终写入该商品自己的 extra.discounts。
@@ -2176,7 +2041,7 @@ function ProductDiscountConfig({ value, onChange, onSave }) {
     onChange(JSON.stringify({ ...rest, discounts: nextDiscounts }, null, 2));
   };
 
-  return <div className="field subscription-discount-section">
+  return <div className="subscription-discount-section">
     <div className="subscription-section-heading">
       <span>优惠方案</span>
       <span className="muted small">独立配置当前商品的订阅优惠</span>
@@ -2186,45 +2051,40 @@ function ProductDiscountConfig({ value, onChange, onSave }) {
       const method = discount?.method || "fixed_price";
       return <div className="subscription-discount-item" key={`${discount?.offer_id || "discount"}-${index}`}>
         <div className="grid-2" style={{ gap: 10, marginBottom: 8 }}>
-          <Field label="优惠 ID">
-            <UiInput className="input" value={discount?.offer_id || ""} disabled={disabled}
+          <Form.Item label="优惠 ID">
+            <AntInput value={discount?.offer_id || ""} disabled={disabled}
               onChange={(event) => updateDiscounts(discounts.map((item, itemIndex) => itemIndex === index ? { ...item, offer_id: event.target.value } : item))} placeholder="例如 first-sub-001" />
-          </Field>
-          <Field label="方案类型">
-            <UiSelect className="select" value={discount?.type || "first_subscription"} disabled={disabled}
-              onChange={(event) => updateDiscounts(discounts.map((item, itemIndex) => itemIndex === index ? { ...item, type: event.target.value } : item))}>
-              <option value="first_subscription">首次订阅</option>
-              <option value="first_retention">首次挽留</option>
-              <option value="second_retention">二次挽留</option>
-            </UiSelect>
-          </Field>
+          </Form.Item>
+          <Form.Item label="方案类型">
+            <AntSelect style={{ width: "100%" }} value={discount?.type || "first_subscription"} disabled={disabled}
+              options={[{ value: "first_subscription", label: "首次订阅" }, { value: "first_retention", label: "首次挽留" }, { value: "second_retention", label: "二次挽留" }]}
+              onChange={(nextValue) => updateDiscounts(discounts.map((item, itemIndex) => itemIndex === index ? { ...item, type: nextValue } : item))} />
+          </Form.Item>
         </div>
         <div className="grid-2" style={{ gap: 10, marginBottom: 8 }}>
-          <Field label="优惠计算方式">
-            <UiSelect className="select" value={method} disabled={disabled}
-              onChange={(event) => updateDiscounts(discounts.map((item, itemIndex) => itemIndex === index ? { ...item, method: event.target.value } : item))}>
-              <option value="fixed_price">固定价格（优惠后价格）</option>
-              <option value="percentage">百分比优惠</option>
-            </UiSelect>
-          </Field>
-          <Field label={method === "percentage" ? "优惠百分比（%）" : "优惠后价格（USD）"}>
-            <UiInput className="input" type="number" min="0" step="0.01" value={discount?.value ?? ""} disabled={disabled}
-              onChange={(event) => updateDiscounts(discounts.map((item, itemIndex) => itemIndex === index ? { ...item, value: event.target.value } : item))} placeholder={method === "percentage" ? "例如 50" : "例如 0.99"} />
-          </Field>
+          <Form.Item label="优惠计算方式">
+            <AntSelect style={{ width: "100%" }} value={method} disabled={disabled}
+              options={[{ value: "fixed_price", label: "固定价格（优惠后价格）" }, { value: "percentage", label: "百分比优惠" }]}
+              onChange={(nextValue) => updateDiscounts(discounts.map((item, itemIndex) => itemIndex === index ? { ...item, method: nextValue } : item))} />
+          </Form.Item>
+          <Form.Item label={method === "percentage" ? "优惠百分比（%）" : "优惠后价格（USD）"}>
+            <AntInputNumber style={{ width: "100%" }} min={0} step={0.01} value={discount?.value ?? ""} disabled={disabled}
+              onChange={(nextValue) => updateDiscounts(discounts.map((item, itemIndex) => itemIndex === index ? { ...item, value: nextValue ?? "" } : item))} placeholder={method === "percentage" ? "例如 50" : "例如 0.99"} />
+          </Form.Item>
         </div>
         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12 }}>
           <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
             <span className="muted small">启用方案</span>
-            <Switch checked={enabled} onChange={(checked) => updateDiscounts(discounts.map((item, itemIndex) => itemIndex === index ? { ...item, enabled: checked } : item))} label={`启用优惠方案 ${index + 1}`} disabled={disabled} />
+            <AntSwitch checked={enabled} onChange={(checked) => updateDiscounts(discounts.map((item, itemIndex) => itemIndex === index ? { ...item, enabled: checked } : item))} aria-label={`启用优惠方案 ${index + 1}`} disabled={disabled} />
           </div>
           <div style={{ display: "flex", gap: 8 }}>
-            <UiButton className="btn sm primary" type="button" disabled={disabled} onClick={onSave}>保存更新</UiButton>
-            <UiButton className="btn sm danger-ghost" type="button" disabled={disabled} onClick={() => updateDiscounts(discounts.filter((_, itemIndex) => itemIndex !== index))}>删除</UiButton>
+            <AntButton type="primary" disabled={disabled} onClick={onSave}>保存更新</AntButton>
+            <AntButton danger disabled={disabled} onClick={() => updateDiscounts(discounts.filter((_, itemIndex) => itemIndex !== index))}>删除</AntButton>
           </div>
         </div>
       </div>;
     })}
-    <UiButton className="btn sm" type="button" disabled={disabled} onClick={() => updateDiscounts([...discounts, { enabled: false, offer_id: "", type: "first_subscription", method: "fixed_price", value: "" }])}>+ 添加优惠方案</UiButton>
+    <AntButton disabled={disabled} onClick={() => updateDiscounts([...discounts, { enabled: false, offer_id: "", type: "first_subscription", method: "fixed_price", value: "" }])}>+ 添加优惠方案</AntButton>
     {disabled && <span className="muted small">请先将 extra 编辑为有效的 JSON 对象。</span>}
     {!disabled && <span className="muted small">每一行都是当前商品独立的优惠方案，保存到 extra.discounts。</span>}
   </div>;
@@ -2285,27 +2145,27 @@ function AddProductDialog({ kind, platform, onClose, onCreate }) {
       ]}
     >
         <div className="grid-2" style={{ gap: 12 }}>
-          <Field label="平台 *">
-            <UiInput className="input" readOnly value={platform === 2 ? "iOS" : "安卓"} />
-          </Field>
-          <Field label="包名 *"><UiInput className="input" value={pkgName} onChange={(event) => setPkgName(event.target.value)} placeholder="com.example.app" /></Field>
-          <Field label="商品 ID *"><UiInput className="input" value={productId} onChange={(event) => setProductId(event.target.value)} /></Field>
-          <Field label="商品名称 *"><UiInput className="input" value={name} onChange={(event) => setName(event.target.value)} /></Field>
-          <Field label="价格（USD）*"><UiInput className="input" type="number" min={0} step="0.01" value={price} onChange={(event) => setPrice(event.target.value)} /></Field>
+          <Form.Item label="平台 *">
+            <AntInput readOnly value={platform === 2 ? "iOS" : "安卓"} />
+          </Form.Item>
+          <Form.Item label="包名 *"><AntInput value={pkgName} onChange={(event) => setPkgName(event.target.value)} placeholder="com.example.app" /></Form.Item>
+          <Form.Item label="商品 ID *"><AntInput value={productId} onChange={(event) => setProductId(event.target.value)} /></Form.Item>
+          <Form.Item label="商品名称 *"><AntInput value={name} onChange={(event) => setName(event.target.value)} /></Form.Item>
+          <Form.Item label="价格（USD）*"><AntInputNumber style={{ width: "100%" }} min={0} step={0.01} value={price} onChange={(nextValue) => setPrice(nextValue ?? "")} /></Form.Item>
           {isCoin ? (
             <>
-              <Field label="基础金币 *"><UiInput className="input" type="number" min={1} value={coin} onChange={(event) => setCoin(event.target.value)} /></Field>
-              <Field label="赠送金币"><UiInput className="input" type="number" min={0} value={bonus} onChange={(event) => setBonus(event.target.value)} /></Field>
+              <Form.Item label="基础金币 *"><AntInputNumber style={{ width: "100%" }} min={1} value={coin} onChange={(nextValue) => setCoin(nextValue ?? "")} /></Form.Item>
+              <Form.Item label="赠送金币"><AntInputNumber style={{ width: "100%" }} min={0} value={bonus} onChange={(nextValue) => setBonus(nextValue ?? "")} /></Form.Item>
             </>
           ) : (
             <>
-              <Field label="Base Plan ID"><UiInput className="input" value={basePlanId} onChange={(event) => setBasePlanId(event.target.value)} /></Field>
-              <Field label="首次优惠价（USD）"><UiInput className="input" type="number" min={0} step="0.01" value={firstPrice} onChange={(event) => setFirstPrice(event.target.value)} /></Field>
+              <Form.Item label="Base Plan ID"><AntInput value={basePlanId} onChange={(event) => setBasePlanId(event.target.value)} /></Form.Item>
+              <Form.Item label="首次优惠价（USD）"><AntInputNumber style={{ width: "100%" }} min={0} step={0.01} value={firstPrice} onChange={(nextValue) => setFirstPrice(nextValue ?? "")} /></Form.Item>
             </>
           )}
         </div>
         {!isCoin && <ProductSubscriptionType value={extra} onChange={setExtra} />}
-        <Field label="扩展配置 extra（JSON，可留空）"><UiTextArea className="textarea" autoSize={{ minRows: 4, maxRows: 18 }} value={extra} onChange={(event) => setExtra(event.target.value)} placeholder='{"key": "value"}' /></Field>
+        <Form.Item label="扩展配置 extra（JSON，可留空）"><AntInput.TextArea autoSize={{ minRows: 4, maxRows: 18 }} value={extra} onChange={(event) => setExtra(event.target.value)} placeholder='{"key": "value"}' /></Form.Item>
         {error && <Alert type="error" showIcon message={error} style={{ marginTop: 12 }} />}
         <p className="muted small" style={{ margin: "12px 0 0" }}>新建商品默认为下架状态，确认配置后再手动上架。</p>
     </AntModal>
@@ -2469,26 +2329,18 @@ function CommercePage({ toast, adminToken }) {
         <Card
           title={`${platformName} · 一次性商品`}
           sub={`共 ${productTotal} 个 · 当前页 ${packs.length} 个`}
-          actions={<div style={{ display: "flex", gap: 8 }}><UiButton className="btn" onClick={() => setShowAddProduct("pack")}>+ 新增一次性商品</UiButton><UiButton className="btn primary" disabled={packs.length === 0} onClick={savePacks}>保存当前页</UiButton></div>}
+          actions={<div style={{ display: "flex", gap: 8 }}><AntButton onClick={() => setShowAddProduct("pack")}>+ 新增一次性商品</AntButton><AntButton type="primary" disabled={packs.length === 0} onClick={savePacks}>保存当前页</AntButton></div>}
         >
           <div className="table-wrap">
-            <UiTable className="table">
-              <thead><tr><th>档位</th><th>基础金币</th><th>赠送金币</th><th>价格（USD）</th><th>C 端展示</th><th>扩展配置 extra（JSON）</th><th>上架</th></tr></thead>
-              <tbody>
-                {packs.length === 0 && <tr><td colSpan={7}><Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description={`当前平台暂无${platformName}一次性商品`} /></td></tr>}
-                {packs.map((p) => (
-                  <tr key={p.id}>
-                    <td className="muted">{p.productId || p.name || p.id}</td>
-                    <td><UiInput className="input" style={{ width: 100, height: 32 }} type="number" value={p.base} onChange={(e) => updatePack(p.id, "base", Number(e.target.value))} /></td>
-                    <td><UiInput className="input" style={{ width: 100, height: 32 }} type="number" value={p.bonus} onChange={(e) => updatePack(p.id, "bonus", Number(e.target.value))} /></td>
-                    <td><UiInput className="input" style={{ width: 90, height: 32 }} type="number" value={p.price} onChange={(e) => updatePack(p.id, "price", Number(e.target.value))} /></td>
-                    <td className="muted small">额外赠送 +{p.bonus} · ${p.price}</td>
-                    <td><UiTextArea className="textarea" style={{ minWidth: 200 }} value={p.extra} onChange={(e) => updatePack(p.id, "extra", e.target.value)} placeholder="留空保存为 null" /></td>
-                    <td><Switch checked={p.active} onChange={(value) => setProductStatus("pack", p.id, value)} label={`pack_${p.id}`} /></td>
-                  </tr>
-                ))}
-              </tbody>
-            </UiTable>
+            <AntTable className="table" pagination={false} rowKey="id" dataSource={packs} locale={{ emptyText: <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description={`当前平台暂无${platformName}一次性商品`} /> }} columns={[
+              { title: "档位", key: "tier", render: (_, product) => <span className="muted">{product.productId || product.name || product.id}</span> },
+              { title: "基础金币", dataIndex: "base", render: (value, product) => <AntInputNumber style={{ width: 100 }} min={0} value={value} onChange={(nextValue) => updatePack(product.id, "base", Number(nextValue || 0))} /> },
+              { title: "赠送金币", dataIndex: "bonus", render: (value, product) => <AntInputNumber style={{ width: 100 }} min={0} value={value} onChange={(nextValue) => updatePack(product.id, "bonus", Number(nextValue || 0))} /> },
+              { title: "价格（USD）", dataIndex: "price", render: (value, product) => <AntInputNumber style={{ width: 100 }} min={0} step={0.01} value={value} onChange={(nextValue) => updatePack(product.id, "price", Number(nextValue || 0))} /> },
+              { title: "C 端展示", key: "display", render: (_, product) => <span className="muted small">额外赠送 +{product.bonus} · ${product.price}</span> },
+              { title: "扩展配置 extra（JSON）", dataIndex: "extra", render: (value, product) => <AntInput.TextArea autoSize={{ minRows: 2, maxRows: 8 }} style={{ minWidth: 200 }} value={value} onChange={(event) => updatePack(product.id, "extra", event.target.value)} placeholder="留空保存为 null" /> },
+              { title: "上架", dataIndex: "active", render: (value, product) => <AntSwitch checked={value} onChange={(checked) => setProductStatus("pack", product.id, checked)} aria-label={`pack_${product.id}`} /> },
+            ]} />
           </div>
         </Card>
       )}
@@ -2496,38 +2348,38 @@ function CommercePage({ toast, adminToken }) {
       {tab === "plans" && !productsLoading && (
         <>
           <div className="filter-bar" style={{ justifyContent: "flex-end" }}>
-            <UiButton className="btn primary" onClick={() => setShowAddProduct("plan")}>+ 新增订阅套餐</UiButton>
+            <AntButton type="primary" onClick={() => setShowAddProduct("plan")}>+ 新增订阅套餐</AntButton>
           </div>
           {plans.length === 0 ? <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description={`当前平台暂无${platformName}订阅商品`} /> : (
             <div className="grid-3 subscription-product-grid">
               {plans.map((p) => (
-                <Card className="subscription-product-card" key={p.id || p.name} title={p.name} actions={<UiButton className="btn sm primary" onClick={() => savePlan(p)}>保存</UiButton>}>
+                <Card className="subscription-product-card" key={p.id || p.name} title={p.name} actions={<AntButton type="primary" onClick={() => savePlan(p)}>保存</AntButton>}>
                   <div className="grid-2" style={{ gap: 10 }}>
-                    <Field label="Product ID">
-                      <UiInput className="input" value={p.productId} onChange={(e) => updatePlan(p.id, "productId", e.target.value)} />
-                    </Field>
-                    <Field label="Base Plan ID">
-                      <UiInput className="input" value={p.basePlanId} onChange={(e) => updatePlan(p.id, "basePlanId", e.target.value)} />
-                    </Field>
+                    <Form.Item label="Product ID">
+                      <AntInput value={p.productId} onChange={(e) => updatePlan(p.id, "productId", e.target.value)} />
+                    </Form.Item>
+                    <Form.Item label="Base Plan ID">
+                      <AntInput value={p.basePlanId} onChange={(e) => updatePlan(p.id, "basePlanId", e.target.value)} />
+                    </Form.Item>
                   </div>
                   <div className="grid-2" style={{ gap: 10 }}>
-                    <Field label="价格（USD）">
-                      <UiInput className="input" type="number" value={p.price} onChange={(e) => updatePlan(p.id, "price", Number(e.target.value))} />
-                    </Field>
-                    <Field label="首次优惠价（USD）">
-                      <UiInput className="input" type="number" value={p.renewPrice} onChange={(e) => updatePlan(p.id, "renewPrice", Number(e.target.value))} />
-                    </Field>
+                    <Form.Item label="价格（USD）">
+                      <AntInputNumber style={{ width: "100%" }} min={0} step={0.01} value={p.price} onChange={(nextValue) => updatePlan(p.id, "price", Number(nextValue || 0))} />
+                    </Form.Item>
+                    <Form.Item label="首次优惠价（USD）">
+                      <AntInputNumber style={{ width: "100%" }} min={0} step={0.01} value={p.renewPrice} onChange={(nextValue) => updatePlan(p.id, "renewPrice", Number(nextValue || 0))} />
+                    </Form.Item>
                   </div>
                   <div className="grid-2 subscription-meta-grid">
                     <ProductOriginalPrice value={p.extra} onChange={(value) => updatePlan(p.id, "extra", value)} />
                     <ProductSubscriptionType value={p.extra} defaultType={p.subscriptionType} onChange={(value) => updatePlan(p.id, "extra", value)} />
                   </div>
                   <div className="subscription-extra-block">
-                    <Field label="扩展配置 extra（JSON，可留空）"><UiTextArea className="textarea" autoSize={{ minRows: 4, maxRows: 18 }} value={p.extra} onChange={(e) => updatePlan(p.id, "extra", e.target.value)} /></Field>
+                    <Form.Item label="扩展配置 extra（JSON，可留空）"><AntInput.TextArea autoSize={{ minRows: 4, maxRows: 18 }} value={p.extra} onChange={(e) => updatePlan(p.id, "extra", e.target.value)} /></Form.Item>
                   </div>
                   {p.id && <div className="subscription-status-row">
                     <div><strong>商品状态</strong><span>控制该订阅商品是否上架</span></div>
-                    <Switch checked={p.active !== false} onChange={(value) => setProductStatus("plan", p.id, value)} label="商品状态" />
+                    <AntSwitch checked={p.active !== false} onChange={(value) => setProductStatus("plan", p.id, value)} aria-label="商品状态" />
                   </div>}
                   <div className="subscription-discount-block">
                     <ProductDiscountConfig value={p.extra} onChange={(value) => updatePlan(p.id, "extra", value)} onSave={() => savePlan(p)} />
@@ -2665,11 +2517,12 @@ function withDefaultMediaModelOptions(type, options) {
 // 历史值单独显示并保留，只有用户选择新值时才覆盖；留空不会强制改写 Provider 默认行为。
 function MediaModelSelect({ label, options, optionKey, values, onChange }) {
   const value = String(videoModelOption(options, optionKey));
-  return <Field label={label}><UiSelect className="select" value={value} onChange={(event) => onChange(withVideoModelOption(options, optionKey, event.target.value))}>
-    <option value="">默认（不指定）</option>
-    {value && !values.includes(value) && <option value={value}>{value}（历史配置）</option>}
-    {values.map((choice) => <option key={choice} value={choice}>{choice}</option>)}
-  </UiSelect></Field>;
+  const selectOptions = [
+    { value: "", label: "默认（不指定）" },
+    ...(value && !values.includes(value) ? [{ value, label: `${value}（历史配置）` }] : []),
+    ...values.map((choice) => ({ value: choice, label: choice })),
+  ];
+  return <Form.Item label={label}><AntSelect style={{ width: "100%" }} value={value} options={selectOptions} onChange={(nextValue) => onChange(withVideoModelOption(options, optionKey, nextValue))} /></Form.Item>;
 }
 
 function ProviderEditorPage({ provider, onClose, onSave, onDeleteModel }) {
@@ -2767,8 +2620,8 @@ function ProviderEditorPage({ provider, onClose, onSave, onDeleteModel }) {
       <header className="provider-editor-header">
         <div className="provider-editor-heading">
           <Breadcrumb items={[
-            { title: <AntButton type="link" className="provider-breadcrumb-link" onClick={onClose}>模型配置</AntButton> },
-            { title: <AntButton type="link" className="provider-breadcrumb-link" onClick={onClose}>中转站列表</AntButton> },
+            { title: <Typography.Link onClick={onClose}>模型配置</Typography.Link> },
+            { title: <Typography.Link onClick={onClose}>中转站列表</Typography.Link> },
             { title: editing ? provider.name : "新建中转站" },
           ]} />
           <h2>{editing ? `编辑中转站 · ${provider.name}` : "新建中转站"}</h2>
@@ -2785,16 +2638,16 @@ function ProviderEditorPage({ provider, onClose, onSave, onDeleteModel }) {
         )}
       >
         <div className="provider-editor-basics">
-          <Field label="名称（driver）*"><UiInput className="input" maxLength={128} value={form.name} onChange={(event) => update("name", event.target.value)} placeholder="如：主用中转站" /></Field>
-          <Field label="API 地址 / 中转域名 *"><UiInput className="input" value={form.baseUrl} onChange={(event) => update("baseUrl", event.target.value)} placeholder="https://api.example.com/v1" /></Field>
-          <Field label={`API Key ${editing ? "（留空则保留）" : "*"}`}><UiInput className="input" type="text" value={form.apiKey} onChange={(event) => update("apiKey", event.target.value)} placeholder={editing ? `当前：${maskApiKey(provider.api_key)}` : "sk-..."} autoComplete="new-password" /></Field>
-          <Field label="备注"><UiTextArea className="textarea" autoSize={{ minRows: 2, maxRows: 6 }} value={form.remark} onChange={(event) => update("remark", event.target.value)} placeholder="填写中转站内部说明" /></Field>
-          <Field label="状态">
+          <Form.Item label="名称（driver）*"><AntInput maxLength={128} value={form.name} onChange={(event) => update("name", event.target.value)} placeholder="如：主用中转站" /></Form.Item>
+          <Form.Item label="API 地址 / 中转域名 *"><AntInput value={form.baseUrl} onChange={(event) => update("baseUrl", event.target.value)} placeholder="https://api.example.com/v1" /></Form.Item>
+          <Form.Item label={`API Key ${editing ? "（留空则保留）" : "*"}`}><AntInput type="text" value={form.apiKey} onChange={(event) => update("apiKey", event.target.value)} placeholder={editing ? `当前：${maskApiKey(provider.api_key)}` : "sk-..."} autoComplete="new-password" /></Form.Item>
+          <Form.Item label="备注"><AntInput.TextArea autoSize={{ minRows: 2, maxRows: 6 }} value={form.remark} onChange={(event) => update("remark", event.target.value)} placeholder="填写中转站内部说明" /></Form.Item>
+          <Form.Item label="状态">
             <div className="provider-status-control">
               <AntSwitch checked={form.status === "enabled"} aria-label="中转站状态" onChange={(checked) => update("status", checked ? "enabled" : "disabled")} />
               <Typography.Text type="secondary">{form.status === "enabled" ? "已启用" : "已停用"}</Typography.Text>
             </div>
-          </Field>
+          </Form.Item>
         </div>
       </Card>
 
@@ -2803,7 +2656,7 @@ function ProviderEditorPage({ provider, onClose, onSave, onDeleteModel }) {
                 <header className="provider-model-heading">
                   <span className="provider-model-icon">{type === "video" ? <VideoCamera size={20} /> : type === "image" ? <ImageSquare size={20} /> : <ChatCircleDots size={20} />}</span>
                   <div><strong>{label}模型</strong><span className="provider-model-count">{form.models[type].length} 个模型</span></div>
-                  <UiButton className="btn sm" type="button" onClick={() => addModel(type)}>+ 添加模型</UiButton>
+                  <AntButton onClick={() => addModel(type)}>+ 添加模型</AntButton>
                 </header>
                 <div className="provider-model-list">{form.models[type].map((item, index) => <div key={`${type}-${item.id || index}`} className="provider-model-item">
                   <AntCollapse
@@ -2816,24 +2669,24 @@ function ProviderEditorPage({ provider, onClose, onSave, onDeleteModel }) {
                       label: <div className="provider-model-caption"><span className="provider-model-number">{String(index + 1).padStart(2, "0")}</span><strong>{item.model.trim() || "待配置模型"}</strong></div>,
                       extra: <div className="provider-model-actions" onClick={(event) => event.stopPropagation()} onKeyDown={(event) => event.stopPropagation()}>
                         <span className={`provider-model-status ${item.enabled !== false ? "is-enabled" : ""}`}>{item.enabled !== false ? "已启用" : "未启用"}</span>
-                        <Switch checked={item.enabled !== false} onChange={(checked) => updateModel(type, index, "enabled", checked)} label={`启用${label}模型 ${index + 1}`} />
-                        <UiButton className="btn sm danger-ghost" type="button" disabled={Boolean(item.id && item.enabled) || deletingModel === item.id} title={item.id && item.enabled ? "启用中的模型不可删除，请先停用" : "删除模型"} onClick={() => removeModel(type, index)}>{deletingModel === item.id ? "删除中…" : "删除"}</UiButton>
+                        <AntSwitch checked={item.enabled !== false} onChange={(checked) => updateModel(type, index, "enabled", checked)} aria-label={`启用${label}模型 ${index + 1}`} />
+                        <AntButton size="small" danger disabled={Boolean(item.id && item.enabled) || deletingModel === item.id} title={item.id && item.enabled ? "启用中的模型不可删除，请先停用" : "删除模型"} onClick={() => removeModel(type, index)}>{deletingModel === item.id ? "删除中…" : "删除"}</AntButton>
                       </div>,
                       children: <>
                         <div className="provider-model-fields">
-                          <Field label="模型名称"><UiInput className="input" value={item.model} onChange={(event) => updateModel(type, index, "model", event.target.value)} placeholder={`输入${label}模型名`} /></Field>
-                          <Field label="优先级"><UiInput className="input" type="number" value={item.sort} onChange={(event) => updateModel(type, index, "sort", event.target.value)} /></Field>
+                          <Form.Item label="模型名称" layout="vertical"><AntInput value={item.model} onChange={(event) => updateModel(type, index, "model", event.target.value)} placeholder={`输入${label}模型名`} /></Form.Item>
+                          <Form.Item label="优先级" layout="vertical"><AntInputNumber style={{ width: "100%" }} value={item.sort} onChange={(nextValue) => updateModel(type, index, "sort", nextValue ?? 0)} /></Form.Item>
                         </div>
-                        {type === "video" && <div className="provider-media-options">
-                          <Field label="生成时长（2-30 秒）"><UiInput className="input" type="number" min={2} max={30} step={1} value={videoModelOption(item.provider_options, "duration")} placeholder="留空使用默认值" onChange={(event) => updateModel(type, index, "provider_options", withVideoModelOption(item.provider_options, "duration", event.target.value))} /></Field>
+                        {type === "video" && <Form className="provider-media-options" component={false} layout="horizontal" labelAlign="right" labelCol={{ flex: "126px" }} wrapperCol={{ flex: "1 1 0" }}>
+                          <Form.Item label="生成时长（2-30 秒）"><AntInputNumber style={{ width: "100%" }} min={2} max={30} step={1} value={videoModelOption(item.provider_options, "duration") || null} placeholder="留空使用默认值" onChange={(nextValue) => updateModel(type, index, "provider_options", withVideoModelOption(item.provider_options, "duration", nextValue ?? ""))} /></Form.Item>
                           <MediaModelSelect label="画面比例（ratio）" options={item.provider_options} optionKey="ratio" values={["16:9", "9:16", "1:1", "4:3", "3:4"]} onChange={(options) => updateModel(type, index, "provider_options", options)} />
                           <MediaModelSelect label="输出分辨率" options={item.provider_options} optionKey="resolution" values={["480P", "720P", "1080P"]} onChange={(options) => updateModel(type, index, "provider_options", options)} />
-                        </div>}
-                        {type === "image" && <div className="provider-media-options">
+                        </Form>}
+                        {type === "image" && <Form className="provider-media-options" component={false} layout="horizontal" labelAlign="right" labelCol={{ flex: "126px" }} wrapperCol={{ flex: "1 1 0" }}>
                           <MediaModelSelect label="图片分辨率（resolution）" options={item.provider_options} optionKey="resolution" values={["512", "1K", "2K", "4K"]} onChange={(options) => updateModel(type, index, "provider_options", options)} />
                           <MediaModelSelect label="生成质量（quality）" options={item.provider_options} optionKey="quality" values={["auto", "low", "medium", "high"]} onChange={(options) => updateModel(type, index, "provider_options", options)} />
                           <MediaModelSelect label="图片比例（aspect_ratio）" options={item.provider_options} optionKey="aspect_ratio" values={["16:9", "9:16", "1:1", "4:3", "3:4"]} onChange={(options) => updateModel(type, index, "provider_options", options)} />
-                        </div>}
+                        </Form>}
                       </>,
                     }]}
                   />
@@ -2946,19 +2799,16 @@ function ModelConfigPage({ toast, adminToken }) {
   }
   return (
     <div className="section-gap">
-      <Card title="中转站列表" sub={`共 ${providers.length} 个 · 每个中转站可配置多个文本/图片/视频模型 · 配置即时生效`} actions={<UiButton className="btn primary" onClick={() => setEditing(null)}>+ 新建中转站</UiButton>}>
-        {loading ? <LoadingState text="正在加载中转站配置…" /> : <div className="table-wrap"><UiTable className="table compact"><thead><tr><th>名称</th><th>API 地址</th><th>API Key</th>{MODEL_PROFILES.map(({ label }) => <th key={label}>{label}模型</th>)}<th>操作</th></tr></thead><tbody>
-          {providers.map((provider) => <tr key={provider.id}>
-            <td style={{ whiteSpace: "nowrap" }}><b>{provider.name}</b><div><Tag color={provider.status === "enabled" ? "success" : "default"}>{provider.status === "enabled" ? "已启用" : "已停用"}</Tag></div></td>
-            <td className="muted mono" title={provider.base_url} style={{ maxWidth: 190, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{provider.base_url}</td>
-            <td className="muted mono" style={{ whiteSpace: "nowrap" }}>{maskApiKey(provider.api_key)}</td>
-            {MODEL_PROFILES.map((profile) => { const routes = getProviderRoutes(provider, profile.type); const active = routes.find((route) => route.enabled) || routes[0]; return <td key={profile.type}><div style={{ minWidth: 220 }}>{routes.length ? <AntSelect style={{ width: "100%" }} value={active?.id || ""} disabled={provider.status !== "enabled"} onChange={(value) => switchRoute(provider, profile, value)} options={routes.map((route) => ({ value: route.id, label: <ProviderRouteLabel route={route} /> }))} /> : <span className="muted">—</span>}</div></td>; })}
-            <td><div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}><UiButton size="small" className="btn sm" onClick={() => setEditing(provider)}>编辑</UiButton><UiButton size="small" className="btn sm" onClick={() => toggleProvider(provider)}>{provider.status === "enabled" ? "停用" : "启用中转站"}</UiButton><UiButton size="small" className="btn sm danger-ghost" onClick={() => setConfirmDelete(provider)}>删除</UiButton></div></td>
-          </tr>)}
-          {!providers.length && <tr><td colSpan={7}><Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="暂无中转站配置" /></td></tr>}
-        </tbody></UiTable></div>}
+      <Card title="中转站列表" sub={`共 ${providers.length} 个 · 每个中转站可配置多个文本/图片/视频模型 · 配置即时生效`} actions={<AntButton type="primary" onClick={() => setEditing(null)}>+ 新建中转站</AntButton>}>
+        {loading ? <LoadingState text="正在加载中转站配置…" /> : <div className="table-wrap"><AntTable className="table compact" pagination={false} rowKey="id" dataSource={providers} locale={{ emptyText: <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="暂无中转站配置" /> }} scroll={{ x: "max-content" }} columns={[
+          { title: "名称", dataIndex: "name", render: (value, provider) => <div style={{ whiteSpace: "nowrap" }}><b>{value}</b><div><Tag color={provider.status === "enabled" ? "success" : "default"}>{provider.status === "enabled" ? "已启用" : "已停用"}</Tag></div></div> },
+          { title: "API 地址", dataIndex: "base_url", width: 210, ellipsis: { showTitle: true }, render: (value) => <span className="muted mono">{value}</span> },
+          { title: "API Key", dataIndex: "api_key", render: (value) => <span className="muted mono" style={{ whiteSpace: "nowrap" }}>{maskApiKey(value)}</span> },
+          ...MODEL_PROFILES.map((profile) => ({ title: `${profile.label}模型`, key: profile.type, render: (_, provider) => { const routes = getProviderRoutes(provider, profile.type); const active = routes.find((route) => route.enabled) || routes[0]; return <div style={{ minWidth: 220 }}>{routes.length ? <AntSelect style={{ width: "100%" }} value={active?.id || ""} disabled={provider.status !== "enabled"} onChange={(value) => switchRoute(provider, profile, value)} options={routes.map((route) => ({ value: route.id, label: <ProviderRouteLabel route={route} /> }))} /> : <span className="muted">—</span>}</div>; } })),
+          { title: "操作", key: "action", render: (_, provider) => <Space wrap><AntButton onClick={() => setEditing(provider)}>编辑</AntButton><AntButton onClick={() => toggleProvider(provider)}>{provider.status === "enabled" ? "停用" : "启用中转站"}</AntButton><AntButton danger onClick={() => setConfirmDelete(provider)}>删除</AntButton></Space> },
+        ]} /></div>}
       </Card>
-      <Card title="业务模型路由" sub="后端支持的业务 profile_key；当前页面展示文本、图片、视频三类调用路由"><div className="pill-row">{profileKeys.map((key) => <span className="tag-pill" key={key}>{key}</span>)}</div></Card>
+      <Card title="业务模型路由" sub="后端支持的业务 profile_key；当前页面展示文本、图片、视频三类调用路由"><Space size={[4, 4]} wrap>{profileKeys.map((key) => <Tag key={key}>{key}</Tag>)}</Space></Card>
       {confirmDelete && <ConfirmDialog title="删除该中转站" desc={`将删除「${confirmDelete.name}」及其模型配置，操作不可恢复。`} confirmText="确认删除" onClose={() => setConfirmDelete(null)} onConfirm={deleteProvider} />}
     </div>
   );
@@ -2993,6 +2843,7 @@ const NAV_GROUPS = [
     icon: Users,
     children: [
       { id: "users", path: "/users", label: "用户管理", icon: Users },
+      { id: "user-ledger", path: "/user-ledger", label: "用户流水", icon: Coins },
       { id: "messages", path: "/messages", label: "消息列表", icon: ChatCircleDots },
     ],
   },
@@ -3216,7 +3067,7 @@ export default function Admin() {
           <Flex className="admin-topbar-content" align="center" justify="space-between" gap="middle">
             <Typography.Title className="admin-page-title" level={5}>{title}</Typography.Title>
             <Space size="middle" align="center">
-              <Space className="admin-user" size="small" align="center">
+              <Space className="admin-user" align="center">
                 <Avatar size={36} icon={<UserCircle weight="fill" />} />
                 <Flex className="admin-user-copy" vertical>
                   <Typography.Text strong>管理员</Typography.Text>
@@ -3255,6 +3106,7 @@ export default function Admin() {
           {page === "presets" && <PresetsPage toast={toast} adminToken={adminToken} />}
           {page === "models" && <ModelConfigPage toast={toast} adminToken={adminToken} />}
           {page === "users" && <UsersPage toast={toast} adminToken={adminToken} />}
+          {page === "user-ledger" && <UserLedgerPage adminToken={adminToken} />}
           {page === "messages" && <MessagesPage adminToken={adminToken} detailId={messageDetailId} />}
           {page === "orders" && <BillingPage key="orders" adminToken={adminToken} />}
           {page === "subscriptions" && <BillingPage key="subscriptions" subscription adminToken={adminToken} />}
