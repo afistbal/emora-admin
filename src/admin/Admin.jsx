@@ -18,7 +18,6 @@ import {
   GearSix,
   ImageSquare,
   Info,
-  LockKey,
   MaskHappy,
   Moon,
   Prohibit,
@@ -82,6 +81,10 @@ function ImageUploadCard({ src, alt, disabled = false, onSelect }) {
         : <div className="character-cover-upload-empty"><ImageSquare /><span>上传图片</span></div>}
     </Upload>
   );
+}
+
+function formatUserStatus(status) {
+  return status === "blocked" ? "已封禁" : "正常";
 }
 
 function ProviderRouteLabel({ route }) {
@@ -678,7 +681,8 @@ function parseImportedCharacterCard(value) {
   }
   const card = value.data;
   const text = (field) => (typeof field === "string" ? field : "");
-  const name = text(card.name).trim() || "未命名角色";
+  const name = text(card.name).trim();
+  if (!name) throw new Error("导入失败：角色 JSON 缺少 data.name");
   const specVersion = text(value.spec_version).trim();
   if (!specVersion) throw new Error("导入失败：角色卡缺少 spec_version");
   const alternate = Array.isArray(card.alternate_greetings) ? card.alternate_greetings : [];
@@ -704,7 +708,8 @@ function parseImportedCharacterCard(value) {
   const now = Date.now();
   return {
     id: `char_${now}`,
-    charCode: `char_${now}`,
+    // 导入角色不再生成 char_* 编码，角色名称和服务端 char_code 都直接使用角色卡的 data.name。
+    charCode: name,
     name,
     subtitle: content.tagline,
     status: "草稿",
@@ -1821,23 +1826,35 @@ function UsersPage({ toast, adminToken }) {
   const [selected, setSelected] = useState(null);
   const [recordsUser, setRecordsUser] = useState(null);
   const [users, setUsers] = useState([]);
+  const [usersLoading, setUsersLoading] = useState(true);
+  const [usersError, setUsersError] = useState("");
+  const [usersReloadKey, setUsersReloadKey] = useState(0);
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(10);
   const [totalUsers, setTotalUsers] = useState(0);
   const [records, setRecords] = useState([]);
   const [keyword, setKeyword] = useState("");
+  const [coinGrantBusy, setCoinGrantBusy] = useState(false);
   const [addAmount, setAddAmount] = useState(100);
   const [addNote, setAddNote] = useState("后台补币");
   const [txFilter, setTxFilter] = useState("全部");
   const [adminBusyUserId, setAdminBusyUserId] = useState("");
   const [adminConfirmUser, setAdminConfirmUser] = useState(null);
+  const [quotaResetBusy, setQuotaResetBusy] = useState(false);
+  const [accountStatusBusy, setAccountStatusBusy] = useState(false);
+  const [accountStatusConfirm, setAccountStatusConfirm] = useState(null);
   const [detailLoading, setDetailLoading] = useState(false);
+  const [detailError, setDetailError] = useState("");
   const detailRequest = useRef(null);
 
   useEffect(() => {
     const controller = new AbortController();
+    let isCurrentRequest = true;
+    setUsersLoading(true);
+    setUsersError("");
     adminApi.users.list({ page, page_size: pageSize, ...(keyword.trim() ? { keyword: keyword.trim() } : {}) }, { signal: controller.signal })
       .then((data) => {
+        if (!isCurrentRequest) return;
         setTotalUsers(Number(data?.total || 0));
         setUsers((data?.items || []).map((user, index) => ({
           // internal_id 才是 users 表主键，所有需要 user_id 的后台操作统一使用它。
@@ -1856,17 +1873,28 @@ function UsersPage({ toast, adminToken }) {
           memberUntil: formatUnixDate(user.vip_expires_at),
           coins: user.coin_balance || 0,
           sessions: user.session_count ?? "—",
-          status: user.status === "normal" ? "正常" : user.status,
+          status: formatUserStatus(user.status),
           gender: "—",
           lang: "—",
           channel: "—",
         })));
       })
       .catch((error) => {
-        if (error.name !== "AbortError") toast(`用户列表请求失败：${error.message}`);
+        if (error.name !== "AbortError" && isCurrentRequest) {
+          setUsersError(error.message);
+          setUsers([]);
+          setTotalUsers(0);
+          toast(`用户列表请求失败：${error.message}`);
+        }
+      })
+      .finally(() => {
+        if (isCurrentRequest) setUsersLoading(false);
       });
-    return () => controller.abort();
-  }, [adminToken, page, pageSize, keyword]);
+    return () => {
+      isCurrentRequest = false;
+      controller.abort();
+    };
+  }, [adminToken, page, pageSize, keyword, usersReloadKey]);
 
   const filtered = users;
 
@@ -1904,20 +1932,57 @@ function UsersPage({ toast, adminToken }) {
 
   const addCoins = async () => {
     const amount = Number(addAmount);
-    if (!amount || amount <= 0) return;
+    if (!selected || !Number.isFinite(amount) || amount <= 0) return;
+    setCoinGrantBusy(true);
     try {
+      // 每次人工补币生成独立幂等键，避免重复点击或网络重试造成重复入账。
       const result = await adminApi.users.grantCoins({
         user_id: selected.id,
         amount,
         note: addNote.trim() || "后台补币",
         idempotency_key: `emora-admin-${selected.id}-${Date.now()}`,
       });
-      const newBalance = result.balance_after;
-      setRecords((r) => [{ time: "刚刚", type: "后台补币", delta: amount, balance: newBalance, note: addNote.trim() || "后台补币" }, ...r]);
+      const newBalance = Number(result.balance_after || 0);
       patchUser(selected.id, { coins: newBalance });
+      setAddAmount(100);
+      setAddNote("后台补币");
       toast(`已增加 ${amount.toLocaleString()} 金币`);
     } catch (error) {
       toast(`补发金币失败：${error.message}`);
+    } finally {
+      setCoinGrantBusy(false);
+    }
+  };
+
+  const resetFreeQuota = async () => {
+    if (!selected || quotaResetBusy) return;
+    setQuotaResetBusy(true);
+    try {
+      const result = await adminApi.users.resetFreeQuota({ user_id: selected.id });
+      toast(`已重置今日免费额度，可重新使用 ${Number(result.free_limit || 0)} 次（重置前已使用 ${Number(result.previous_used_count || 0)} 次）`);
+    } catch (error) {
+      toast(`重置免费额度失败：${error.message}`);
+    } finally {
+      setQuotaResetBusy(false);
+    }
+  };
+
+  const confirmAccountStatus = async () => {
+    if (!accountStatusConfirm || accountStatusBusy) return;
+    const { user, nextIsBlocked } = accountStatusConfirm;
+    setAccountStatusConfirm(null);
+    setAccountStatusBusy(true);
+    try {
+      const result = await adminApi.users.accountStatus({
+        user_id: user.id,
+        is_blocked: nextIsBlocked,
+      });
+      patchUser(user.id, { status: formatUserStatus(result.status) });
+      toast(`${user.nick}已${result.is_blocked ? "封禁" : "解除封禁"}`);
+    } catch (error) {
+      toast(`${nextIsBlocked ? "封禁" : "解除封禁"}失败：${error.message}`);
+    } finally {
+      setAccountStatusBusy(false);
     }
   };
 
@@ -1946,9 +2011,10 @@ function UsersPage({ toast, adminToken }) {
     detailRequest.current?.abort();
     const controller = new AbortController();
     detailRequest.current = controller;
-    // 先使用列表已有数据打开弹窗，再异步补齐详情，避免网络延迟造成点击后无反馈。
+    // 先用列表数据打开弹窗提供即时反馈，但详情完成前不渲染不完整字段和高危操作。
     setSelected(user);
     setDetailLoading(true);
+    setDetailError("");
     try {
       const data = await adminApi.users.detail({ user_id: user.id }, { signal: controller.signal });
       if (controller.signal.aborted) return;
@@ -1968,11 +2034,14 @@ function UsersPage({ toast, adminToken }) {
             : user.memberUntil,
           coins: data.wallet?.balance || 0,
           sessions: data.session_count ?? "—",
-          status: data.status === "normal" ? "正常" : data.status,
+          status: formatUserStatus(data.status),
           isAdmin: Boolean(data.is_admin),
         } : current);
     } catch (error) {
-      if (error.name !== "AbortError") toast(`用户详情请求失败：${error.message}`);
+      if (error.name !== "AbortError") {
+        setDetailError(error.message);
+        toast(`用户详情请求失败：${error.message}`);
+      }
     } finally {
       if (detailRequest.current === controller) {
         detailRequest.current = null;
@@ -1985,6 +2054,7 @@ function UsersPage({ toast, adminToken }) {
     detailRequest.current?.abort();
     detailRequest.current = null;
     setDetailLoading(false);
+    setDetailError("");
     setSelected(null);
   };
 
@@ -2010,12 +2080,27 @@ function UsersPage({ toast, adminToken }) {
 
   return (
     <div>
-      <Card title="用户列表" sub={`共 ${totalUsers} 位用户`}>
+      <Card title="用户列表" sub={usersLoading ? "正在加载…" : `共 ${totalUsers} 位用户`}>
         <div className="filter-bar" style={{ marginBottom: 14 }}>
         <AntInput style={{ width: 320 }} placeholder="按用户 ID / user_uuid / 邮箱 / 昵称搜索" value={keyword} onChange={(e) => { setKeyword(e.target.value); setPage(1); }} />
         </div>
         <div className="table-wrap">
-          <AntTable className="table users-table" tableLayout="auto" scroll={{ x: 1320 }} pagination={false} rowKey="id" dataSource={filtered} rowClassName={() => "clickable"} onRow={(user) => ({ onClick: () => openUser(user) })} columns={[
+          <AntTable
+            className="table users-table"
+            tableLayout="auto"
+            scroll={{ x: 1320 }}
+            pagination={false}
+            rowKey="id"
+            dataSource={filtered}
+            loading={{ spinning: usersLoading, tip: "正在加载用户列表…" }}
+            locale={{
+              emptyText: usersError
+                ? <Alert type="error" showIcon message="用户列表加载失败" description={usersError} action={<AntButton onClick={() => setUsersReloadKey((key) => key + 1)}>重新加载</AntButton>} />
+                : <Empty description="暂无用户数据" />,
+            }}
+            rowClassName={() => "clickable"}
+            onRow={(user) => ({ onClick: () => openUser(user) })}
+            columns={[
             { title: "ID", dataIndex: "sequence", width: 72, render: (value) => <span className="muted">{value}</span> },
             { title: "用户 ID", dataIndex: "id", width: 110, render: (value) => <span className="user-copy-value" onClick={(event) => event.stopPropagation()}><Typography.Text copyable={{ text: String(value), tooltips: ["复制用户 ID", "已复制"] }}>{value}</Typography.Text></span> },
             { title: "user_uuid", dataIndex: "userUuid", width: 170, render: (value) => <span className="user-copy-value" onClick={(event) => event.stopPropagation()}><Typography.Text copyable={value && value !== "—" ? { text: String(value), tooltips: ["复制 user_uuid", "已复制"] } : false}>{value}</Typography.Text></span> },
@@ -2033,9 +2118,19 @@ function UsersPage({ toast, adminToken }) {
       </Card>
 
       {selected && (
-        <AntModal open title={`用户详情 · ${selected.nick}`} width={760} footer={null} onCancel={closeUser} destroyOnHidden className="user-detail-modal">
+        <AntModal open title={`用户详情 · ${selected.nick}`} width={760} footer={null} onCancel={() => { if (!coinGrantBusy && !quotaResetBusy && !accountStatusBusy) closeUser(); }} closable={!coinGrantBusy && !quotaResetBusy && !accountStatusBusy} keyboard={!coinGrantBusy && !quotaResetBusy && !accountStatusBusy} maskClosable={!coinGrantBusy && !quotaResetBusy && !accountStatusBusy} destroyOnHidden className="user-detail-modal">
+          {detailLoading ? (
+            <div className="user-detail-loading-state"><Spin size="large" description="正在加载完整资料…" /></div>
+          ) : detailError ? (
+            <Alert
+              type="error"
+              showIcon
+              message="用户详情加载失败"
+              description={detailError}
+              action={<AntButton onClick={() => openUser(selected)}>重新加载</AntButton>}
+            />
+          ) : (
             <div className="section-gap">
-              {detailLoading && <div className="user-detail-loading"><Spin /><span>正在加载完整资料…</span></div>}
               <div className="card">
                 <div className="summary-kv user-detail-kv">
                   <div><span>用户 ID</span><b>{selected.id}</b></div>
@@ -2057,30 +2152,34 @@ function UsersPage({ toast, adminToken }) {
                   disabled
                 />
               </div>
-              <Card className="user-detail-section" title="金币" sub={`余额 ${selected.coins.toLocaleString()} · 高危操作`}>
-                <Form className="user-detail-coin-form" layout="vertical" component="div">
+              <section className="user-detail-coin-inline">
+                <div className="card-head"><h2>增加金币</h2><span className="sub">当前余额 {selected.coins.toLocaleString()} · 操作将写入流水</span></div>
+                <Form layout="inline" component="div">
                   <Form.Item label="增加数量">
-                    <AntInputNumber style={{ width: "100%" }} min={1} value={addAmount} onChange={(nextValue) => setAddAmount(nextValue ?? "")} />
+                    <AntInputNumber min={1} precision={0} value={addAmount} onChange={(nextValue) => setAddAmount(nextValue ?? "")} />
                   </Form.Item>
-                  <Form.Item label="备注">
-                    <AntInput value={addNote} onChange={(e) => setAddNote(e.target.value)} />
+                  <Form.Item label="备注" className="user-detail-coin-note">
+                    <AntInput maxLength={255} value={addNote} onChange={(event) => setAddNote(event.target.value)} placeholder="后台补币" />
                   </Form.Item>
-                  <AntButton type="primary" onClick={addCoins}>确认增加</AntButton>
+                  <Form.Item>
+                    <AntButton type="primary" loading={coinGrantBusy} disabled={!Number.isFinite(Number(addAmount)) || Number(addAmount) <= 0} onClick={addCoins}>确认增加</AntButton>
+                  </Form.Item>
                 </Form>
-              </Card>
+              </section>
               <div className="card">
                 <div className="card-head"><h2>处置操作</h2><span className="sub">全部留痕 · 即时生效于 C 端</span></div>
                 <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
                   <AntButton type={selected.isAdmin ? "default" : "primary"} danger={selected.isAdmin} disabled={adminBusyUserId === selected.id} onClick={() => requestAdminToggle(selected)}>
                     {adminBusyUserId === selected.id ? "处理中…" : selected.isAdmin ? "取消管理员" : "设置管理员"}
                   </AntButton>
-                  <AntButton disabled title="暂无对应后台接口">重置免费额度</AntButton>
-                  <AntButton danger={selected.status === "正常"} disabled title="暂无对应后台接口">
+                  <AntButton loading={quotaResetBusy} disabled={accountStatusBusy} onClick={resetFreeQuota}>重置免费额度</AntButton>
+                  <AntButton danger={selected.status === "正常"} loading={accountStatusBusy} disabled={quotaResetBusy} onClick={() => setAccountStatusConfirm({ user: selected, nextIsBlocked: selected.status === "正常" })}>
                     {selected.status === "正常" ? "封禁用户" : "解除封禁"}
                   </AntButton>
                 </div>
               </div>
             </div>
+          )}
         </AntModal>
       )}
       {adminConfirmUser && (
@@ -2090,6 +2189,17 @@ function UsersPage({ toast, adminToken }) {
           confirmText="确认操作"
           onClose={() => setAdminConfirmUser(null)}
           onConfirm={confirmAdminToggle}
+        />
+      )}
+      {accountStatusConfirm && (
+        <ConfirmDialog
+          title={accountStatusConfirm.nextIsBlocked ? "封禁用户" : "解除封禁"}
+          desc={accountStatusConfirm.nextIsBlocked
+            ? `确认封禁「${accountStatusConfirm.user.nick}」吗？该用户的现有登录 Token 将立即失效。`
+            : `确认解除「${accountStatusConfirm.user.nick}」的封禁吗？用户需要重新登录。`}
+          confirmText={accountStatusConfirm.nextIsBlocked ? "确认封禁" : "确认解封"}
+          onClose={() => setAccountStatusConfirm(null)}
+          onConfirm={confirmAccountStatus}
         />
       )}
     </div>
@@ -2795,21 +2905,12 @@ function ProviderEditorPage({ provider, onClose, onSave, onDeleteModel }) {
             { title: <Typography.Link onClick={onClose}>中转站列表</Typography.Link> },
             { title: editing ? provider.name : "新建中转站" },
           ]} />
-          <div className="provider-editor-title-row">
-            <span className="provider-editor-title-icon"><GearSix weight="duotone" /></span>
-            <div>
-              <h2>{editing ? `编辑中转站 · ${provider.name}` : "新建中转站"}</h2>
-              <Typography.Text type="secondary">配置 Provider 连接、鉴权信息及模型能力</Typography.Text>
-            </div>
-            <Tag color={form.status === "enabled" ? "success" : "default"}>{form.status === "enabled" ? "已启用" : "已停用"}</Tag>
-          </div>
+          <h2>{editing ? `编辑中转站 · ${provider.name}` : "新建中转站"}</h2>
         </div>
       </header>
 
       <Card
-        className="provider-basics-card"
-        title="连接与基础信息"
-        sub="用于后台调用第三方模型服务，修改后保存生效"
+        title="基础配置"
         actions={(
           <Space size={8}>
             <AntButton disabled={saving || deletingModel !== null} onClick={onClose}>取消</AntButton>
@@ -2817,40 +2918,23 @@ function ProviderEditorPage({ provider, onClose, onSave, onDeleteModel }) {
           </Space>
         )}
       >
-        <Form layout="vertical" component={false}>
-          <div className="provider-editor-basics">
-            <section className="provider-connection-fields">
-              <div className="provider-field-grid">
-                <Form.Item label="名称（driver）" required><AntInput maxLength={128} value={form.name} onChange={(event) => update("name", event.target.value)} placeholder="如：OpenRouter" /></Form.Item>
-                <Form.Item label="API 地址 / 中转域名" required><AntInput value={form.baseUrl} onChange={(event) => update("baseUrl", event.target.value)} placeholder="https://api.example.com/v1" /></Form.Item>
-              </div>
-              <Form.Item label="备注" className="provider-remark-field"><AntInput.TextArea autoSize={{ minRows: 3, maxRows: 6 }} value={form.remark} onChange={(event) => update("remark", event.target.value)} placeholder="填写该中转站的用途、负责人或内部说明" /></Form.Item>
-            </section>
-
-            <aside className="provider-security-panel">
-              <div className="provider-security-heading">
-                <span><LockKey weight="duotone" /></span>
-                <div><strong>鉴权与可用状态</strong><small>密钥只在保存时提交，不会在页面中展示明文</small></div>
-              </div>
-              <Form.Item
-                label="API Key"
-                required={!editing}
-                extra={editing ? "留空则继续使用当前密钥" : "新建中转站时必须填写"}
-              >
-                <AntInput.Password value={form.apiKey} onChange={(event) => update("apiKey", event.target.value)} placeholder={editing ? `已配置：${maskApiKey(provider.api_key)}` : "sk-..."} autoComplete="new-password" />
-              </Form.Item>
-              <div className="provider-status-panel">
-                <div>
-                  <strong>启用中转站</strong>
-                  <Typography.Text type="secondary">停用后该中转站不会参与模型调用</Typography.Text>
-                </div>
-                <div className="provider-status-control">
-                  <AntSwitch checked={form.status === "enabled"} aria-label="中转站状态" onChange={(checked) => update("status", checked ? "enabled" : "disabled")} />
-                  <Typography.Text type="secondary">{form.status === "enabled" ? "已启用" : "已停用"}</Typography.Text>
-                </div>
-              </div>
-            </aside>
-          </div>
+        <Form
+          className="provider-editor-basics"
+          component={false}
+          labelAlign="right"
+          labelCol={{ xs: { span: 24 }, sm: { flex: "160px" } }}
+          wrapperCol={{ xs: { span: 24 }, sm: { flex: "1 1 0" } }}
+        >
+          <Form.Item label="名称（driver）*"><AntInput maxLength={128} value={form.name} onChange={(event) => update("name", event.target.value)} placeholder="如：主用中转站" /></Form.Item>
+          <Form.Item label="API 地址 / 中转域名 *"><AntInput value={form.baseUrl} onChange={(event) => update("baseUrl", event.target.value)} placeholder="https://api.example.com/v1" /></Form.Item>
+          <Form.Item label={`API Key ${editing ? "（留空则保留）" : "*"}`}><AntInput type="text" value={form.apiKey} onChange={(event) => update("apiKey", event.target.value)} placeholder={editing ? `当前：${maskApiKey(provider.api_key)}` : "sk-..."} autoComplete="new-password" /></Form.Item>
+          <Form.Item label="备注"><AntInput.TextArea autoSize={{ minRows: 2, maxRows: 6 }} value={form.remark} onChange={(event) => update("remark", event.target.value)} placeholder="填写中转站内部说明" /></Form.Item>
+          <Form.Item label="状态">
+            <div className="provider-status-control">
+              <AntSwitch checked={form.status === "enabled"} aria-label="中转站状态" onChange={(checked) => update("status", checked ? "enabled" : "disabled")} />
+              <Typography.Text type="secondary">{form.status === "enabled" ? "已启用" : "已停用"}</Typography.Text>
+            </div>
+          </Form.Item>
         </Form>
       </Card>
 

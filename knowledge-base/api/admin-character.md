@@ -408,13 +408,13 @@
 
 | 字段 | 必填 | 类型 | 约束 | 说明 |
 |---|---:|---|---|---|
-| char_code | 否 | string | maxLength: 64 |  |
+| char_code | 否 | string | maxLength: 64 | 简化创建时可显式传入；传入 data 的 JSON 导入模式下，服务端直接使用 data.name 作为 char_code。 |
 | ai | 否 | boolean | default: true |  |
 | data | 否 | CharacterData |  |  |
 | data.character_version | 否 | string | maxLength: 64 |  |
 | data.creator | 否 | string | maxLength: 128 |  |
 | data.creator_notes | 否 | string | maxLength: 2000 |  |
-| data.name | 否 | string | maxLength: 100 |  |
+| data.name | 条件必填 | string | maxLength: 100；作为 char_code 时最大 64 字符 | JSON 导入模式必须提供非空名称，缺失时返回错误。 |
 | data.tagline | 否 | string | maxLength: 100 |  |
 | data.description | 否 | string | maxLength: 500 |  |
 | data.personality | 否 | string |  |  |

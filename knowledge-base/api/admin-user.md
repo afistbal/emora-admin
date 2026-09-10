@@ -2,7 +2,7 @@
 
 > 基址：`https://testapi.weshow.cc/api`  
 > 鉴权：`Authorization: Bearer <admin-token>`  
-> 本页共 6 个接口；全部使用 JSON POST。
+> 本页共 8 个接口；全部使用 JSON POST。
 
 ## 目录
 
@@ -12,6 +12,8 @@
 - [查询用户金币流水](#adminuserwallethistory) — `/admin/users/wallet/history`
 - [查询全局用户流水](#adminuserwalletflows) — `/admin/users/wallet/flows`
 - [后台补发金币](#adminusergrantcoins) — `/admin/users/coins/grant`
+- [重置用户今日免费额度](#adminuserresetfreequota) — `/admin/users/free-quota/reset`
+- [封禁或解除封禁用户](#adminuseraccountstatus) — `/admin/users/status`
 
 <a id="adminuserlist"></a>
 ## 查询后台用户列表
@@ -20,7 +22,7 @@
 - **请求**：`POST https://testapi.weshow.cc/api/admin/users/list`
 - **鉴权**：Bearer Admin Token
 - **Content-Type**：`application/json`
-- **说明**：仅管理员可访问。user_id 返回 users.unique_id；当其为空时回退为 users.id。 session_count 当前为 null，等待消息服务提供统一统计接口；status 当前固定为 normal， 用户封禁状态待后续设计确认。
+- **说明**：仅管理员可访问。user_id 返回 users.unique_id；当其为空时回退为 users.id。session_count 当前为 null，等待消息服务提供统一统计接口；数据库 `users.status` 使用 `1=正常、0=已封禁`，接口继续返回字符串枚举以保持兼容。
 
 ### 请求字段
 
@@ -68,7 +70,7 @@
 | d.items[].is_admin | 是 | boolean |  | 是否为管理员。 |
 | d.items[].coin_balance | 是 | integer |  |  |
 | d.items[].session_count | 是 | integer |  | 等消息服务接口接入后填充。 |
-| d.items[].status | 是 | string | enum: "normal" | 当前未接入封禁状态，现阶段非删除用户统一返回 normal。 |
+| d.items[].status | 是 | string | enum: "normal" / "blocked" | 正常或已封禁。 |
 | d.page | 是 | integer |  |  |
 | d.page_size | 是 | integer |  |  |
 | d.total | 是 | integer |  |  |
@@ -206,7 +208,7 @@
 | d.wallet.buy_total | 否 | integer |  |  |
 | d.wallet.reward_total | 否 | integer |  |  |
 | d.session_count | 是 | integer |  |  |
-| d.status | 是 | string | enum: "normal" |  |
+| d.status | 是 | string | enum: "normal" / "blocked" | 正常或已封禁。 |
 
 成功响应示例：
 
@@ -242,6 +244,66 @@
   }
 }
 ```
+
+---
+
+<a id="adminuserresetfreequota"></a>
+## 重置用户今日免费额度
+
+- **操作 ID**：`adminUserResetFreeQuota`
+- **请求**：`POST https://testapi.weshow.cc/api/admin/users/free-quota/reset`
+- **鉴权**：Bearer Admin Token
+- **说明**：`ai.access.free_text_daily_limit` 定义每位非会员用户每天的免费次数。本接口不修改该配置，只按 `AI_QUOTA_TIMEZONE` 确定当天，将目标用户的已使用次数归零。操作与聊天额度扣减使用相同加锁顺序，并写入后台用户操作审计。
+
+请求体：
+
+```json
+{ "user_id": "12" }
+```
+
+成功响应数据：
+
+```json
+{
+  "user_id": "u_8f2k1a90",
+  "internal_id": 12,
+  "usage_date": "2026-09-10",
+  "previous_used_count": 7,
+  "used_count": 0,
+  "free_limit": 10
+}
+```
+
+状态码：200 成功；401 未登录；403 无管理员权限；404 用户不存在；422 参数错误。
+
+---
+
+<a id="adminuseraccountstatus"></a>
+## 封禁或解除封禁用户
+
+- **操作 ID**：`adminUserAccountStatus`
+- **请求**：`POST https://testapi.weshow.cc/api/admin/users/status`
+- **鉴权**：Bearer Admin Token
+- **说明**：`is_blocked=true` 时封禁并撤销目标用户全部 Sanctum Token；登录入口和所有需登录 C 端接口均返回 `reason=account_blocked`。禁止封禁自己，并保证至少保留一个正常管理员。封禁和解封均写操作审计。
+
+请求体：
+
+```json
+{ "user_id": "12", "is_blocked": true }
+```
+
+成功响应数据：
+
+```json
+{
+  "user_id": "u_8f2k1a90",
+  "internal_id": 12,
+  "status": "blocked",
+  "is_blocked": true
+}
+```
+
+状态码：200 成功；401 未登录；403 无管理员权限；404 用户不存在；409 禁止自封或会导致无可用管理员；422 参数错误。
 
 ---
 
