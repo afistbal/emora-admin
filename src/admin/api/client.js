@@ -28,6 +28,51 @@ export class ApiError extends Error {
   }
 }
 
+const VALIDATION_FIELD_LABELS = {
+  char_code: "角色名称",
+  "data.name": "角色名称",
+  ver: "角色卡版本",
+  data: "角色数据",
+  cover_asset_id: "角色封面",
+  assets: "角色资产",
+};
+
+function firstValidationError(data) {
+  if (!data || typeof data !== "object" || Array.isArray(data)) return null;
+
+  for (const [field, messages] of Object.entries(data)) {
+    const message = Array.isArray(messages) ? messages.find((item) => typeof item === "string") : messages;
+    if (typeof message === "string" && message.trim()) return { field, message: message.trim() };
+  }
+
+  return null;
+}
+
+/**
+ * 将后端 422 校验明细转换成管理员可直接处理的提示，避免只展示笼统的 Validation failed。
+ */
+export function getApiErrorMessage(error, fallback = "请求失败，请稍后重试") {
+  const validationError = firstValidationError(error instanceof ApiError ? error.data : null);
+  if (validationError) {
+    const fieldLabel = VALIDATION_FIELD_LABELS[validationError.field] || validationError.field;
+    const detail = validationError.message;
+
+    if (/already been taken|already exists/i.test(detail)) {
+      return `${fieldLabel}已存在，请修改后重试`;
+    }
+    if (/required|must be present/i.test(detail)) return `${fieldLabel}不能为空`;
+    if (/must not be greater than\s+(\d+)\s+characters/i.test(detail)) {
+      const [, limit] = detail.match(/must not be greater than\s+(\d+)\s+characters/i) || [];
+      return `${fieldLabel}不能超过 ${limit} 个字符`;
+    }
+
+    return `${fieldLabel}：${detail}`;
+  }
+
+  const message = error instanceof Error ? error.message.trim() : "";
+  return message && !/^validation failed\.?$/i.test(message) ? message : fallback;
+}
+
 async function jsonPost(path, body = {}, options = {}) {
   const token = options.withToken === false ? "" : getAdminToken();
   const response = await fetch(`${API_BASE_URL}${path}`, {

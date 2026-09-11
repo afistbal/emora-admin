@@ -25,7 +25,7 @@ import {
   WarningCircle,
   X,
 } from "@phosphor-icons/react";
-import { adminApi, getAdminToken, setAdminToken } from "./api/client.js";
+import { adminApi, getAdminToken, getApiErrorMessage, setAdminToken } from "./api/client.js";
 import { Outlet, useLocation, useNavigate } from "umi";
 import PageBreadcrumb from "./components/PageBreadcrumb.jsx";
 
@@ -676,14 +676,14 @@ const CHARACTER_EXAMPLE_WRAPPER_COL = { xs: { span: 24 }, sm: { flex: "1 1 0" } 
 
 function parseImportedCharacterCard(value) {
   if (!value || value.spec !== "chara_card_v2" || !value.data || typeof value.data !== "object") {
-    throw new Error("导入失败：不是有效的 chara_card_v2 角色卡");
+    throw new Error("不是有效的 chara_card_v2 角色卡");
   }
   const card = value.data;
   const text = (field) => (typeof field === "string" ? field : "");
   const name = text(card.name).trim();
-  if (!name) throw new Error("导入失败：角色 JSON 缺少 data.name");
+  if (!name) throw new Error("角色 JSON 缺少 data.name，无法确定角色名称");
   const specVersion = text(value.spec_version).trim();
-  if (!specVersion) throw new Error("导入失败：角色卡缺少 spec_version");
+  if (!specVersion) throw new Error("角色卡缺少 spec_version");
   const alternate = Array.isArray(card.alternate_greetings) ? card.alternate_greetings : [];
   const greetings = [
     ...(text(card.first_mes).trim() ? [{ kind: "primary", body: text(card.first_mes).trim(), enabled: true, sort: 0 }] : []),
@@ -768,7 +768,7 @@ function NewCharacterDialog({ onClose, onCreate }) {
       coverFile,
       });
     } catch (error) {
-      setSubmitError(error instanceof Error ? error.message : "创建失败，请重试");
+      setSubmitError(getApiErrorMessage(error, "创建角色失败，请重试"));
     } finally {
       setSubmitting(false);
     }
@@ -811,7 +811,7 @@ function NewCharacterDialog({ onClose, onCreate }) {
   );
 }
 
-export function CharacterListPage({ list, onEdit, onCreate, onImport }) {
+export function CharacterListPage({ list, onEdit, onCreate, onImport, isImporting = false }) {
   const [showNew, setShowNew] = useState(false);
   return (
     <Card
@@ -819,8 +819,20 @@ export function CharacterListPage({ list, onEdit, onCreate, onImport }) {
       sub={`共 ${list.length} 个角色 · 未发布草稿的改动不影响 C 端`}
       actions={(
         <div style={{ display: "flex", gap: 10 }}>
-          <Upload accept=".json,application/json" showUploadList={false} beforeUpload={(file) => { onImport(file); return false; }}><AntButton>导入 JSON</AntButton></Upload>
-          <AntButton type="primary" onClick={() => setShowNew(true)}>+ 新增角色</AntButton>
+          <Upload
+            accept=".json,application/json"
+            disabled={isImporting}
+            showUploadList={false}
+            beforeUpload={(file) => {
+              void onImport(file);
+              return false;
+            }}
+          >
+            <AntButton loading={isImporting} disabled={isImporting}>
+              {isImporting ? "正在导入…" : "导入 JSON"}
+            </AntButton>
+          </Upload>
+          <AntButton type="primary" disabled={isImporting} onClick={() => setShowNew(true)}>+ 新增角色</AntButton>
         </div>
       )}
     >
@@ -3186,6 +3198,8 @@ export default function Admin() {
   const [characterLoadState, setCharacterLoadState] = useState("idle");
   const [characterLoadError, setCharacterLoadError] = useState("");
   const [characterRetryKey, setCharacterRetryKey] = useState(0);
+  const [isCharacterImporting, setIsCharacterImporting] = useState(false);
+  const characterImportingRef = useRef(false);
   const [openNavGroups, setOpenNavGroups] = useState(() => {
     try {
       const savedGroups = JSON.parse(window.localStorage.getItem("emora-admin-open-nav-groups") || "null");
@@ -3210,10 +3224,10 @@ export default function Admin() {
     window.localStorage.setItem("emora-admin-open-nav-groups", JSON.stringify(openNavGroups));
   }, [openNavGroups]);
 
-  // 现有调用方统一传入文本，根据业务错误关键词选择 Ant Design 的消息类型。
-  const toast = (content) => {
-    const isError = /失败|错误|请先|过期|超时|不能为空|不存在/.test(content);
-    message.open({ type: isError ? "error" : "success", content });
+  // 新调用方可明确指定消息类型；未指定时继续兼容现有文本调用方式。
+  const toast = (content, type) => {
+    const inferredType = /失败|错误|请先|过期|超时|不能为空|不存在/.test(content) ? "error" : "success";
+    message.open({ type: type || inferredType, content });
   };
 
   useEffect(() => {
@@ -3289,45 +3303,59 @@ export default function Admin() {
   };
 
   const createCharacter = async (character) => {
-    try {
-      const charCode = character.charCode;
-      const asset = character.coverFile ? await adminApi.media.uploadFile(character.coverFile, charCode) : null;
-      const data = character.data || {
-        name: character.name, tagline: character.subtitle, description: character.subtitle, prompt: "",
-        greetings: [{ kind: "primary", body: character.greeting, enabled: true, sort: 0 }], tags: character.tags,
-      };
-      const created = await adminApi.characters.create({
-          char_code: charCode,
-          ...(character.versionValue ? { ver: character.versionValue } : {}),
-          ai: true,
-          data,
-          ...(asset ? { cover_asset_id: asset.id, assets: [{ asset_id: asset.id, role: "cover", access: "public", state: "online", sort: 0 }] } : {}),
-      });
-      const next = {
-        ...character,
-        id: created.id,
-        charCode: created.char_code || charCode,
-        image: asset?.ref || character.image,
-        cardImage: asset?.ref || character.cardImage,
-        lockedImage: "",
-        gallery: asset ? [asset.ref] : [],
-      };
-      delete next.coverFile;
-      setCharList((list) => [...list, next]);
-      setEditing(next);
-      toast(`已创建草稿角色「${next.name}」`);
-    } catch (error) {
-      toast(`创建角色失败：${error.message}`);
-      throw error;
-    }
+    const charCode = character.charCode;
+    const asset = character.coverFile ? await adminApi.media.uploadFile(character.coverFile, charCode) : null;
+    const data = character.data || {
+      name: character.name, tagline: character.subtitle, description: character.subtitle, prompt: "",
+      greetings: [{ kind: "primary", body: character.greeting, enabled: true, sort: 0 }], tags: character.tags,
+    };
+    const created = await adminApi.characters.create({
+        char_code: charCode,
+        ...(character.versionValue ? { ver: character.versionValue } : {}),
+        ai: true,
+        data,
+        ...(asset ? { cover_asset_id: asset.id, assets: [{ asset_id: asset.id, role: "cover", access: "public", state: "online", sort: 0 }] } : {}),
+    });
+    const next = {
+      ...character,
+      id: created.id,
+      charCode: created.char_code || charCode,
+      image: asset?.ref || character.image,
+      cardImage: asset?.ref || character.cardImage,
+      lockedImage: "",
+      gallery: asset ? [asset.ref] : [],
+    };
+    delete next.coverFile;
+    setCharList((list) => [...list, next]);
+    setEditing(next);
+    toast(`已创建草稿角色「${next.name}」`);
   };
 
   const importCharacter = async (file) => {
+    // 文件解析和接口创建完成前保持导入锁，避免管理员连续选择文件造成重复角色请求。
+    if (characterImportingRef.current) return;
+    characterImportingRef.current = true;
+    setIsCharacterImporting(true);
+    let importedCharacter = null;
     try {
-      const imported = parseImportedCharacterCard(JSON.parse(await file.text()));
-      await createCharacter(imported);
+      let source;
+      try {
+        source = JSON.parse(await file.text());
+      } catch {
+        throw new Error("JSON 文件格式错误，请检查逗号、引号和括号是否完整");
+      }
+      importedCharacter = parseImportedCharacterCard(source);
+      await createCharacter(importedCharacter);
     } catch (error) {
-      toast(error instanceof Error ? error.message : "导入失败，请检查 JSON 文件");
+      // 导入链路在这里统一提示一次，避免创建方法和导入方法重复弹出消息。
+      const detail = getApiErrorMessage(error, "请检查 JSON 文件");
+      const importDetail = importedCharacter && detail === "角色名称已存在，请修改后重试"
+        ? `角色名称「${importedCharacter.name}」已存在，请修改 JSON 中的 data.name 后重试`
+        : detail;
+      toast(`导入角色失败：${importDetail}`, "error");
+    } finally {
+      characterImportingRef.current = false;
+      setIsCharacterImporting(false);
     }
   };
 
@@ -3413,9 +3441,10 @@ export default function Admin() {
             setEditing,
             charList,
             characterLoadState,
-            characterLoadError,
-            retryCharacters: () => setCharacterRetryKey((key) => key + 1),
-            createCharacter,
+             characterLoadError,
+             retryCharacters: () => setCharacterRetryKey((key) => key + 1),
+             isCharacterImporting,
+             createCharacter,
             importCharacter,
             updateCharacterStatus,
           }} />

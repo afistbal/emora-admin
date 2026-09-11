@@ -25,6 +25,7 @@ function CharacterRoute({ context }) {
     createCharacter,
     editing,
     importCharacter,
+    isCharacterImporting,
     retryCharacters,
     setEditing,
     toast,
@@ -57,7 +58,15 @@ function CharacterRoute({ context }) {
   if (characterLoadState !== "loaded") {
     return <div className="ant-loading-state"><Spin size="large" /><span>正在加载角色数据…</span></div>;
   }
-  return <CharacterListPage list={charList} onEdit={setEditing} onCreate={createCharacter} onImport={importCharacter} />;
+  return (
+    <CharacterListPage
+      list={charList}
+      onEdit={setEditing}
+      onCreate={createCharacter}
+      onImport={importCharacter}
+      isImporting={isCharacterImporting}
+    />
+  );
 }
 
 export default function AdminRoutePage() {
