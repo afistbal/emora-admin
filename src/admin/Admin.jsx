@@ -814,30 +814,32 @@ function NewCharacterDialog({ onClose, onCreate }) {
 export function CharacterListPage({ list, onEdit, onCreate, onImport, isImporting = false }) {
   const [showNew, setShowNew] = useState(false);
   return (
-    <Card
-      title="官方角色"
-      sub={`共 ${list.length} 个角色 · 未发布草稿的改动不影响 C 端`}
-      actions={(
-        <div style={{ display: "flex", gap: 10 }}>
-          <Upload
-            accept=".json,application/json"
-            disabled={isImporting}
-            showUploadList={false}
-            beforeUpload={(file) => {
-              void onImport(file);
-              return false;
-            }}
-          >
-            <AntButton loading={isImporting} disabled={isImporting}>
-              {isImporting ? "正在导入…" : "导入 JSON"}
-            </AntButton>
-          </Upload>
-          <AntButton type="primary" disabled={isImporting} onClick={() => setShowNew(true)}>+ 新增角色</AntButton>
-        </div>
-      )}
-    >
-      <div className="table-wrap">
-        <AntTable
+    <>
+      <Spin fullscreen spinning={isImporting} size="large" tip="正在导入角色 JSON…" />
+      <Card
+        title="官方角色"
+        sub={`共 ${list.length} 个角色 · 未发布草稿的改动不影响 C 端`}
+        actions={(
+          <div style={{ display: "flex", gap: 10 }}>
+            <Upload
+              accept=".json,application/json"
+              disabled={isImporting}
+              showUploadList={false}
+              beforeUpload={(file) => {
+                void onImport(file);
+                return false;
+              }}
+            >
+              <AntButton color="cyan" variant="solid" loading={isImporting} disabled={isImporting}>
+                {isImporting ? "正在导入…" : "导入 JSON"}
+              </AntButton>
+            </Upload>
+            <AntButton type="primary" disabled={isImporting} onClick={() => setShowNew(true)}>+ 新增角色</AntButton>
+          </div>
+        )}
+      >
+        <div className="table-wrap">
+          <AntTable
           className="table character-list-table"
           tableLayout="auto"
           scroll={{ x: "max-content" }}
@@ -858,10 +860,11 @@ export function CharacterListPage({ list, onEdit, onCreate, onImport, isImportin
             { title: "生成提交 → 成功率", key: "generation", align: "right", render: (_, character) => `${character.genSubmit.toLocaleString()} → ${character.genRate}` },
             { title: "操作", key: "action", render: (_, character) => <AntButton size="small" color="blue" variant="filled" onClick={(event) => { event.stopPropagation(); onEdit(character); }}>编辑</AntButton> },
           ]}
-        />
-      </div>
-      {showNew && <NewCharacterDialog onClose={() => setShowNew(false)} onCreate={onCreate} />}
-    </Card>
+          />
+        </div>
+        {showNew && <NewCharacterDialog onClose={() => setShowNew(false)} onCreate={onCreate} />}
+      </Card>
+    </>
   );
 }
 

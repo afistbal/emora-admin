@@ -4,6 +4,8 @@ import "antd/dist/reset.css";
 import "./admin/admin.css";
 
 const sharedTheme = { cssVar: true };
+// 全局消息避开 72px 顶部导航栏，在页面内容区上方保留清晰间距。
+const sharedMessage = { top: 88 };
 
 function AdminThemeProvider({ children }) {
   const [isDark, setIsDark] = useState(() => {
@@ -32,7 +34,7 @@ function AdminThemeProvider({ children }) {
         algorithm: isDark ? antTheme.darkAlgorithm : antTheme.defaultAlgorithm,
       }}
     >
-      <AntApp>{children}</AntApp>
+      <AntApp message={sharedMessage}>{children}</AntApp>
     </ConfigProvider>
   );
 }
