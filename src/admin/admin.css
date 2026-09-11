@@ -403,6 +403,8 @@ body {
 .provider-route-label > .ant-space-item:last-child { flex: none; }
 .provider-route-label .ant-typography { display: block; min-width: 0; margin: 0; }
 .provider-route-status { display: inline-flex; flex: none; align-items: center; }
+/* 模型启用状态需要在紧凑下拉框中快速辨识，仅局部放大 Ant Design 红绿状态点。 */
+.provider-route-status .ant-badge-status-dot { width: 8px; height: 8px; }
 .user-detail-modal .ant-modal-body { max-height: min(720px, 72vh); overflow-y: auto; padding-right: 6px; }
 .user-detail-modal .section-gap > * + * { margin-top: 12px; }
 .user-detail-loading-state { display: grid; min-height: min(420px, 55vh); place-items: center; }
