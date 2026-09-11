@@ -1,8 +1,9 @@
 import { useEffect, useState } from "react";
 import { Alert, Button, Card, Descriptions, Empty, Form, Image, InputNumber, Pagination, Select, Space, Spin, Table, Tag, Typography } from "antd";
-import { ArrowLeft, ArrowsClockwise, ChatCircleDots, MagnifyingGlass, WarningCircle } from "@phosphor-icons/react";
-import { useNavigate } from "react-router-dom";
+import { ArrowsClockwise, ChatCircleDots, MagnifyingGlass, WarningCircle } from "@phosphor-icons/react";
+import { useNavigate } from "umi";
 import { adminApi } from "./api/client.js";
+import PageBreadcrumb from "./components/PageBreadcrumb.jsx";
 import "./messages.css";
 
 const TYPES = { text: "文本", image: "图片", video: "视频", private_photo: "私密照片" };
@@ -96,9 +97,14 @@ function MessageDetailPage({ messageId, adminToken, onBack }) {
     return () => controller.abort();
   }, [messageId, adminToken, refresh]);
 
-  if (loading) return <div className="message-page-state"><Spin size="large" /><span>正在加载消息详情…</span></div>;
-  if (error) return <div className="section-gap"><Button icon={<ArrowLeft />} onClick={onBack}>返回消息列表</Button><Alert type="error" showIcon message="消息详情加载失败" description={error} action={<Button onClick={() => setRefresh((value) => value + 1)}>重试</Button>} /></div>;
-  if (!detail?.message) return <Empty description="消息不存在" />;
+  const breadcrumb = <PageBreadcrumb items={[
+    { title: "消息列表", onClick: onBack },
+    { title: `消息 ${messageId}` },
+  ]} />;
+
+  if (loading) return <div className="section-gap">{breadcrumb}<div className="message-page-state"><Spin size="large" /><span>正在加载消息详情…</span></div></div>;
+  if (error) return <div className="section-gap">{breadcrumb}<Alert type="error" showIcon message="消息详情加载失败" description={error} action={<Button onClick={() => setRefresh((value) => value + 1)}>重试</Button>} /></div>;
+  if (!detail?.message) return <div className="section-gap">{breadcrumb}<Empty description="消息不存在" /></div>;
 
   const message = detail.message;
   const generation = detail.generation;
@@ -109,8 +115,11 @@ function MessageDetailPage({ messageId, adminToken, onBack }) {
   ];
 
   return <div className="section-gap message-detail-page">
+    <PageBreadcrumb items={[
+      { title: "消息列表", onClick: onBack },
+      { title: `消息 ${message.id}` },
+    ]} />
     <div className="message-detail-heading">
-      <Button icon={<ArrowLeft />} onClick={onBack}>返回消息列表</Button>
       <div><h2>消息 {message.id}</h2><p>完整业务内容、生成链路与 Token 使用</p></div>
       <Space><Tag color="blue">{TYPES[message.message_type] || message.message_type}</Tag><MessageStatus value={message.status} /></Space>
     </div>

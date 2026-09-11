@@ -284,7 +284,7 @@
 - **操作 ID**：`adminUserAccountStatus`
 - **请求**：`POST https://testapi.weshow.cc/api/admin/users/status`
 - **鉴权**：Bearer Admin Token
-- **说明**：`is_blocked=true` 时封禁并撤销目标用户全部 Sanctum Token；登录入口和所有需登录 C 端接口均返回 `reason=account_blocked`。禁止封禁自己，并保证至少保留一个正常管理员。封禁和解封均写操作审计。
+- **说明**：`is_blocked=true` 时封禁并撤销目标用户全部 Sanctum Token；封禁用户登录和携带尚未失效 Token 的请求统一返回 HTTP 401、`c=401`、`reason=account_blocked`。普通无效或过期 Token 同样返回 HTTP 401，但没有该 reason。禁止封禁自己，并保证至少保留一个正常管理员。封禁和解封均写操作审计。
 
 请求体：
 

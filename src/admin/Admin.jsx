@@ -1,12 +1,7 @@
-import BillingPage from "./BillingPages.jsx";
-import MessagesPage from "./MessagesPage.jsx";
-import SettingsPage from "./SettingsPage.jsx";
-import UserLedgerPage from "./UserLedgerPage.jsx";
 import { useEffect, useRef, useState } from "react";
-import { Alert, App as AntApp, Avatar, Badge as AntBadge, Breadcrumb, Button as AntButton, Card as AntCard, Collapse as AntCollapse, DatePicker, Drawer as AntDrawer, Empty, Flex, Form, Input as AntInput, InputNumber as AntInputNumber, Layout as AntLayout, Menu as AntMenu, Modal as AntModal, Pagination, Progress as AntProgress, Segmented, Select as AntSelect, Space, Spin, Switch as AntSwitch, Table as AntTable, Tabs, Tag, Typography, Upload } from "antd";
+import { Alert, App as AntApp, Avatar, Badge as AntBadge, Button as AntButton, Card as AntCard, Collapse as AntCollapse, DatePicker, Drawer as AntDrawer, Empty, Flex, Form, Input as AntInput, InputNumber as AntInputNumber, Layout as AntLayout, Menu as AntMenu, Modal as AntModal, Pagination, Progress as AntProgress, Segmented, Select as AntSelect, Space, Spin, Switch as AntSwitch, Table as AntTable, Tabs, Tag, Typography, Upload } from "antd";
 import dayjs from "dayjs";
 import {
-  ArrowLeft,
   Bell,
   ChartLineUp,
   ChartBar,
@@ -31,7 +26,8 @@ import {
   X,
 } from "@phosphor-icons/react";
 import { adminApi, getAdminToken, setAdminToken } from "./api/client.js";
-import { useLocation, useNavigate } from "react-router-dom";
+import { Outlet, useLocation, useNavigate } from "umi";
+import PageBreadcrumb from "./components/PageBreadcrumb.jsx";
 
 /* ================= 共享小组件 ================= */
 
@@ -316,7 +312,7 @@ function DashboardMetricGroup({ group, kpis }) {
   );
 }
 
-function DashboardPage({ toast }) {
+export function DashboardPage({ toast }) {
   const [range, setRange] = useState("今日");
   const [liveSummary, setLiveSummary] = useState(null);
   const [loadError, setLoadError] = useState("");
@@ -546,7 +542,7 @@ function tokenDateString(date) {
   return `${year}-${month}-${day}`;
 }
 
-function TokenUsagePage({ toast, adminToken }) {
+export function TokenUsagePage({ toast, adminToken }) {
   const today = tokenDateString(new Date());
   const [startDate, setStartDate] = useState(() => dayjs().subtract(30, "day").format("YYYY-MM-DD"));
   const [endDate, setEndDate] = useState(today);
@@ -674,6 +670,9 @@ function TokenUsagePage({ toast, adminToken }) {
 }
 
 /* ================= 角色管理 ================= */
+
+const CHARACTER_EXAMPLE_LABEL_COL = { xs: { span: 24 }, sm: { flex: "128px" } };
+const CHARACTER_EXAMPLE_WRAPPER_COL = { xs: { span: 24 }, sm: { flex: "1 1 0" } };
 
 function parseImportedCharacterCard(value) {
   if (!value || value.spec !== "chara_card_v2" || !value.data || typeof value.data !== "object") {
@@ -812,7 +811,7 @@ function NewCharacterDialog({ onClose, onCreate }) {
   );
 }
 
-function CharacterListPage({ list, onEdit, onCreate, onImport }) {
+export function CharacterListPage({ list, onEdit, onCreate, onImport }) {
   const [showNew, setShowNew] = useState(false);
   return (
     <Card
@@ -927,7 +926,7 @@ function displayCharacterVersion(version) {
   return value.toLowerCase().startsWith("v") ? value : `v${value}`;
 }
 
-function CharacterEditorPage({ character, onBack, toast, onStatusChange }) {
+export function CharacterEditorPage({ character, onBack, toast, onStatusChange }) {
   const [tab, setTab] = useState("basic");
   const [stage, setStage] = useState(character.status === "草稿" ? "草稿" : "已上架");
   const [tagDraft, setTagDraft] = useState("");
@@ -1304,8 +1303,8 @@ function CharacterEditorPage({ character, onBack, toast, onStatusChange }) {
   return (
     <div>
       <div className="editor-toolbar">
-        <Breadcrumb items={[
-          { title: <Typography.Link onClick={onBack}>角色管理</Typography.Link> },
+        <PageBreadcrumb items={[
+          { title: "角色管理", onClick: onBack },
           { title: `编辑 ${character.name}` },
         ]} />
         <Badge tone={stage === "草稿" ? "yellow" : "green"}>{stage}</Badge>
@@ -1510,11 +1509,21 @@ function CharacterEditorPage({ character, onBack, toast, onStatusChange }) {
                       <b>示例对话 {index + 1}</b>
                       <AntButton type="link" danger onClick={() => deleteMesExample(example.id)}>删除</AntButton>
                     </header>
-                    <Form.Item label="User / 用户">
+                    <Form.Item
+                      label="User / 用户"
+                      labelAlign="right"
+                      labelCol={CHARACTER_EXAMPLE_LABEL_COL}
+                      wrapperCol={CHARACTER_EXAMPLE_WRAPPER_COL}
+                    >
                       <AntInput.TextArea value={example.user} onChange={(event) => updateMesExample(example.id, "user", event.target.value)} placeholder="例如：今天加班到现在，脑子还是懵的。" />
                     </Form.Item>
                     <div style={{ marginTop: 10 }}>
-                      <Form.Item label="Character / 角色">
+                      <Form.Item
+                        label="Character / 角色"
+                        labelAlign="right"
+                        labelCol={CHARACTER_EXAMPLE_LABEL_COL}
+                        wrapperCol={CHARACTER_EXAMPLE_WRAPPER_COL}
+                      >
                         <AntInput.TextArea value={example.character} onChange={(event) => updateMesExample(example.id, "character", event.target.value)} placeholder="输入角色在这个场景下的回复…" />
                       </Form.Item>
                     </div>
@@ -1610,7 +1619,7 @@ function AddPresetDialog({ mode, onClose, onAdd }) {
   );
 }
 
-function PresetsPage({ toast, adminToken }) {
+export function PresetsPage({ toast, adminToken }) {
   const [tab, setTab] = useState("manage");
   const [presets, setPresets] = useState({ photo: [], video: [] });
   const [systemPrompts, setSystemPrompts] = useState({ image: "", video: "" });
@@ -1821,7 +1830,7 @@ function TxTable({ rows }) {
   );
 }
 
-function UsersPage({ toast, adminToken }) {
+export function UsersPage({ toast, adminToken }) {
   const [view, setView] = useState("list"); // list | records
   const [selected, setSelected] = useState(null);
   const [recordsUser, setRecordsUser] = useState(null);
@@ -2065,8 +2074,11 @@ function UsersPage({ toast, adminToken }) {
     return (
       <div className="section-gap">
         <div className="filter-bar">
-          <AntButton onClick={() => setView("list")}><ArrowLeft />返回</AntButton>
-          <span className="muted small">用户管理 / {recordsUser.nick} / 金币流水</span>
+          <PageBreadcrumb items={[
+            { title: "用户列表", onClick: () => setView("list") },
+            { title: recordsUser.nick },
+            { title: "金币流水" },
+          ]} />
           <div style={{ marginLeft: "auto" }}>
             <AntSelect value={txFilter} onChange={setTxFilter} options={txTypes.map((value) => ({ value, label: value }))} />
           </div>
@@ -2451,7 +2463,7 @@ function AddProductDialog({ kind, platform, onClose, onCreate }) {
   );
 }
 
-function CommercePage({ toast, adminToken }) {
+export function CommercePage({ toast, adminToken }) {
   const [tab, setTab] = useState("plans");
   // 订阅配置默认面向 Android 商品，Android 在平台切换中排在第一位。
   const [platform, setPlatform] = useState(1);
@@ -2686,7 +2698,7 @@ const analyticsTabs = [
   ["user", "用户"], ["chat", "聊天页"],
 ];
 
-function AnalyticsPage({ toast, adminToken }) {
+export function AnalyticsPage({ toast, adminToken }) {
   const [tab, setTab] = useState("user");
   const todayStr = new Date().toISOString().slice(0, 10);
   const [startDate, setStartDate] = useState(todayStr);
@@ -2900,9 +2912,9 @@ function ProviderEditorPage({ provider, onClose, onSave, onDeleteModel }) {
     <div className="section-gap provider-editor-page">
       <header className="provider-editor-header">
         <div className="provider-editor-heading">
-          <Breadcrumb items={[
-            { title: <Typography.Link onClick={onClose}>模型配置</Typography.Link> },
-            { title: <Typography.Link onClick={onClose}>中转站列表</Typography.Link> },
+          <PageBreadcrumb items={[
+            { title: "模型配置", onClick: onClose },
+            { title: "中转站列表", onClick: onClose },
             { title: editing ? provider.name : "新建中转站" },
           ]} />
           <h2>{editing ? `编辑中转站 · ${provider.name}` : "新建中转站"}</h2>
@@ -2986,7 +2998,7 @@ function ProviderEditorPage({ provider, onClose, onSave, onDeleteModel }) {
   );
 }
 
-function ModelConfigPage({ toast, adminToken }) {
+export function ModelConfigPage({ toast, adminToken }) {
   const [providers, setProviders] = useState([]);
   const [profileKeys, setProfileKeys] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -3392,39 +3404,21 @@ export default function Admin() {
         </AntLayout.Header>
 
         <AntLayout.Content className="admin-content">
-          {page === "dashboard" && <DashboardPage toast={toast} adminToken={adminToken} />}
-          {page === "characters" && !editing && characterLoadState === "loading" && <LoadingState text="正在加载角色数据…" />}
-          {page === "characters" && !editing && characterLoadState === "error" && (
-            <Alert
-              type="error"
-              showIcon
-              message="角色数据加载失败"
-              description={characterLoadError}
-              action={<AntButton onClick={() => setCharacterRetryKey((key) => key + 1)}>重新加载</AntButton>}
-            />
-          )}
-          {page === "characters" && !editing && characterLoadState === "loaded" && <CharacterListPage list={charList} onEdit={setEditing} onCreate={createCharacter} onImport={importCharacter} />}
-          {page === "characters" && editing && (
-            <CharacterEditorPage
-              key={editing.id}
-              character={editing}
-              onBack={() => setEditing(null)}
-              toast={toast}
-              onStatusChange={updateCharacterStatus}
-              adminToken={adminToken}
-            />
-          )}
-          {page === "presets" && <PresetsPage toast={toast} adminToken={adminToken} />}
-          {page === "models" && <ModelConfigPage toast={toast} adminToken={adminToken} />}
-          {page === "users" && <UsersPage toast={toast} adminToken={adminToken} />}
-          {page === "user-ledger" && <UserLedgerPage adminToken={adminToken} />}
-          {page === "messages" && <MessagesPage adminToken={adminToken} detailId={messageDetailId} />}
-          {page === "orders" && <BillingPage key="orders" adminToken={adminToken} />}
-          {page === "subscriptions" && <BillingPage key="subscriptions" subscription adminToken={adminToken} />}
-          {page === "commerce" && <CommercePage toast={toast} adminToken={adminToken} />}
-          {page === "analytics" && <AnalyticsPage toast={toast} adminToken={adminToken} />}
-          {page === "token-usage" && <TokenUsagePage toast={toast} adminToken={adminToken} />}
-          {page === "settings" && <SettingsPage adminToken={adminToken} />}
+          <Outlet context={{
+            page,
+            messageDetailId,
+            adminToken,
+            toast,
+            editing,
+            setEditing,
+            charList,
+            characterLoadState,
+            characterLoadError,
+            retryCharacters: () => setCharacterRetryKey((key) => key + 1),
+            createCharacter,
+            importCharacter,
+            updateCharacterStatus,
+          }} />
         </AntLayout.Content>
       </AntLayout>
 
