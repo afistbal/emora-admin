@@ -170,9 +170,22 @@ function formatUnixDate(timestamp, includeTime = false) {
   }).format(new Date(Number(timestamp) * 1000));
 }
 
-function ConfirmDialog({ title, desc, confirmText = "确认", onConfirm, onClose }) {
+function ConfirmDialog({ title, desc, confirmText = "确认", confirmLoading = false, onConfirm, onClose }) {
   return (
-    <AntModal open title={title} onCancel={onClose} onOk={onConfirm} okText={confirmText} cancelText="取消" okButtonProps={{ danger: true }} centered width={420}>
+    <AntModal
+      open
+      title={title}
+      closable={!confirmLoading}
+      maskClosable={!confirmLoading}
+      onCancel={confirmLoading ? undefined : onClose}
+      onOk={onConfirm}
+      okText={confirmText}
+      cancelText="取消"
+      okButtonProps={{ danger: true, loading: confirmLoading }}
+      cancelButtonProps={{ disabled: confirmLoading }}
+      centered
+      width={420}
+    >
       <p>{desc}</p>
     </AntModal>
   );
@@ -700,7 +713,7 @@ function parseImportedCharacterCard(value) {
     scenario: text(card.scenario),
     prompt: [card.description, card.personality, card.scenario, card.system_prompt, card.post_history_instructions].map(text).filter((item) => item.trim()).join("\n\n"),
     avatar_notes: "",
-    mes_example: Array.isArray(card.mes_example) ? card.mes_example : [],
+    mes_example: normalizeImportedMesExamples(card.mes_example),
     greetings,
     tags: Array.isArray(card.tags) ? card.tags.map(String).map((tag) => tag.trim()).filter(Boolean) : [],
   };
@@ -811,8 +824,16 @@ function NewCharacterDialog({ onClose, onCreate }) {
   );
 }
 
-export function CharacterListPage({ list, onEdit, onCreate, onImport, isImporting = false }) {
+export function CharacterListPage({ list, onEdit, onCreate, onImport, onDelete, isImporting = false, deletingCharacterId = null }) {
   const [showNew, setShowNew] = useState(false);
+  const [confirmDelete, setConfirmDelete] = useState(null);
+
+  const confirmCharacterDelete = async () => {
+    if (!confirmDelete) return;
+    const deleted = await onDelete(confirmDelete);
+    if (deleted) setConfirmDelete(null);
+  };
+
   return (
     <>
       <Spin fullscreen spinning={isImporting} size="large" tip="正在导入角色 JSON…" />
@@ -858,14 +879,54 @@ export function CharacterListPage({ list, onEdit, onCreate, onImport, isImportin
             { title: "消息次数", key: "messages", align: "right", render: (_, character) => <>{character.msgCount.toLocaleString()}<div className="muted" style={{ fontSize: 11 }}>人均 {character.msgPer} 轮</div></> },
             { title: "卡曝光 pv/uv", key: "exposure", align: "right", render: (_, character) => `${character.expPv.toLocaleString()} / ${character.expUv.toLocaleString()}` },
             { title: "生成提交 → 成功率", key: "generation", align: "right", render: (_, character) => `${character.genSubmit.toLocaleString()} → ${character.genRate}` },
-            { title: "操作", key: "action", render: (_, character) => <AntButton size="small" color="blue" variant="filled" onClick={(event) => { event.stopPropagation(); onEdit(character); }}>编辑</AntButton> },
+            {
+              title: "操作",
+              key: "action",
+              render: (_, character) => (
+                <Space>
+                  <AntButton color="blue" variant="filled" onClick={(event) => { event.stopPropagation(); onEdit(character); }}>编辑</AntButton>
+                  <AntButton
+                    danger
+                    disabled={deletingCharacterId !== null}
+                    loading={Number(deletingCharacterId) === Number(character.id)}
+                    onClick={(event) => {
+                      event.stopPropagation();
+                      setConfirmDelete(character);
+                    }}
+                  >
+                    删除
+                  </AntButton>
+                </Space>
+              ),
+            },
           ]}
           />
         </div>
         {showNew && <NewCharacterDialog onClose={() => setShowNew(false)} onCreate={onCreate} />}
+        {confirmDelete && (
+          <ConfirmDialog
+            title="删除角色"
+            desc={`删除后「${confirmDelete.name}」将从管理后台和 C 端角色列表中隐藏；角色编码、历史版本、媒体资源及既有会话记录会保留。确认删除吗？`}
+            confirmText="确认删除"
+            confirmLoading={Number(deletingCharacterId) === Number(confirmDelete.id)}
+            onClose={() => setConfirmDelete(null)}
+            onConfirm={confirmCharacterDelete}
+          />
+        )}
       </Card>
     </>
   );
+}
+
+function normalizeImportedMesExamples(value) {
+  const examples = Array.isArray(value) ? value : typeof value === "string" && value.trim() ? [value] : [];
+  return examples.map((example) => {
+    if (typeof example === "string") return { user: "", character: example.trim() };
+    return {
+      user: typeof example?.user === "string" ? example.user : "",
+      character: typeof example?.character === "string" ? example.character : "",
+    };
+  }).filter((example) => example.user.trim() || example.character.trim());
 }
 
 async function createBlurredPreviewFile(file) {
@@ -935,6 +996,39 @@ function characterVersionPreview(version) {
   };
 }
 
+function characterVersionEditorState(version, fallbackName) {
+  const content = characterVersionContent(version);
+  const greetingItems = Array.isArray(content.greetings) ? content.greetings : [];
+  const explicitPrimaryIndex = greetingItems.findIndex((greeting) => greeting?.kind === "primary");
+  const primaryIndex = explicitPrimaryIndex >= 0 ? explicitPrimaryIndex : 0;
+
+  return {
+    profile: {
+      name: content.name || fallbackName,
+      // 编辑器版本对应 char_versions.ver；JSON 更新不会复用线上版本号覆盖历史快照。
+      version: String(version?.ver ?? content.spec_version ?? content.character_version ?? ""),
+      creator: content.creator || "",
+      creatorNotes: content.creator_notes || "",
+      tagline: content.tagline || "",
+      description: content.description || "",
+      personality: content.personality || "",
+      scenario: content.scenario || "",
+      avatarNotes: content.avatar_notes || "",
+      tags: Array.isArray(content.tags) ? content.tags : [],
+    },
+    prompt: content.prompt || "",
+    mesExamples: normalizeImportedMesExamples(content.mes_example).map((example, index) => ({ id: index + 1, ...example })),
+    greetings: greetingItems.length
+      ? greetingItems.map((greeting, index) => ({
+          id: index + 1,
+          primary: index === primaryIndex,
+          enabled: index === primaryIndex ? true : greeting?.enabled ?? true,
+          body: typeof greeting === "string" ? greeting : greeting?.body || "",
+        }))
+      : [{ id: 1, primary: true, enabled: true, body: "" }],
+  };
+}
+
 function displayCharacterVersion(version) {
   const value = String(version || "").trim();
   if (!value) return "未设置";
@@ -952,6 +1046,8 @@ export function CharacterEditorPage({ character, onBack, toast, onStatusChange }
   const [characterDetailError, setCharacterDetailError] = useState("");
   const [saving, setSaving] = useState(false);
   const [publishing, setPublishing] = useState(false);
+  const [jsonUpdating, setJsonUpdating] = useState(false);
+  const jsonUpdatingRef = useRef(false);
   const [greetings, setGreetings] = useState([]);
   const [mesExamples, setMesExamples] = useState([]);
   const [cover, setCover] = useState(character.cardImage || character.image || "");
@@ -999,46 +1095,15 @@ export function CharacterEditorPage({ character, onBack, toast, onStatusChange }
           return;
         }
         // 新角色使用单层 data；读取旧版本时仅在这里解开历史语言包装，保存后自动转成单层结构。
-        const content = characterVersionContent(version);
+        const editorState = characterVersionEditorState(version, character.name);
         // 左侧线上预览必须固定读取 published，不能被草稿或刚上传的封面覆盖。
         setPublishedPreview(characterVersionPreview(data?.published));
         setHasSavedDraft(Boolean(data?.draft));
         setHasUnsavedCover(false);
-        setProfile({
-          name: content.name || character.name,
-          // 版本输入框对应 char_versions.ver；旧数据没有 spec_version 时回退到旧快照字段。
-          version: String(version.ver ?? content.spec_version ?? content.character_version ?? ""),
-          creator: content.creator || "",
-          creatorNotes: content.creator_notes || "",
-          tagline: content.tagline || "",
-          description: content.description || "",
-          personality: content.personality || "",
-          scenario: content.scenario || "",
-          avatarNotes: content.avatar_notes || "",
-          tags: content.tags || [],
-        });
-        setPrompt(content.prompt || "");
-        const examples = Array.isArray(content.mes_example) ? content.mes_example : [];
-        setMesExamples(examples.map((example, index) => ({
-          id: index + 1,
-          user: example?.user || "",
-          character: example?.character || "",
-        })));
-        const greetingItems = Array.isArray(content.greetings) ? content.greetings : [];
-        if (greetingItems.length) {
-          // 兼容历史草稿：没有 kind=primary 时将第一条视为主开场，并保证保存后只有一个有效主开场。
-          const explicitPrimaryIndex = greetingItems.findIndex((greeting) => greeting?.kind === "primary");
-          const primaryIndex = explicitPrimaryIndex >= 0 ? explicitPrimaryIndex : 0;
-          setGreetings(greetingItems.map((greeting, index) => ({
-            id: index + 1,
-            primary: index === primaryIndex,
-            enabled: index === primaryIndex ? true : greeting?.enabled ?? true,
-            body: typeof greeting === "string" ? greeting : greeting?.body || "",
-          })));
-        } else {
-          // 空草稿也展示不可删除的主开场输入框，避免用户只能新增“备选开场”。
-          setGreetings([{ id: 1, primary: true, enabled: true, body: "" }]);
-        }
+        setProfile(editorState.profile);
+        setPrompt(editorState.prompt);
+        setMesExamples(editorState.mesExamples);
+        setGreetings(editorState.greetings);
         const bindings = version.assets || [];
         const previewRefs = await loadMediaRefsByIds(bindings.map((binding) => binding.preview_id));
         if (!active) return;
@@ -1252,6 +1317,45 @@ export function CharacterEditorPage({ character, onBack, toast, onStatusChange }
       setSaving(false);
     }
   };
+  const updateJson = async (file) => {
+    if (jsonUpdatingRef.current || saving || publishing) return;
+    if (!characterDetailReady) {
+      toast(characterDetailError ? "角色详情加载失败，请刷新页面后重试" : "角色详情仍在加载，请稍后再更新 JSON");
+      return;
+    }
+
+    jsonUpdatingRef.current = true;
+    setJsonUpdating(true);
+    try {
+      let card;
+      try {
+        card = JSON.parse(await file.text());
+        // 前端先做轻量校验以便立即提示文件问题；最终字段约束仍以服务端校验为准。
+        parseImportedCharacterCard(card);
+      } catch (error) {
+        throw new Error(error instanceof SyntaxError ? "JSON 文件格式错误，无法解析" : error.message);
+      }
+
+      const data = await adminApi.characters.updateJson({ char_id: Number(character.id), card });
+      if (!data?.draft) throw new Error("服务端未返回更新后的角色草稿");
+      const editorState = characterVersionEditorState(data.draft, character.name);
+      setProfile(editorState.profile);
+      setPrompt(editorState.prompt);
+      setMesExamples(editorState.mesExamples);
+      setGreetings(editorState.greetings);
+      setPublishedPreview(characterVersionPreview(data.published));
+      setStage("草稿");
+      setHasSavedDraft(true);
+      setTab("basic");
+      onStatusChange(character.id, "草稿");
+      toast("JSON 已覆盖到草稿，请人工检查后再上架");
+    } catch (error) {
+      toast(`更新角色 JSON 失败：${getApiErrorMessage(error, "请检查角色卡内容")}`);
+    } finally {
+      jsonUpdatingRef.current = false;
+      setJsonUpdating(false);
+    }
+  };
   const publish = async () => {
     setPublishing(true);
     try {
@@ -1317,6 +1421,7 @@ export function CharacterEditorPage({ character, onBack, toast, onStatusChange }
 
   return (
     <div>
+      <Spin fullscreen spinning={jsonUpdating} tip="正在更新角色 JSON…" />
       <div className="editor-toolbar">
         <PageBreadcrumb items={[
           { title: "角色管理", onClick: onBack },
@@ -1330,9 +1435,20 @@ export function CharacterEditorPage({ character, onBack, toast, onStatusChange }
         <span className={`definition-health ${definitionReady ? "is-ready" : ""}`}>
           {definitionReady ? <Check /> : <Warning />}{definitionReady ? "发布检查通过" : "发布检查未完成"}
         </span>
-        <AntButton onClick={openVersions} disabled={!characterDetailReady || saving || publishing}>版本记录</AntButton>
-        <AntButton onClick={() => save()} loading={saving} disabled={!characterDetailReady || publishing}>保存草稿</AntButton>
-        <AntButton type="primary" onClick={publish} loading={publishing} disabled={!characterDetailReady || saving}>上架</AntButton>
+        <AntButton onClick={openVersions} disabled={!characterDetailReady || saving || publishing || jsonUpdating}>版本记录</AntButton>
+        <AntButton onClick={() => save()} loading={saving} disabled={!characterDetailReady || publishing || jsonUpdating}>保存草稿</AntButton>
+        <Upload
+          accept=".json,application/json"
+          showUploadList={false}
+          disabled={!characterDetailReady || saving || publishing || jsonUpdating}
+          beforeUpload={(file) => {
+            void updateJson(file);
+            return false;
+          }}
+        >
+          <AntButton loading={jsonUpdating} disabled={!characterDetailReady || saving || publishing}>更新 JSON</AntButton>
+        </Upload>
+        <AntButton type="primary" onClick={publish} loading={publishing} disabled={!characterDetailReady || saving || jsonUpdating}>{publishedPreview ? "再上架" : "上架"}</AntButton>
       </div>
 
       {characterDetailError && <Alert type="error" showIcon message="角色详情加载失败" description={`${characterDetailError}。为避免空数据覆盖原草稿，保存和上架已禁用，请刷新页面后重试。`} />}
@@ -3203,6 +3319,8 @@ export default function Admin() {
   const [characterRetryKey, setCharacterRetryKey] = useState(0);
   const [isCharacterImporting, setIsCharacterImporting] = useState(false);
   const characterImportingRef = useRef(false);
+  const [deletingCharacterId, setDeletingCharacterId] = useState(null);
+  const deletingCharacterRef = useRef(null);
   const [openNavGroups, setOpenNavGroups] = useState(() => {
     try {
       const savedGroups = JSON.parse(window.localStorage.getItem("emora-admin-open-nav-groups") || "null");
@@ -3362,6 +3480,31 @@ export default function Admin() {
     }
   };
 
+  const deleteCharacter = async (character) => {
+    // 使用同步 Ref 锁住删除请求，避免快速重复点击在状态更新前发出两次请求。
+    if (deletingCharacterRef.current !== null) return false;
+    const characterId = Number(character.id);
+    deletingCharacterRef.current = characterId;
+    setDeletingCharacterId(characterId);
+    try {
+      await adminApi.characters.remove({ char_id: characterId });
+      setCharList((list) => list.filter((item) => Number(item.id) !== characterId));
+      setEditing((current) => (Number(current?.id) === characterId ? null : current));
+      toast(`角色「${character.name}」已删除`, "success");
+      return true;
+    } catch (error) {
+      const detail = getApiErrorMessage(error, "请稍后重试");
+      const messageText = detail === "Character has active generation tasks and cannot be deleted."
+        ? "该角色仍有生成任务正在执行，请稍后再删除"
+        : detail;
+      toast(`删除角色失败：${messageText}`, "error");
+      return false;
+    } finally {
+      deletingCharacterRef.current = null;
+      setDeletingCharacterId(null);
+    }
+  };
+
   const updateCharacterStatus = (id, status) => {
     setCharList((list) => list.map((c) => (c.id === id ? { ...c, status } : c)));
     setEditing((current) => (current?.id === id ? { ...current, status } : current));
@@ -3447,8 +3590,10 @@ export default function Admin() {
              characterLoadError,
              retryCharacters: () => setCharacterRetryKey((key) => key + 1),
              isCharacterImporting,
+             deletingCharacterId,
              createCharacter,
             importCharacter,
+            deleteCharacter,
             updateCharacterStatus,
           }} />
         </AntLayout.Content>

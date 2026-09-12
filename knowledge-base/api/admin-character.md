@@ -2,7 +2,7 @@
 
 > 基址：`https://testapi.weshow.cc/api`  
 > 鉴权：`Authorization: Bearer <admin-token>`  
-> 本页共 9 个接口；全部使用 JSON POST。
+> 本页共 11 个接口；全部使用 JSON POST。
 
 ## 目录
 
@@ -10,9 +10,11 @@
 - [角色详情和版本快照](#admincharacterdetail) — `/admin/characters/detail`
 - [角色版本历史](#admincharacterversions) — `/admin/characters/versions`
 - [创建角色草稿](#admincharactercreate) — `/admin/characters/create`
+- [使用 JSON 更新角色草稿](#admincharacterjsonupdate) — `/admin/characters/json/update`
 - [保存角色草稿](#admincharacterdraftsave) — `/admin/characters/draft/save`
 - [发布角色草稿](#admincharacterpublish) — `/admin/characters/publish`
 - [回滚角色版本](#admincharacterrollback) — `/admin/characters/rollback`
+- [删除角色](#admincharacterdelete) — `/admin/characters/delete`
 - [修改角色资产绑定状态](#admincharacterassetstatus) — `/admin/characters/assets/status`
 - [移除角色资产绑定](#admincharacterassetremove) — `/admin/characters/assets/remove`
 
@@ -593,6 +595,45 @@
 
 ---
 
+<a id="admincharacterjsonupdate"></a>
+## 使用 JSON 更新角色草稿
+
+- **操作 ID**：`adminCharacterJsonUpdate`
+- **请求**：`POST https://testapi.weshow.cc/api/admin/characters/json/update`
+- **鉴权**：Bearer Admin Token
+- **Content-Type**：`application/json`
+
+该接口把 `chara_card_v2` 中的名称、创建者、说明、人设、场景、系统提示、历史后指令、开场白、示例对话和标签覆盖到当前草稿。`char_code`、线上版本和视觉资产不会被修改；管理员检查草稿后仍需调用发布接口。
+
+### 请求字段
+
+| 字段 | 必填 | 类型 | 约束 | 说明 |
+|---|---:|---|---|---|
+| char_id | 是 | integer | min: 1 | 目标角色 ID |
+| card | 是 | object |  | 完整角色卡对象 |
+| card.spec | 是 | string | 固定 `chara_card_v2` | 角色卡规范 |
+| card.spec_version | 是 | string | maxLength: 64 | 角色卡规范版本 |
+| card.data | 是 | object |  | 角色卡内容 |
+| card.data.name | 是 | string | maxLength: 100 | 角色名称；不会修改 `char_code` |
+| card.data.first_mes | 否 | string | maxLength: 4096 | 主开场白 |
+| card.data.alternate_greetings | 否 | array<string> | 单项 maxLength: 4096 | 备选开场白 |
+| card.data.mes_example | 否 | string / array |  | 示例对话；字符串会完整保留为一个示例项 |
+| card.data.tags | 否 | array<string> | 单项 maxLength: 100 | 标签 |
+
+### 响应
+
+| 状态码 | 定义 |
+|---:|---|
+| 200 | 更新后的完整角色详情，`d.draft` 为已保存草稿 |
+| 401 | 未登录或 token 无效 |
+| 403 | 无权限 |
+| 404 | 角色不存在 |
+| 422 | JSON 格式或字段校验失败 |
+
+成功响应沿用“角色详情和版本快照”的 `CharacterDetailData` 结构。
+
+---
+
 <a id="admincharacterdraftsave"></a>
 ## 保存角色草稿
 
@@ -1057,6 +1098,54 @@
     "draft_ver_id": null,
     "published": null,
     "draft": null
+  }
+}
+```
+
+---
+
+<a id="admincharacterdelete"></a>
+## 删除角色
+
+- **操作 ID**：`adminCharacterDelete`
+- **请求**：`POST https://testapi.weshow.cc/api/admin/characters/delete`
+- **鉴权**：Bearer Admin Token
+- **Content-Type**：`application/json`
+
+### 请求字段
+
+| 字段 | 必填 | 类型 | 约束 | 说明 |
+|---|---:|---|---|---|
+| char_id | 是 | integer | min: 1 | 要删除的角色 ID |
+
+### 删除规则
+
+- 仅软删除 `characters` 主记录；管理后台与 C 端角色查询会立即隐藏该角色。
+- 保留 `char_code`、角色版本、媒体绑定、会话、用户人设、生成历史和统计数据，供历史记录追溯与审计。
+- 存在 `queued`、`running` 或 `streaming` 生成任务时返回 HTTP 409，任务进入终态后可重试。
+- 数据库提交后清理该角色各支持语言的 SSE 角色资料缓存；Redis 清理失败不回滚已完成的软删除。
+
+### 响应
+
+| 状态码 | 定义 |
+|---:|---|
+| 200 | 角色已软删除 |
+| 401 | 未登录或 token 无效 |
+| 403 | 无权限 |
+| 404 | 角色不存在或已删除 |
+| 409 | 角色仍有进行中的生成任务 |
+| 422 | 参数校验失败 |
+
+成功响应示例：
+
+```json
+{
+  "c": 0,
+  "m": null,
+  "d": {
+    "char_id": 1,
+    "char_code": "char_night_walker",
+    "deleted": true
   }
 }
 ```

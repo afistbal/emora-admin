@@ -23,6 +23,8 @@ function CharacterRoute({ context }) {
     characterLoadError,
     characterLoadState,
     createCharacter,
+    deleteCharacter,
+    deletingCharacterId,
     editing,
     importCharacter,
     isCharacterImporting,
@@ -64,7 +66,9 @@ function CharacterRoute({ context }) {
       onEdit={setEditing}
       onCreate={createCharacter}
       onImport={importCharacter}
+      onDelete={deleteCharacter}
       isImporting={isCharacterImporting}
+      deletingCharacterId={deletingCharacterId}
     />
   );
 }
