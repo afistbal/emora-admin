@@ -22,7 +22,6 @@ function CharacterRoute({ context }) {
     charList,
     characterLoadError,
     characterLoadState,
-    createCharacter,
     deleteCharacter,
     deletingCharacterId,
     editing,
@@ -64,7 +63,6 @@ function CharacterRoute({ context }) {
     <CharacterListPage
       list={charList}
       onEdit={setEditing}
-      onCreate={createCharacter}
       onImport={importCharacter}
       onDelete={deleteCharacter}
       isImporting={isCharacterImporting}

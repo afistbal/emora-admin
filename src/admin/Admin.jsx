@@ -752,80 +752,7 @@ const PLATFORM_SYSTEM_PROMPT = `【平台安全规则】
 
 你这话我没法接了，换个话题吧`;
 
-function NewCharacterDialog({ onClose, onCreate }) {
-  const [charCode, setCharCode] = useState("");
-  const [name, setName] = useState("");
-  const [tags, setTags] = useState("");
-  const [subtitle, setSubtitle] = useState("");
-  const [greeting, setGreeting] = useState("");
-  const [cover, setCover] = useState(null);
-  const [coverFile, setCoverFile] = useState(null);
-  const [submitting, setSubmitting] = useState(false);
-  const [submitError, setSubmitError] = useState("");
-
-  const valid = charCode.trim() && name.trim() && greeting.trim() && cover;
-  const confirm = async () => {
-    setSubmitting(true);
-    setSubmitError("");
-    try {
-      await onCreate({
-      id: `char_${Date.now()}`,
-      charCode: charCode.trim(),
-      name: name.trim(), subtitle: subtitle.trim(),
-      status: "草稿", version: "v0.1.0-draft", publishedAt: "—",
-      tags: tags.split(/[，,\s]+/).filter(Boolean).slice(0, 4),
-      image: cover, cardImage: cover,
-      greeting: greeting.trim(), lockedImage: cover, gallery: [cover], video: null,
-      sessions7d: 0, validDialogs7d: 0, todaySessions: 0, assetScore: 1,
-      chats: 0, msgCount: 0, msgPer: 0, expPv: 0, expUv: 0, genSubmit: 0, genRate: "—",
-      coverFile,
-      });
-    } catch (error) {
-      setSubmitError(getApiErrorMessage(error, "创建角色失败，请重试"));
-    } finally {
-      setSubmitting(false);
-    }
-  };
-
-  return (
-    <AntModal
-      open
-      title="新增角色"
-      width={520}
-      maskClosable={!submitting}
-      closable={!submitting}
-      onCancel={onClose}
-      footer={[
-        <AntButton key="cancel" disabled={submitting} onClick={onClose}>取消</AntButton>,
-        <AntButton key="submit" type="primary" loading={submitting} disabled={!valid} onClick={confirm}>创建并进入编辑器</AntButton>,
-      ]}
-    >
-        <Form.Item label="角色编码 char_code *"><AntInput maxLength={64} value={charCode} onChange={(e) => setCharCode(e.target.value)} placeholder="如：char_night_walker" autoFocus /></Form.Item>
-        <div style={{ marginTop: 12 }}>
-        <Form.Item label="名称 *"><AntInput value={name} onChange={(e) => setName(e.target.value)} placeholder="如：星野" /></Form.Item>
-        </div>
-        <div style={{ marginTop: 12 }}>
-          <Form.Item label="标签（逗号分隔，≤4 个）"><AntInput value={tags} onChange={(e) => setTags(e.target.value)} placeholder="如：元气， 校园， 歌手" /></Form.Item>
-        </div>
-        <div style={{ marginTop: 12 }}>
-          <Form.Item label="简介"><AntInput.TextArea style={{ minHeight: 56 }} value={subtitle} onChange={(e) => setSubtitle(e.target.value)} /></Form.Item>
-        </div>
-        <div style={{ marginTop: 12 }}>
-          <Form.Item label="主开场白 first_mes *"><AntInput.TextArea style={{ minHeight: 56 }} value={greeting} onChange={(e) => setGreeting(e.target.value)} placeholder="输入角色的主开场白…" /></Form.Item>
-        </div>
-        <div style={{ marginTop: 12 }}>
-          <Form.Item label="封面（本地上传）*">
-            <ImageUploadCard src={cover} alt="封面预览" onSelect={(file) => { setCoverFile(file); setCover(URL.createObjectURL(file)); }} />
-          </Form.Item>
-        </div>
-        {submitError && <Alert type="error" showIcon message={submitError} style={{ marginTop: 12 }} />}
-        <p className="muted small" style={{ margin: "10px 0 0", textAlign: "center" }}>新角色以「草稿」状态创建</p>
-    </AntModal>
-  );
-}
-
-export function CharacterListPage({ list, onEdit, onCreate, onImport, onDelete, isImporting = false, deletingCharacterId = null }) {
-  const [showNew, setShowNew] = useState(false);
+export function CharacterListPage({ list, onEdit, onImport, onDelete, isImporting = false, deletingCharacterId = null }) {
   const [confirmDelete, setConfirmDelete] = useState(null);
 
   const confirmCharacterDelete = async () => {
@@ -855,7 +782,6 @@ export function CharacterListPage({ list, onEdit, onCreate, onImport, onDelete, 
                 {isImporting ? "正在导入…" : "导入 JSON"}
               </AntButton>
             </Upload>
-            <AntButton type="primary" disabled={isImporting} onClick={() => setShowNew(true)}>+ 新增角色</AntButton>
           </div>
         )}
       >
@@ -902,7 +828,6 @@ export function CharacterListPage({ list, onEdit, onCreate, onImport, onDelete, 
           ]}
           />
         </div>
-        {showNew && <NewCharacterDialog onClose={() => setShowNew(false)} onCreate={onCreate} />}
         {confirmDelete && (
           <ConfirmDialog
             title="删除角色"
@@ -1355,7 +1280,7 @@ export function CharacterEditorPage({ character, onBack, toast, onStatusChange }
       setHasSavedDraft(true);
       setTab("basic");
       onStatusChange(character.id, "草稿");
-      toast("JSON 已覆盖到草稿，请人工检查后再上架");
+      toast("JSON 已覆盖到草稿，请人工检查后上架");
     } catch (error) {
       toast(`更新角色 JSON 失败：${getApiErrorMessage(error, "请检查角色卡内容")}`);
     } finally {
@@ -1453,9 +1378,9 @@ export function CharacterEditorPage({ character, onBack, toast, onStatusChange }
             return false;
           }}
         >
-          <AntButton loading={jsonUpdating} disabled={!characterDetailReady || saving || publishing}>更新 JSON</AntButton>
+          <AntButton color="orange" variant="solid" loading={jsonUpdating} disabled={!characterDetailReady || saving || publishing}>更新 JSON</AntButton>
         </Upload>
-        <AntButton type="primary" onClick={publish} loading={publishing} disabled={!characterDetailReady || saving || jsonUpdating}>{publishedPreview ? "再上架" : "上架"}</AntButton>
+        <AntButton type="primary" onClick={publish} loading={publishing} disabled={!characterDetailReady || saving || jsonUpdating}>上架</AntButton>
       </div>
 
       {characterDetailError && <Alert type="error" showIcon message="角色详情加载失败" description={`${characterDetailError}。为避免空数据覆盖原草稿，保存和上架已禁用，请刷新页面后重试。`} />}
@@ -3598,7 +3523,6 @@ export default function Admin() {
              retryCharacters: () => setCharacterRetryKey((key) => key + 1),
              isCharacterImporting,
              deletingCharacterId,
-             createCharacter,
             importCharacter,
             deleteCharacter,
             updateCharacterStatus,
