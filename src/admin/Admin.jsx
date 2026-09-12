@@ -1096,6 +1096,10 @@ export function CharacterEditorPage({ character, onBack, toast, onStatusChange }
         }
         // 新角色使用单层 data；读取旧版本时仅在这里解开历史语言包装，保存后自动转成单层结构。
         const editorState = characterVersionEditorState(version, character.name);
+        if (!data?.draft && data?.suggested_draft_ver) {
+          // 首次编辑线上版本时展示服务端计算的下一版本；已有草稿则继续沿用草稿版本。
+          editorState.profile.version = String(data.suggested_draft_ver);
+        }
         // 左侧线上预览必须固定读取 published，不能被草稿或刚上传的封面覆盖。
         setPublishedPreview(characterVersionPreview(data?.published));
         setHasSavedDraft(Boolean(data?.draft));
@@ -1303,7 +1307,10 @@ export function CharacterEditorPage({ character, onBack, toast, onStatusChange }
     }
     setSaving(true);
     try {
-      await adminApi.characters.saveDraft({ char_id: Number(character.id), ver: profile.version, data: buildCharacterData(), assets: buildAssetBindings(), platform_system_prompt: platformSystemPrompt });
+      const savedDraft = await adminApi.characters.saveDraft({ char_id: Number(character.id), ver: profile.version, data: buildCharacterData(), assets: buildAssetBindings(), platform_system_prompt: platformSystemPrompt });
+      if (savedDraft?.ver) {
+        setProfile((value) => ({ ...value, version: String(savedDraft.ver) }));
+      }
       setStage("草稿");
       setHasSavedDraft(true);
       setHasUnsavedCover(false);

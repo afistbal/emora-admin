@@ -178,6 +178,7 @@
 | d.character.pub_ver_id | 否 | integer |  |  |
 | d.character.draft_ver_id | 否 | integer |  |  |
 | d.character.updated_at | 否 | string | date-time |  |
+| d.suggested_draft_ver | 否 | string | maxLength: 64 | 当前没有草稿时建议使用的下一版本号；已有草稿时返回草稿版本号。 |
 | d.published | 否 | object |  |  |
 | d.published.id | 否 | integer |  |  |
 | d.published.char_id | 否 | integer |  |  |
