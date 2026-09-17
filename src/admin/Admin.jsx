@@ -1017,6 +1017,8 @@ export function CharacterListPage({
             {
               title: "操作",
               key: "action",
+              width: 104,
+              fixed: "right",
               render: (_, character) => (
                 <Space size={0} wrap>
                   <AntButton type="link" onClick={(event) => { event.stopPropagation(); onEdit(character); }}>编辑</AntButton>
@@ -1388,8 +1390,8 @@ function displayCharacterVersion(version) {
   return value.toLowerCase().startsWith("v") ? value : `v${value}`;
 }
 
-// 角色编辑页字段密集，局部提升 Ant Design 字号，避免影响列表和其他后台页面的信息密度。
-const CHARACTER_EDITOR_THEME = { token: { fontSize: 15 } };
+// 角色编辑页字段密集，局部使用紧凑字号，避免影响列表和其他后台页面。
+const CHARACTER_EDITOR_THEME = { token: { fontSize: 14 } };
 
 export function CharacterEditorPage({ character, onBack, toast, onStatusChange }) {
   const [tab, setTab] = useState("basic");

@@ -198,18 +198,18 @@ body {
 .table tr.clickable { cursor: pointer; }
 .table .num { font-variant-numeric: tabular-nums; }
 .character-list-table .ant-table { min-width: 100%; }
-/* 角色列表信息密度较高，单独提升字号以增强桌面端可读性，不影响其他后台表格。 */
+/* 角色列表列数较多，字号保持紧凑，并为右侧开关和操作列释放稳定空间。 */
 .character-list-table .ant-table-thead > tr > th,
-.character-list-table .ant-table-tbody > tr > td { font-size: 15px; }
-.character-list-table .ant-tag { font-size: 14px; line-height: 22px; }
+.character-list-table .ant-table-tbody > tr > td { font-size: 14px; }
+.character-list-table .ant-tag { font-size: 13px; line-height: 20px; }
 .character-list-actions { display:flex; align-items:center; justify-content:flex-end; flex-wrap:wrap; gap:10px; }
 /* 短字段按内容收缩，角色和标签列弹性使用剩余空间。 */
 .character-list-table .ant-table-cell:is(:nth-child(2), :nth-child(4), :nth-child(5), :nth-child(7), :nth-child(8), :nth-child(9), :nth-child(10), :nth-child(11), :nth-child(12)) {
   width: 1%;
   white-space: nowrap;
 }
-.character-list-table .ant-table-cell:nth-child(3) { min-width: 250px; max-width: 320px; }
-.character-list-table .ant-table-cell:nth-child(6) { min-width: 140px; max-width: 220px; }
+.character-list-table .ant-table-cell:nth-child(3) { min-width: 220px; max-width: 290px; }
+.character-list-table .ant-table-cell:nth-child(6) { min-width: 120px; max-width: 190px; }
 .character-list-role { display:flex; align-items:center; gap:10px; min-width:0; }
 .character-list-avatar { flex:none; }
 .character-list-role-copy { min-width:0; }
@@ -221,8 +221,8 @@ body {
   margin-top:3px;
   overflow:hidden;
   color:var(--muted);
-  font-size:14px;
-  line-height:21px;
+  font-size:13px;
+  line-height:20px;
   text-overflow:ellipsis;
   white-space:nowrap;
 }
@@ -362,9 +362,9 @@ body {
 .token-legend i { display: inline-block; width: 9px; height: 9px; border-radius: 3px; margin-right: 6px; }
 
 /* 角色编辑器 */
-.character-editor-page .ant-admin-card-title > span { font-size: 16px; }
-.character-editor-page .ant-admin-card-title small { font-size: 14px; }
-.character-editor-page .small { font-size: 14px; }
+.character-editor-page .ant-admin-card-title > span { font-size: 15px; }
+.character-editor-page .ant-admin-card-title small { font-size: 13px; }
+.character-editor-page .small { font-size: 13px; }
 .editor-tabs {
   display: grid;
   grid-template-columns: 280px minmax(0, 1fr);
@@ -456,7 +456,7 @@ body {
 }
 .editor-toolbar { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
 .editor-stage-note { color: var(--muted); font-size: 11px; }
-.character-status-note { margin-top: 5px; color: var(--muted); font-size: 13px; line-height: 19px; white-space: nowrap; }
+.character-status-note { margin-top: 4px; color: var(--muted); font-size: 12px; line-height: 18px; white-space: nowrap; }
 .definition-health { display: inline-flex; align-items: center; gap: 6px; color: var(--accent); font-size: 11px; font-weight: 700; }
 .definition-health svg { width: 14px; height: 14px; }
 .definition-health.is-ready { color: var(--success); }
@@ -581,24 +581,24 @@ body {
 .prompt-checks .is-pass { color: var(--muted); }
 .prompt-checks .is-pass svg { color: var(--success); }
 
-/* 编辑页原有辅助信息仅 10–13px；统一上调一级，保留主次层级并兼顾深浅主题。 */
-.character-editor-page .editor-preview-guide .ant-typography { font-size: 15px; }
+/* 编辑页保持紧凑字号，并保留标题、正文和辅助信息的层级。 */
+.character-editor-page .editor-preview-guide .ant-typography { font-size: 14px; }
 .character-editor-page .editor-preview-guide span,
 .character-editor-page .basic-cover-panel > .ant-typography,
 .character-editor-page .editor-version-copy span,
 .character-editor-page .editor-stage-note,
-.character-editor-page .definition-health { font-size: 13px; line-height: 19px; }
+.character-editor-page .definition-health { font-size: 12px; line-height: 18px; }
 .character-editor-page .editor-version-head .ant-typography,
 .character-editor-page .editor-version-empty,
 .character-editor-page .persona-block > header .order,
 .character-editor-page .greeting-card .order,
 .character-editor-page .greeting-foot,
-.character-editor-page .prompt-checks span { font-size: 12px; }
+.character-editor-page .prompt-checks span { font-size: 11px; }
 .character-editor-page .editor-version-copy strong,
 .character-editor-page .persona-block > header b,
-.character-editor-page .greeting-card header b { font-size: 15px; }
+.character-editor-page .greeting-card header b { font-size: 14px; }
 .character-editor-page .summary-kv,
-.character-editor-page .prompt-textarea { font-size: 14px; }
+.character-editor-page .prompt-textarea { font-size: 13px; }
 
 /* 资产网格 */
 .asset-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 14px; }
