@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { Alert, App as AntApp, Avatar, Badge as AntBadge, Button as AntButton, Card as AntCard, Collapse as AntCollapse, DatePicker, Drawer as AntDrawer, Empty, Flex, Form, Input as AntInput, InputNumber as AntInputNumber, Layout as AntLayout, Menu as AntMenu, Modal as AntModal, Pagination, Progress as AntProgress, Segmented, Select as AntSelect, Space, Spin, Switch as AntSwitch, Table as AntTable, Tabs, Tag, Typography, Upload } from "antd";
+import { Alert, App as AntApp, Avatar, Badge as AntBadge, Button as AntButton, Card as AntCard, Collapse as AntCollapse, ConfigProvider, DatePicker, Drawer as AntDrawer, Empty, Flex, Form, Input as AntInput, InputNumber as AntInputNumber, Layout as AntLayout, Menu as AntMenu, Modal as AntModal, Pagination, Progress as AntProgress, Segmented, Select as AntSelect, Space, Spin, Switch as AntSwitch, Table as AntTable, Tabs, Tag, Typography, Upload } from "antd";
 import dayjs from "dayjs";
 import {
   Bell,
@@ -48,7 +48,7 @@ function LoadingState({ text = "加载中…" }) {
 }
 
 function Badge({ tone = "gray", children }) {
-  const colors = { green: "success", yellow: "warning", red: "error", gray: "default" };
+  const colors = { green: "success", yellow: "warning", orange: "orange", red: "error", gray: "default" };
   return <Tag color={colors[tone]}>{children}</Tag>;
 }
 
@@ -780,13 +780,19 @@ export function CharacterListPage({
   onBatchImport,
   onBatchComplete,
   onDelete,
+  onPublish,
+  onBatchPublish,
+  onBatchRecommend,
   onRecommendationChange,
   isImporting = false,
   deletingCharacterId = null,
+  publishingCharacterId = null,
   updatingRecommendationId = null,
+  batchAction = null,
 }) {
   const { message } = AntApp.useApp();
   const [confirmDelete, setConfirmDelete] = useState(null);
+  const [selectedRowKeys, setSelectedRowKeys] = useState([]);
   const [batchImportOpen, setBatchImportOpen] = useState(false);
   const [batchPreparing, setBatchPreparing] = useState(false);
   const [batchRunning, setBatchRunning] = useState(false);
@@ -869,6 +875,24 @@ export function CharacterListPage({
     return counts;
   }, {});
   const isBatchBusy = batchPreparing || batchRunning;
+  const selectedKeySet = new Set(selectedRowKeys.map(Number));
+  const selectedCharacters = list.filter((character) => selectedKeySet.has(Number(character.id)));
+  const hasPublishCandidates = selectedCharacters.some((character) => character.status !== "已上架");
+  const hasRecommendCandidates = selectedCharacters.some((character) => character.status === "已上架" && !character.isRecommended);
+  const isCharacterActionBusy = batchAction !== null || publishingCharacterId !== null || updatingRecommendationId !== null || deletingCharacterId !== null;
+
+  useEffect(() => {
+    // 多选仅作用于当前分页，翻页或切换每页数量后清空，避免误操作不可见角色。
+    setSelectedRowKeys([]);
+  }, [page, pageSize]);
+
+  useEffect(() => {
+    const visibleIds = new Set(list.map((character) => Number(character.id)));
+    setSelectedRowKeys((keys) => {
+      const nextKeys = keys.filter((key) => visibleIds.has(Number(key)));
+      return nextKeys.length === keys.length ? keys : nextKeys;
+    });
+  }, [list]);
 
   const confirmCharacterDelete = async () => {
     if (!confirmDelete) return;
@@ -883,7 +907,23 @@ export function CharacterListPage({
         title="官方角色"
         sub={`共 ${total} 个角色 · 未发布草稿的改动不影响 C 端`}
         actions={(
-          <div style={{ display: "flex", gap: 10 }}>
+          <div className="character-list-actions">
+            <Typography.Text type="secondary">已选 {selectedCharacters.length} 个</Typography.Text>
+            <AntButton
+              loading={batchAction === "publish"}
+              disabled={!hasPublishCandidates || isCharacterActionBusy || isImporting || isBatchBusy}
+              onClick={() => void onBatchPublish(selectedCharacters)}
+            >
+              批量上架
+            </AntButton>
+            <AntButton
+              type="primary"
+              loading={batchAction === "recommend"}
+              disabled={!hasRecommendCandidates || isCharacterActionBusy || isImporting || isBatchBusy}
+              onClick={() => void onBatchRecommend(selectedCharacters)}
+            >
+              批量推荐
+            </AntButton>
             <Upload
               directory
               multiple
@@ -918,14 +958,20 @@ export function CharacterListPage({
           pagination={false}
           rowKey="id"
           dataSource={list}
+          rowSelection={{
+            selectedRowKeys,
+            columnWidth: 48,
+            onChange: (keys) => setSelectedRowKeys(keys.map(Number)),
+            getCheckboxProps: () => ({ disabled: batchAction !== null }),
+          }}
           rowClassName={() => "clickable"}
           onRow={(character) => ({ onClick: () => onEdit(character) })}
           columns={[
             { title: "ID", dataIndex: "id", render: (value) => <span className="muted">{value}</span> },
             { title: "角色", key: "role", render: (_, character) => <div className="character-list-role"><Avatar className="character-list-avatar" shape="square" size={80} src={character.image || undefined} alt={character.name}>{character.name?.trim().charAt(0) || "?"}</Avatar><div className="character-list-role-copy"><b>{character.name}</b>{character.subtitle && <div className="muted character-list-summary" title={character.subtitle}>{character.subtitle}</div>}</div></div> },
-            { title: "状态", key: "status", render: (_, character) => <><Badge tone={character.status === "草稿" ? "yellow" : "green"}>{character.status}</Badge><div className="character-status-note">{character.status === "草稿" ? "未影响线上版本" : "C 端可见"}</div></> },
+            { title: "状态", key: "status", render: (_, character) => <><Badge tone={character.status === "草稿" ? "orange" : "green"}>{character.status}</Badge><div className="character-status-note">{character.status === "草稿" ? "未影响线上版本" : "C 端可见"}</div></> },
             { title: "版本", dataIndex: "version", render: (value) => value ? <Typography.Text code>{displayCharacterVersion(value)}</Typography.Text> : "—" },
-            { title: "标签", dataIndex: "tags", render: (tags) => <Space size={[4, 4]} wrap>{tags.slice(0, 4).map((tag) => <Tag key={tag}>{tag}</Tag>)}</Space> },
+            { title: "标签", dataIndex: "tags", render: (tags) => <Space size={[4, 4]} wrap>{tags.slice(0, 2).map((tag) => <Tag key={tag}>{tag}</Tag>)}</Space> },
             { title: "今日聊天用户数", dataIndex: "chats", align: "right", render: (value) => value.toLocaleString() },
             { title: "消息次数", key: "messages", align: "right", render: (_, character) => <>{character.msgCount.toLocaleString()}<div className="muted" style={{ fontSize: 11 }}>人均 {character.msgPer} 轮</div></> },
             { title: "卡曝光 pv/uv", key: "exposure", align: "right", render: (_, character) => `${character.expPv.toLocaleString()} / ${character.expUv.toLocaleString()}` },
@@ -941,12 +987,27 @@ export function CharacterListPage({
                     <AntSwitch
                       checked={character.isRecommended}
                       aria-label={`${character.name}${character.isRecommended ? "关闭" : "开启"}推荐`}
-                      disabled={character.status !== "已上架" || updatingRecommendationId !== null}
+                      disabled={character.status !== "已上架" || updatingRecommendationId !== null || batchAction !== null}
                       loading={Number(updatingRecommendationId) === Number(character.id)}
                       onClick={(_, event) => event.stopPropagation()}
                       onChange={(checked, event) => {
                         event.stopPropagation();
                         void onRecommendationChange(character, checked);
+                      }}
+                    />
+                  </Space>
+                  <Space size={8}>
+                    <span>上架</span>
+                    <AntSwitch
+                      checked={character.status === "已上架"}
+                      aria-label={`${character.name}${character.status === "已上架" ? "已上架" : "执行上架"}`}
+                      disabled={character.status === "已上架" || publishingCharacterId !== null || batchAction !== null}
+                      loading={Number(publishingCharacterId) === Number(character.id)}
+                      onClick={(_, event) => event.stopPropagation()}
+                      onChange={(checked, event) => {
+                        event.stopPropagation();
+                        // 上架是单向发布动作；下架不属于现有角色状态机，已上架后保持只读。
+                        if (checked) void onPublish(character);
                       }}
                     />
                   </Space>
@@ -1326,6 +1387,9 @@ function displayCharacterVersion(version) {
   if (!value) return "未设置";
   return value.toLowerCase().startsWith("v") ? value : `v${value}`;
 }
+
+// 角色编辑页字段密集，局部提升 Ant Design 字号，避免影响列表和其他后台页面的信息密度。
+const CHARACTER_EDITOR_THEME = { token: { fontSize: 15 } };
 
 export function CharacterEditorPage({ character, onBack, toast, onStatusChange }) {
   const [tab, setTab] = useState("basic");
@@ -1719,7 +1783,8 @@ export function CharacterEditorPage({ character, onBack, toast, onStatusChange }
   const hasDraftPreview = hasSavedDraft || hasUnsavedCover;
 
   return (
-    <div>
+    <ConfigProvider theme={CHARACTER_EDITOR_THEME}>
+    <div className="character-editor-page">
       <Spin fullscreen spinning={jsonUpdating} tip="正在更新角色 JSON…" />
       <div className="editor-toolbar">
         <PageBreadcrumb items={[
@@ -2024,6 +2089,7 @@ export function CharacterEditorPage({ character, onBack, toast, onStatusChange }
         </AntModal>
       )}
     </div>
+    </ConfigProvider>
   );
 }
 
@@ -2259,6 +2325,9 @@ function TxTable({ rows }) {
     </div>
   );
 }
+
+// Ant Design 6 使用 container 作为弹窗内容容器；局部增加四周留白，不影响其他后台弹窗。
+const USER_DETAIL_MODAL_STYLES = { container: { padding: "36px 40px 40px" } };
 
 export function UsersPage({ toast, adminToken }) {
   const [view, setView] = useState("list"); // list | records
@@ -2588,7 +2657,7 @@ export function UsersPage({ toast, adminToken }) {
       </Card>
 
       {selected && (
-        <AntModal open title={`用户详情 · ${selected.nick}`} width={760} footer={null} onCancel={() => { if (!coinGrantBusy && !quotaResetBusy && !accountStatusBusy) closeUser(); }} closable={!coinGrantBusy && !quotaResetBusy && !accountStatusBusy} keyboard={!coinGrantBusy && !quotaResetBusy && !accountStatusBusy} maskClosable={!coinGrantBusy && !quotaResetBusy && !accountStatusBusy} destroyOnHidden className="user-detail-modal">
+        <AntModal open title={`用户详情 · ${selected.nick}`} width={760} footer={null} styles={USER_DETAIL_MODAL_STYLES} onCancel={() => { if (!coinGrantBusy && !quotaResetBusy && !accountStatusBusy) closeUser(); }} closable={!coinGrantBusy && !quotaResetBusy && !accountStatusBusy} keyboard={!coinGrantBusy && !quotaResetBusy && !accountStatusBusy} maskClosable={!coinGrantBusy && !quotaResetBusy && !accountStatusBusy} destroyOnHidden className="user-detail-modal">
           {detailLoading ? (
             <div className="user-detail-loading-state"><Spin size="large" description="正在加载完整资料…" /></div>
           ) : detailError ? (
@@ -3645,6 +3714,11 @@ export default function Admin() {
   const [characterPageSize, setCharacterPageSize] = useState(10);
   const [characterTotal, setCharacterTotal] = useState(0);
   const [updatingRecommendationId, setUpdatingRecommendationId] = useState(null);
+  const updatingRecommendationRef = useRef(null);
+  const [publishingCharacterId, setPublishingCharacterId] = useState(null);
+  const publishingCharacterRef = useRef(null);
+  const [characterBatchAction, setCharacterBatchAction] = useState(null);
+  const characterBatchActionRef = useRef(null);
   const [adminToken, setAdminTokenState] = useState(getAdminToken());
   const [apiState, setApiState] = useState(() => (getAdminToken() ? "connected" : "token-required"));
   const [characterLoadState, setCharacterLoadState] = useState("idle");
@@ -3869,20 +3943,89 @@ export default function Admin() {
     }
   };
 
-  const updateCharacterRecommendation = async (character, enabled) => {
+  const updateCharacterRecommendation = async (character, enabled, options = {}) => {
+    const { allowBatch = false, notify = true } = options;
+    if (updatingRecommendationRef.current !== null || (!allowBatch && characterBatchActionRef.current !== null)) return false;
     const characterId = Number(character.id);
+    updatingRecommendationRef.current = characterId;
     setUpdatingRecommendationId(characterId);
     try {
       await adminApi.homeRecommendation.setCharacterStatus({ char_id: characterId, enabled });
       setCharList((list) => list.map((item) => (Number(item.id) === characterId ? { ...item, isRecommended: enabled } : item)));
-      toast(`已${enabled ? "开启" : "关闭"}角色「${character.name}」的推荐`, "success");
+      if (notify) toast(`已${enabled ? "开启" : "关闭"}角色「${character.name}」的推荐`, "success");
       return true;
     } catch (error) {
-      toast(getApiErrorMessage(error, "推荐状态更新失败"), "error");
+      if (notify) toast(getApiErrorMessage(error, "推荐状态更新失败"), "error");
       return false;
     } finally {
+      updatingRecommendationRef.current = null;
       setUpdatingRecommendationId(null);
     }
+  };
+
+  const publishCharacterFromList = async (character, options = {}) => {
+    const { allowBatch = false, notify = true } = options;
+    if (character.status === "已上架" || publishingCharacterRef.current !== null || (!allowBatch && characterBatchActionRef.current !== null)) return false;
+    const characterId = Number(character.id);
+    publishingCharacterRef.current = characterId;
+    setPublishingCharacterId(characterId);
+    try {
+      // 发布接口不传 ver_id 时使用该角色当前 draft_ver_id，与编辑页发布规则保持一致。
+      const published = await adminApi.characters.publish({ char_id: characterId });
+      const publishedVersion = published?.published?.ver;
+      setCharList((list) => list.map((item) => (
+        Number(item.id) === characterId
+          ? { ...item, status: "已上架", version: publishedVersion || item.version }
+          : item
+      )));
+      if (notify) toast(`角色「${character.name}」已上架`, "success");
+      return true;
+    } catch (error) {
+      if (notify) toast(getApiErrorMessage(error, "角色上架失败"), "error");
+      return false;
+    } finally {
+      publishingCharacterRef.current = null;
+      setPublishingCharacterId(null);
+    }
+  };
+
+  const runCharacterBatchAction = async (characters, action) => {
+    if (characterBatchActionRef.current !== null || !characters.length) return false;
+    const candidates = characters.filter((character) => (
+      action === "publish"
+        ? character.status !== "已上架"
+        : character.status === "已上架" && !character.isRecommended
+    ));
+    if (!candidates.length) {
+      toast(action === "publish" ? "所选角色均已上架" : "所选角色没有可推荐项，请先上架未发布角色", "warning");
+      return false;
+    }
+
+    characterBatchActionRef.current = action;
+    setCharacterBatchAction(action);
+    let successCount = 0;
+    let failedCount = 0;
+    const skippedCount = characters.length - candidates.length;
+    try {
+      // 现有后端仅提供单角色接口，按顺序执行可限制请求压力，并允许失败项单独重试。
+      for (const character of candidates) {
+        const succeeded = action === "publish"
+          ? await publishCharacterFromList(character, { allowBatch: true, notify: false })
+          : await updateCharacterRecommendation(character, true, { allowBatch: true, notify: false });
+        if (succeeded) successCount += 1;
+        else failedCount += 1;
+      }
+    } finally {
+      characterBatchActionRef.current = null;
+      setCharacterBatchAction(null);
+    }
+
+    const actionLabel = action === "publish" ? "批量上架" : "批量推荐";
+    toast(
+      `${actionLabel}完成：成功 ${successCount} 个，失败 ${failedCount} 个${skippedCount ? `，跳过 ${skippedCount} 个` : ""}`,
+      failedCount > 0 ? "warning" : "success",
+    );
+    return failedCount === 0;
   };
 
   const updateCharacterStatus = (id, status) => {
@@ -3978,11 +4121,16 @@ export default function Admin() {
             },
             isCharacterImporting,
             deletingCharacterId,
+            publishingCharacterId,
             updatingRecommendationId,
+            characterBatchAction,
             importCharacter,
             importBatchCharacter,
             completeBatchCharacterImport,
             deleteCharacter,
+            publishCharacterFromList,
+            batchPublishCharacters: (characters) => runCharacterBatchAction(characters, "publish"),
+            batchRecommendCharacters: (characters) => runCharacterBatchAction(characters, "recommend"),
             updateCharacterStatus,
             updateCharacterRecommendation,
           }} />

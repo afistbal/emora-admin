@@ -20,6 +20,8 @@ import {
 function CharacterRoute({ context }) {
   const {
     adminToken,
+    batchPublishCharacters,
+    batchRecommendCharacters,
     charList,
     characterPage,
     characterPageSize,
@@ -30,9 +32,12 @@ function CharacterRoute({ context }) {
     deletingCharacterId,
     editing,
     completeBatchCharacterImport,
+    characterBatchAction,
     importBatchCharacter,
     importCharacter,
     isCharacterImporting,
+    publishCharacterFromList,
+    publishingCharacterId,
     retryCharacters,
     setCharacterPagination,
     setEditing,
@@ -78,11 +83,16 @@ function CharacterRoute({ context }) {
       onDelete={deleteCharacter}
       isImporting={isCharacterImporting}
       deletingCharacterId={deletingCharacterId}
+      publishingCharacterId={publishingCharacterId}
       updatingRecommendationId={updatingRecommendationId}
+      batchAction={characterBatchAction}
       page={characterPage}
       pageSize={characterPageSize}
       total={characterTotal}
       onPageChange={setCharacterPagination}
+      onPublish={publishCharacterFromList}
+      onBatchPublish={batchPublishCharacters}
+      onBatchRecommend={batchRecommendCharacters}
       onRecommendationChange={updateCharacterRecommendation}
     />
   );
