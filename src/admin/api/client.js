@@ -37,6 +37,12 @@ const VALIDATION_FIELD_LABELS = {
   assets: "角色资产",
 };
 
+const KNOWN_API_ERROR_MESSAGES = new Map([
+  ["Character name is required for char_code.", "角色 JSON 缺少 data.name，无法生成角色编码"],
+  ["Character name cannot exceed 64 characters for char_code.", "角色名称不能超过 64 个字符，无法生成角色编码"],
+  ["Invalid character content.", "角色 JSON 的 data 内容格式无效"],
+]);
+
 function firstValidationError(data) {
   if (!data || typeof data !== "object" || Array.isArray(data)) return null;
 
@@ -70,6 +76,7 @@ export function getApiErrorMessage(error, fallback = "请求失败，请稍后�
   }
 
   const message = error instanceof Error ? error.message.trim() : "";
+  if (KNOWN_API_ERROR_MESSAGES.has(message)) return KNOWN_API_ERROR_MESSAGES.get(message);
   return message && !/^validation failed\.?$/i.test(message) ? message : fallback;
 }
 
