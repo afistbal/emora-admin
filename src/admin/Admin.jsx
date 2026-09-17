@@ -2534,7 +2534,7 @@ export function UsersPage({ toast, adminToken }) {
           <AntTable
             className="table users-table"
             tableLayout="auto"
-            scroll={{ x: 1680 }}
+            scroll={{ x: 1555 }}
             pagination={false}
             rowKey="id"
             dataSource={filtered}
@@ -2552,7 +2552,6 @@ export function UsersPage({ toast, adminToken }) {
             { title: "user_uuid", dataIndex: "userUuid", width: 170, render: (value) => <span className="user-copy-value" onClick={(event) => event.stopPropagation()}><Typography.Text copyable={value && value !== "—" ? { text: String(value), tooltips: ["复制 user_uuid", "已复制"] } : false}>{value}</Typography.Text></span> },
             { title: "邮箱", dataIndex: "email", width: 220, ellipsis: { showTitle: true }, render: (value) => <span className="muted">{value}</span> },
             { title: "昵称", dataIndex: "nick", width: 150 },
-            { title: "注册时间", dataIndex: "registered", width: 125, render: (value) => <span className="muted">{value}</span> },
             {
               title: "来源归因",
               key: "registrationSource",
@@ -2560,9 +2559,11 @@ export function UsersPage({ toast, adminToken }) {
               render: (_, user) => (
                 <div className="user-registration-source-cell">
                   <div><Tag>{user.channel}</Tag></div>
-                  <div className="user-attribution-row">
-                    <Tag color={user.isPromoted ? "blue" : "default"}>{user.isPromoted ? "推广用户" : "自然用户"}</Tag>
-                    <Typography.Text className="user-attribution-source" type="secondary" ellipsis={{ tooltip: user.attributionSource }}>{user.attributionSource}</Typography.Text>
+                  <div className="user-attribution-details">
+                    <div className="user-attribution-row">
+                      <Tag color={user.isPromoted ? "blue" : "default"}>{user.isPromoted ? "推广用户" : "自然用户"}</Tag>
+                      <Typography.Text className="user-attribution-source" type="secondary" ellipsis={{ tooltip: user.attributionSource }}>{user.attributionSource}</Typography.Text>
+                    </div>
                     <Typography.Text
                       className="user-attribution-params"
                       type="secondary"
