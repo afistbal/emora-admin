@@ -173,6 +173,12 @@ export const adminApi = {
     setAssetStatus: (params, options) => adminPost("/admin/characters/assets/status", params, options),
     removeAsset: (params, options) => adminPost("/admin/characters/assets/remove", params, options),
   },
+  homeRecommendation: {
+    config: (params = {}, options) => adminPost("/admin/home-recommendation/config", params, options),
+    saveSlots: (params, options) => adminPost("/admin/home-recommendation/slots/save", params, options),
+    setCharacterStatus: (params, options) => adminPost("/admin/home-recommendation/characters/status", params, options),
+    savePoolItem: (params, options) => adminPost("/admin/home-recommendation/pool/save", params, options),
+  },
   media: {
     list: (params, options) => adminPost("/admin/media/list", params, options),
     registerUpload: (params, options) => adminPost("/admin/media/upload", params, options),
@@ -233,6 +239,8 @@ export const adminApi = {
     saveDialogueRules: (params, options) => adminPost("/admin/settings/dialogue-rules/save", params, options),
     mediaSystemPrompts: (params = {}, options) => adminPost("/admin/settings/media-system-prompts", params, options),
     saveMediaSystemPrompt: (params, options) => adminPost("/admin/settings/media-system-prompts/save", params, options),
+    contextMemory: (params = {}, options) => adminPost("/admin/settings/context-memory", params, options),
+    saveContextMemory: (params, options) => adminPost("/admin/settings/context-memory/save", params, options),
   },
   analytics: {
     query: (params, options) => adminPost("/admin/analytics/query", params, options),

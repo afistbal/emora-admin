@@ -189,11 +189,13 @@ body {
 .users-table .user-email { min-width: 190px; overflow-wrap: anywhere; }
 .users-table .ant-table-cell { vertical-align: middle; }
 .user-copy-value { display: inline-flex; white-space: nowrap; }
+.user-attribution-cell { min-width: 0; }
+.user-attribution-params { display: block; max-width: 240px; margin-top: 4px; }
 .table tr.clickable { cursor: pointer; }
 .table .num { font-variant-numeric: tabular-nums; }
 .character-list-table .ant-table { min-width: 100%; }
 /* 短字段按内容收缩，角色和标签列弹性使用剩余空间。 */
-.character-list-table .ant-table-cell:is(:nth-child(1), :nth-child(3), :nth-child(4), :nth-child(6), :nth-child(7), :nth-child(8), :nth-child(9), :nth-child(10)) {
+.character-list-table .ant-table-cell:is(:nth-child(1), :nth-child(3), :nth-child(4), :nth-child(6), :nth-child(7), :nth-child(8), :nth-child(9), :nth-child(10), :nth-child(11)) {
   width: 1%;
   white-space: nowrap;
 }
@@ -234,6 +236,24 @@ body {
     radial-gradient(circle at 92% 8%, color-mix(in srgb, var(--accent) 14%, transparent), transparent 32%),
     var(--surface);
   box-shadow: 0 10px 30px rgb(31 82 128 / 7%);
+}
+.recommendation-page { display:grid; gap:12px; }
+.recommendation-page-header { display:flex; align-items:flex-start; justify-content:space-between; gap:12px; }
+.recommendation-next-round-strip { display:flex; align-items:flex-start; gap:8px; }
+.recommendation-next-round-strip > .ant-typography { flex:0 0 auto; line-height:24px; }
+.recommendation-pool-error { margin-bottom:16px; }
+.recommendation-pool-grid { display:grid; grid-template-columns:repeat(2, minmax(0, 1fr)); gap:12px; align-items:start; }
+.recommendation-pool-rule { margin-bottom:8px; }
+.recommendation-rule-summary { display:flex; align-items:center; flex-wrap:wrap; gap:4px; }
+.recommendation-rule-reason { margin-top:4px; white-space:normal; }
+.recommendation-slot-modal-table { width:min(560px, 100%); margin-inline:auto; }
+.recommendation-pool-pagination { overflow-x:auto; margin-top:12px; padding-top:12px; }
+@media (max-width: 1000px) {
+  .recommendation-pool-grid { grid-template-columns:minmax(0, 1fr); }
+}
+@media (max-width: 640px) {
+  .recommendation-page-header { display:grid; }
+  .recommendation-next-round-strip { display:grid; }
 }
 .dashboard-toolbar { display: flex; align-items: flex-start; justify-content: space-between; gap: 24px; }
 .dashboard-heading { min-width: 0; }

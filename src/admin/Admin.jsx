@@ -83,6 +83,21 @@ function formatUserStatus(status) {
   return status === "blocked" ? "已封禁" : "正常";
 }
 
+function formatRegistrationChannel(channel) {
+  return ({ email: "邮箱注册", google: "Google 登录", facebook: "Facebook 登录", unknown: "未知" })[channel] || "未知";
+}
+
+function formatAttributionParams(value) {
+  const rawValue = String(value || "").trim();
+  if (!rawValue) return "—";
+
+  // 服务端保存的是 RFC3986 查询串；后台解码后展示，复制时仍保留原始值便于排查。
+  const params = Array.from(new URLSearchParams(rawValue).entries());
+  return params.length > 0
+    ? params.map(([key, paramValue]) => `${key}=${paramValue}`).join(" · ")
+    : rawValue;
+}
+
 function ProviderRouteLabel({ route }) {
   const statusLabel = route.enabled ? "当前启用" : "当前未启用";
   return (
@@ -752,7 +767,20 @@ const PLATFORM_SYSTEM_PROMPT = `【平台安全规则】
 
 你这话我没法接了，换个话题吧`;
 
-export function CharacterListPage({ list, onEdit, onImport, onDelete, isImporting = false, deletingCharacterId = null }) {
+export function CharacterListPage({
+  list,
+  total,
+  page,
+  pageSize,
+  onPageChange,
+  onEdit,
+  onImport,
+  onDelete,
+  onRecommendationChange,
+  isImporting = false,
+  deletingCharacterId = null,
+  updatingRecommendationId = null,
+}) {
   const [confirmDelete, setConfirmDelete] = useState(null);
 
   const confirmCharacterDelete = async () => {
@@ -766,7 +794,7 @@ export function CharacterListPage({ list, onEdit, onImport, onDelete, isImportin
       <Spin fullscreen spinning={isImporting} size="large" tip="正在导入角色 JSON…" />
       <Card
         title="官方角色"
-        sub={`共 ${list.length} 个角色 · 未发布草稿的改动不影响 C 端`}
+        sub={`共 ${total} 个角色 · 未发布草稿的改动不影响 C 端`}
         actions={(
           <div style={{ display: "flex", gap: 10 }}>
             <Upload
@@ -806,12 +834,36 @@ export function CharacterListPage({ list, onEdit, onImport, onDelete, isImportin
             { title: "卡曝光 pv/uv", key: "exposure", align: "right", render: (_, character) => `${character.expPv.toLocaleString()} / ${character.expUv.toLocaleString()}` },
             { title: "生成提交 → 成功率", key: "generation", align: "right", render: (_, character) => `${character.genSubmit.toLocaleString()} → ${character.genRate}` },
             {
+              title: "开关",
+              key: "recommendation",
+              width: 120,
+              render: (_, character) => (
+                <Space direction="vertical" size={4}>
+                  <Space size={8}>
+                    <span>推荐</span>
+                    <AntSwitch
+                      checked={character.isRecommended}
+                      aria-label={`${character.name}${character.isRecommended ? "关闭" : "开启"}推荐`}
+                      disabled={character.status !== "已上架" || updatingRecommendationId !== null}
+                      loading={Number(updatingRecommendationId) === Number(character.id)}
+                      onClick={(_, event) => event.stopPropagation()}
+                      onChange={(checked, event) => {
+                        event.stopPropagation();
+                        void onRecommendationChange(character, checked);
+                      }}
+                    />
+                  </Space>
+                </Space>
+              ),
+            },
+            {
               title: "操作",
               key: "action",
               render: (_, character) => (
-                <Space>
-                  <AntButton color="blue" variant="filled" onClick={(event) => { event.stopPropagation(); onEdit(character); }}>编辑</AntButton>
+                <Space size={0} wrap>
+                  <AntButton type="link" onClick={(event) => { event.stopPropagation(); onEdit(character); }}>编辑</AntButton>
                   <AntButton
+                    type="link"
                     danger
                     disabled={deletingCharacterId !== null}
                     loading={Number(deletingCharacterId) === Number(character.id)}
@@ -828,6 +880,19 @@ export function CharacterListPage({ list, onEdit, onImport, onDelete, isImportin
           ]}
           />
         </div>
+        {total > 0 && (
+          <div className="admin-pagination">
+            <Pagination
+              current={page}
+              pageSize={pageSize}
+              total={total}
+              showSizeChanger
+              pageSizeOptions={[10, 20, 50, 100]}
+              showTotal={(count) => `共 ${count} 条`}
+              onChange={onPageChange}
+            />
+          </div>
+        )}
         {confirmDelete && (
           <ConfirmDialog
             title="删除角色"
@@ -1650,7 +1715,7 @@ export function CharacterEditorPage({ character, onBack, toast, onStatusChange }
                 { title: "版本", dataIndex: "ver", render: (value) => `v${value}` },
                 { title: "状态", dataIndex: "state", render: (value) => <Badge tone={value === "published" ? "green" : "gray"}>{value}</Badge> },
                 { title: "创建时间", dataIndex: "created_at", render: (value) => <span className="muted">{value || "—"}</span> },
-                { title: "操作", key: "action", render: (_, version) => <AntButton size="small" color="gold" variant="filled" disabled={version.state !== "published"} onClick={() => rollbackVersion(version)}>回滚到此版本</AntButton> },
+                { title: "操作", key: "action", render: (_, version) => <AntButton type="link" disabled={version.state !== "published"} onClick={() => rollbackVersion(version)}>回滚到此版本</AntButton> },
               ]} />
             </div>
             {!versions.length && <p className="muted small">暂无版本记录</p>}
@@ -1810,8 +1875,8 @@ export function PresetsPage({ toast, adminToken }) {
           { title: "排序", key: "sort", width: 70, align: "right", render: (_, _preset, index) => <span className="muted">{index + 1}</span> },
           { title: "标签名", dataIndex: "tag", width: 170, render: (value, preset) => <AntInput value={value} maxLength={64} aria-label="标签名" onChange={(event) => updatePreset(mode, preset.id, "tag", event.target.value)} /> },
           { title: "英文提示词", dataIndex: "promptEn", render: (value, preset) => <AntInput value={value} maxLength={4096} aria-label="英文提示词" onChange={(event) => updatePreset(mode, preset.id, "promptEn", event.target.value)} /> },
-          { title: "状态", dataIndex: "active", width: 76, render: (value, preset) => <AntSwitch checked={value} onChange={(checked) => setPresetStatus(mode, preset, checked)} aria-label={preset.tag} /> },
-          { title: "操作", key: "action", width: 150, render: (_, preset, index) => <Space size={6}><AntButton size="small" color="green" variant="filled" disabled={!preset.tag.trim() || !preset.promptEn.trim()} onClick={() => savePreset(mode, preset, index)}>保存</AntButton><AntButton size="small" danger onClick={() => setConfirmDel({ mode, id: preset.id, tag: preset.tag })}>删除</AntButton></Space> },
+          { title: "开关", dataIndex: "active", width: 76, render: (value, preset) => <AntSwitch checked={value} onChange={(checked) => setPresetStatus(mode, preset, checked)} aria-label={preset.tag} /> },
+          { title: "操作", key: "action", width: 150, render: (_, preset, index) => <Space size={0} wrap><AntButton type="link" disabled={!preset.tag.trim() || !preset.promptEn.trim()} onClick={() => savePreset(mode, preset, index)}>保存</AntButton><AntButton type="link" danger onClick={() => setConfirmDel({ mode, id: preset.id, tag: preset.tag })}>删除</AntButton></Space> },
         ]} />
       </div>
     </Card>
@@ -1948,7 +2013,11 @@ export function UsersPage({ toast, adminToken }) {
           status: formatUserStatus(user.status),
           gender: "—",
           lang: "—",
-          channel: "—",
+          channel: formatRegistrationChannel(user.registration_channel),
+          attributionSource: user.source || "—",
+          attributionParams: formatAttributionParams(user.from_source),
+          attributionRaw: String(user.from_source || "").trim(),
+          isPromoted: Boolean(user.is_promoted),
         })));
       })
       .catch((error) => {
@@ -2098,7 +2167,7 @@ export function UsersPage({ toast, adminToken }) {
           gender: data.profile?.gender || "—",
           ageRange: data.profile?.age_range || "—",
           bio: data.profile?.bio || "—",
-          channel: data.profile?.registration_channel || "—",
+          channel: formatRegistrationChannel(data.profile?.registration_channel),
           registered: formatUnixDate(data.profile?.registered_at),
           member: data.membership?.is_vip === undefined ? user.member : data.membership.is_vip ? "有效会员" : "非会员",
           memberUntil: data.membership && Object.hasOwn(data.membership, "vip_expires_at")
@@ -2163,7 +2232,7 @@ export function UsersPage({ toast, adminToken }) {
           <AntTable
             className="table users-table"
             tableLayout="auto"
-            scroll={{ x: 1320 }}
+            scroll={{ x: 1710 }}
             pagination={false}
             rowKey="id"
             dataSource={filtered}
@@ -2182,11 +2251,34 @@ export function UsersPage({ toast, adminToken }) {
             { title: "邮箱", dataIndex: "email", width: 220, ellipsis: { showTitle: true }, render: (value) => <span className="muted">{value}</span> },
             { title: "昵称", dataIndex: "nick", width: 150 },
             { title: "注册时间", dataIndex: "registered", width: 125, render: (value) => <span className="muted">{value}</span> },
+            { title: "注册来源", dataIndex: "channel", width: 120, render: (value) => <Tag>{value}</Tag> },
+            {
+              title: "广告归因",
+              key: "attribution",
+              width: 260,
+              render: (_, user) => (
+                <div className="user-attribution-cell">
+                  <Space size={6} wrap>
+                    <Tag color={user.isPromoted ? "blue" : "default"}>{user.isPromoted ? "推广用户" : "自然用户"}</Tag>
+                    <Typography.Text>{user.attributionSource}</Typography.Text>
+                  </Space>
+                  <Typography.Text
+                    className="user-attribution-params"
+                    type="secondary"
+                    ellipsis={{ tooltip: user.attributionParams }}
+                    copyable={user.attributionRaw ? { text: user.attributionRaw, tooltips: ["复制来源参数", "已复制"] } : false}
+                    onClick={(event) => event.stopPropagation()}
+                  >
+                    来源参数：{user.attributionParams}
+                  </Typography.Text>
+                </div>
+              ),
+            },
             { title: "会员状态", key: "member", width: 190, render: (_, user) => <Badge tone={user.member === "有效会员" ? "green" : "gray"}>{user.member}{user.member === "有效会员" ? ` · ${user.memberUntil}` : ""}</Badge> },
             { title: "金币余额", dataIndex: "coins", width: 100, align: "right", render: (value) => value.toLocaleString() },
             { title: "会话数", dataIndex: "sessions", width: 78, align: "right" },
             { title: "状态", dataIndex: "status", width: 80, render: (value) => <Badge tone={statusTone(value)}>{value}</Badge> },
-            { title: "操作", key: "action", width: 150, render: (_, user) => <Space size={6}><AntButton size="small" color="blue" variant="filled" onClick={(event) => { event.stopPropagation(); openUser(user); }}>详情</AntButton><AntButton size="small" color="cyan" variant="filled" onClick={(event) => { event.stopPropagation(); openWalletRecords(user); }}>流水</AntButton></Space> },
+            { title: "操作", key: "action", width: 150, render: (_, user) => <Space size={0} wrap><AntButton type="link" onClick={(event) => { event.stopPropagation(); openUser(user); }}>详情</AntButton><AntButton type="link" onClick={(event) => { event.stopPropagation(); openWalletRecords(user); }}>流水</AntButton></Space> },
           ]} />
         </div>
         {totalUsers > 0 && <div className="admin-pagination"><Pagination current={page} pageSize={pageSize} total={totalUsers} showSizeChanger pageSizeOptions={[10, 20, 50, 100]} showTotal={(total) => `共 ${total} 条`} onChange={(nextPage, nextPageSize) => { setPageSize(nextPageSize); setPage(nextPageSize !== pageSize ? 1 : nextPage); }} /></div>}
@@ -3167,7 +3259,8 @@ export function ModelConfigPage({ toast, adminToken }) {
           { title: "API 地址", dataIndex: "base_url", width: 210, ellipsis: { showTitle: true }, render: (value) => <span className="muted mono">{value}</span> },
           { title: "API Key", dataIndex: "api_key", render: (value) => <span className="muted mono" style={{ whiteSpace: "nowrap" }}>{maskApiKey(value)}</span> },
           ...MODEL_PROFILES.map((profile) => ({ title: `${profile.label}模型`, key: profile.type, render: (_, provider) => { const routes = getProviderRoutes(provider, profile.type); const active = routes.find((route) => route.enabled) || routes[0]; return <div style={{ minWidth: 220 }}>{routes.length ? <AntSelect style={{ width: "100%" }} value={active?.id || ""} disabled={provider.status !== "enabled"} onChange={(value) => switchRoute(provider, profile, value)} options={routes.map((route) => ({ value: route.id, label: <ProviderRouteLabel route={route} /> }))} /> : <span className="muted">—</span>}</div>; } })),
-          { title: "操作", key: "action", render: (_, provider) => <Space size={6} wrap><AntButton size="small" color="blue" variant="filled" onClick={() => setEditing(provider)}>编辑</AntButton><AntButton size="small" color="gold" variant="filled" onClick={() => toggleProvider(provider)}>{provider.status === "enabled" ? "停用" : "启用中转站"}</AntButton><AntButton size="small" danger onClick={() => setConfirmDelete(provider)}>删除</AntButton></Space> },
+          { title: "开关", key: "enabled", width: 110, render: (_, provider) => <AntSwitch checked={provider.status === "enabled"} checkedChildren="启用" unCheckedChildren="停用" aria-label={`${provider.name}中转站开关`} onChange={() => toggleProvider(provider)} /> },
+          { title: "操作", key: "action", width: 130, render: (_, provider) => <Space size={0} wrap><AntButton type="link" onClick={() => setEditing(provider)}>编辑</AntButton><AntButton type="link" danger onClick={() => setConfirmDelete(provider)}>删除</AntButton></Space> },
         ]} /></div>}
       </Card>
       <Card title="业务模型路由" sub="后端支持的业务 profile_key；当前页面展示文本、图片、视频三类调用路由"><Space size={[4, 4]} wrap>{profileKeys.map((key) => <Tag key={key}>{key}</Tag>)}</Space></Card>
@@ -3207,6 +3300,7 @@ const NAV_GROUPS = [
       { id: "users", path: "/users", label: "用户管理", icon: Users },
       { id: "user-ledger", path: "/user-ledger", label: "用户流水", icon: Coins },
       { id: "messages", path: "/messages", label: "消息列表", icon: ChatCircleDots },
+      { id: "recommendations", path: "/recommendations", label: "推荐设置", icon: Sparkle },
     ],
   },
   {
@@ -3244,6 +3338,10 @@ export default function Admin() {
   const page = activeRoute?.id || "dashboard";
   const [editing, setEditing] = useState(null); // 角色编辑器中的角色
   const [charList, setCharList] = useState([]);
+  const [characterPage, setCharacterPage] = useState(1);
+  const [characterPageSize, setCharacterPageSize] = useState(10);
+  const [characterTotal, setCharacterTotal] = useState(0);
+  const [updatingRecommendationId, setUpdatingRecommendationId] = useState(null);
   const [adminToken, setAdminTokenState] = useState(getAdminToken());
   const [apiState, setApiState] = useState(() => (getAdminToken() ? "connected" : "token-required"));
   const [characterLoadState, setCharacterLoadState] = useState("idle");
@@ -3301,7 +3399,7 @@ export default function Admin() {
     setCharacterLoadState("loading");
     setCharacterLoadError("");
     adminApi.characters.list(
-      { state: "all", page: 1, page_size: 100 },
+      { state: "all", page: characterPage, page_size: characterPageSize },
       { signal: controller.signal },
     ).then((data) => {
       const items = data?.items || [];
@@ -3327,9 +3425,11 @@ export default function Admin() {
           expPv: metrics.exp_pv || 0,
           expUv: metrics.exp_uv || 0,
           genSubmit: metrics.gen_cnt || 0,
-          genRate: metrics.gen_rate == null ? "—" : `${metrics.gen_rate}%`,
+          genRate: metrics.gen_rate == null ? "—" : `${Number((Number(metrics.gen_rate) * 100).toFixed(2))}%`,
+          isRecommended: Boolean(item.is_recommended),
         };
       }));
+      setCharacterTotal(Number(data?.total || 0));
       setCharacterLoadState("loaded");
     }).catch((error) => {
       if (error.name === "AbortError") return;
@@ -3338,7 +3438,7 @@ export default function Admin() {
     });
 
     return () => controller.abort();
-  }, [adminToken, characterRetryKey, editing, page]);
+  }, [adminToken, characterPage, characterPageSize, characterRetryKey, editing, page]);
 
   useEffect(() => {
     if (!activeRoute && location.pathname !== "/login") navigate("/", { replace: true });
@@ -3421,6 +3521,7 @@ export default function Admin() {
     try {
       await adminApi.characters.remove({ char_id: characterId });
       setCharList((list) => list.filter((item) => Number(item.id) !== characterId));
+      setCharacterTotal((total) => Math.max(0, total - 1));
       setEditing((current) => (Number(current?.id) === characterId ? null : current));
       toast(`角色「${character.name}」已删除`, "success");
       return true;
@@ -3434,6 +3535,22 @@ export default function Admin() {
     } finally {
       deletingCharacterRef.current = null;
       setDeletingCharacterId(null);
+    }
+  };
+
+  const updateCharacterRecommendation = async (character, enabled) => {
+    const characterId = Number(character.id);
+    setUpdatingRecommendationId(characterId);
+    try {
+      await adminApi.homeRecommendation.setCharacterStatus({ char_id: characterId, enabled });
+      setCharList((list) => list.map((item) => (Number(item.id) === characterId ? { ...item, isRecommended: enabled } : item)));
+      toast(`已${enabled ? "开启" : "关闭"}角色「${character.name}」的推荐`, "success");
+      return true;
+    } catch (error) {
+      toast(getApiErrorMessage(error, "推荐状态更新失败"), "error");
+      return false;
+    } finally {
+      setUpdatingRecommendationId(null);
     }
   };
 
@@ -3518,14 +3635,23 @@ export default function Admin() {
             editing,
             setEditing,
             charList,
+            characterPage,
+            characterPageSize,
+            characterTotal,
             characterLoadState,
-             characterLoadError,
-             retryCharacters: () => setCharacterRetryKey((key) => key + 1),
-             isCharacterImporting,
-             deletingCharacterId,
+            characterLoadError,
+            retryCharacters: () => setCharacterRetryKey((key) => key + 1),
+            setCharacterPagination: (nextPage, nextPageSize) => {
+              setCharacterPageSize(nextPageSize);
+              setCharacterPage(nextPageSize !== characterPageSize ? 1 : nextPage);
+            },
+            isCharacterImporting,
+            deletingCharacterId,
+            updatingRecommendationId,
             importCharacter,
             deleteCharacter,
             updateCharacterStatus,
+            updateCharacterRecommendation,
           }} />
         </AntLayout.Content>
       </AntLayout>

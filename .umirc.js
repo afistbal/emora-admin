@@ -14,6 +14,7 @@ const adminRoutes = [
   "/user-ledger",
   "/messages",
   "/messages/:messageId",
+  "/recommendations",
   "/orders",
   "/subscriptions",
   "/commerce",

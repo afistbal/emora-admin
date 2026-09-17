@@ -63,6 +63,10 @@
 | d.items | 是 | array<AdminUserListItem> |  |  |
 | d.items[].user_id | 是 | string |  | users.unique_id；为空时回退为 users.id 字符串。 |
 | d.items[].internal_id | 是 | integer |  |  |
+| d.items[].registration_channel | 是 | string | enum: "email" / "google" / "facebook" / "unknown" | 首次注册来源；历史无法可靠判断时为 unknown。 |
+| d.items[].source | 是 | string/null |  | 首次有效广告来源；优先为 X-Source，其次为广告 network。 |
+| d.items[].from_source | 是 | string/null |  | RFC3986 查询串格式的广告归因参数；可能包含 network、trackerName、ad_id、google_ad_id。 |
+| d.items[].is_promoted | 是 | boolean |  | 是否已识别为推广归因用户；一旦为 true 不会因后续登录缺少参数而回退。 |
 | d.items[].nickname | 是 | string |  |  |
 | d.items[].registered_at | 是 | integer |  | Unix timestamp。 |
 | d.items[].is_vip | 是 | boolean |  |  |
@@ -88,6 +92,10 @@
         "user_id": "u_8f2k1a90",
         "internal_id": 12,
         "nickname": "深夜电台常客",
+        "registration_channel": "google",
+        "source": "facebook",
+        "from_source": "network=Facebook&trackerName=Campaign%20A&ad_id=ad-100001",
+        "is_promoted": true,
         "registered_at": 1780368000,
         "is_vip": true,
         "vip_expires_at": 1785628800,
@@ -197,7 +205,7 @@
 | d.profile.age_range | 否 | string |  |  |
 | d.profile.avatar | 否 | string |  |  |
 | d.profile.bio | 否 | string |  |  |
-| d.profile.registration_channel | 否 | string |  | 当前用户表未记录来源，待用户身份来源设计确定。 |
+| d.profile.registration_channel | 是 | string | enum: "email" / "google" / "facebook" / "unknown" | 首次注册来源，后续换登录方式不会覆盖。 |
 | d.profile.registered_at | 否 | integer |  | Unix timestamp。 |
 | d.membership | 是 | AdminUserMembership |  |  |
 | d.membership.is_vip | 否 | boolean |  |  |
@@ -226,7 +234,7 @@
       "age_range": null,
       "avatar": null,
       "bio": null,
-      "registration_channel": null,
+      "registration_channel": "google",
       "registered_at": 1780368000
     },
     "membership": {

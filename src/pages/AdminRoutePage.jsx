@@ -4,6 +4,7 @@ import BillingPage from "../admin/BillingPages.jsx";
 import MessagesPage from "../admin/MessagesPage.jsx";
 import SettingsPage from "../admin/SettingsPage.jsx";
 import UserLedgerPage from "../admin/UserLedgerPage.jsx";
+import RecommendationSettingsPage from "../admin/RecommendationSettingsPage.jsx";
 import {
   AnalyticsPage,
   CharacterEditorPage,
@@ -20,6 +21,9 @@ function CharacterRoute({ context }) {
   const {
     adminToken,
     charList,
+    characterPage,
+    characterPageSize,
+    characterTotal,
     characterLoadError,
     characterLoadState,
     deleteCharacter,
@@ -28,9 +32,12 @@ function CharacterRoute({ context }) {
     importCharacter,
     isCharacterImporting,
     retryCharacters,
+    setCharacterPagination,
     setEditing,
     toast,
     updateCharacterStatus,
+    updateCharacterRecommendation,
+    updatingRecommendationId,
   } = context;
 
   if (editing) {
@@ -67,6 +74,12 @@ function CharacterRoute({ context }) {
       onDelete={deleteCharacter}
       isImporting={isCharacterImporting}
       deletingCharacterId={deletingCharacterId}
+      updatingRecommendationId={updatingRecommendationId}
+      page={characterPage}
+      pageSize={characterPageSize}
+      total={characterTotal}
+      onPageChange={setCharacterPagination}
+      onRecommendationChange={updateCharacterRecommendation}
     />
   );
 }
@@ -84,6 +97,7 @@ export default function AdminRoutePage() {
     case "users": return <UsersPage toast={toast} adminToken={adminToken} />;
     case "user-ledger": return <UserLedgerPage adminToken={adminToken} />;
     case "messages": return <MessagesPage adminToken={adminToken} detailId={messageDetailId} />;
+    case "recommendations": return <RecommendationSettingsPage toast={toast} />;
     case "orders": return <BillingPage key="orders" adminToken={adminToken} />;
     case "subscriptions": return <BillingPage key="subscriptions" subscription adminToken={adminToken} />;
     case "commerce": return <CommercePage toast={toast} adminToken={adminToken} />;

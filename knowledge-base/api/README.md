@@ -6,7 +6,7 @@
 - **文档版本**：0.2.0
 - **源文件 SHA-256**：`16a86fce8814a88ca49d47a86b9656d19434cac122e561a301d1079b1742e256`
 - **筛选规则**：仅保留路径以 `/admin/` 开头的接口；忽略路径以 `/ai/` 开头的 C 端聊天接口。
-- **接口数量**：42
+- **接口数量**：46
 
 ## 通用约定
 
@@ -26,10 +26,11 @@
 | 用户与金币 | 8 | [admin-user.md](./admin-user.md) |
 | 用户反馈 | 1 | [admin-feedback.md](./admin-feedback.md) |
 | 商品与商业化 | 5 | [admin-product.md](./admin-product.md) |
-| 后台设置 | 4 | [admin-settings.md](./admin-settings.md) |
+| 后台设置 | 6 | [admin-settings.md](./admin-settings.md) |
 | 后台统计 | 1 | [admin-analytics.md](./admin-analytics.md) |
 | 消息管理 | 2 | [admin-messages.md](./admin-messages.md) |
 | 订单与订阅 | 2 | [admin-billing.md](./admin-billing.md) |
+| 首页推荐 | 4 | [admin-home-recommendation.md](./admin-home-recommendation.md) |
 
 ## 完整接口索引
 
@@ -78,3 +79,9 @@
 | 40 | POST | `/admin/subscriptions/list` | 订阅统计与明细 | [查看](./admin-billing.md) |
 | 41 | POST | `/admin/settings/list` | 查询系统配置列表 | [查看](./admin-settings.md#查询系统配置列表) |
 | 42 | POST | `/admin/settings/update` | 更新系统配置 | [查看](./admin-settings.md#更新系统配置) |
+| 43 | POST | `/admin/home-recommendation/config` | 查询首页推荐配置 | [查看](./admin-home-recommendation.md#查询推荐配置) |
+| 44 | POST | `/admin/home-recommendation/slots/save` | 保存十个推荐位 | [查看](./admin-home-recommendation.md#保存推荐位) |
+| 45 | POST | `/admin/home-recommendation/characters/status` | 修改角色推荐状态 | [查看](./admin-home-recommendation.md#修改角色推荐状态) |
+| 46 | POST | `/admin/home-recommendation/pool/save` | 保存推荐池角色配置 | [查看](./admin-home-recommendation.md#保存推荐池条目) |
+| 47 | POST | `/admin/settings/context-memory` | 获取上下文整理边界指令 | [查看](./admin-settings.md#上下文整理边界) |
+| 48 | POST | `/admin/settings/context-memory/save` | 保存上下文整理边界指令 | [查看](./admin-settings.md#上下文整理边界) |

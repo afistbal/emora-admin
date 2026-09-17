@@ -77,14 +77,14 @@
 | d.items[].profile.cover.preview | 否 | object |  | 独立预览媒体资源；视频首帧和私密媒体预览通过此字段返回。 |
 | d.items[].metrics | 否 | CharacterMetrics |  |  |
 | d.items[].metrics.day | 否 | string | date |  |
-| d.items[].metrics.chat_uv | 否 | integer |  |  |
-| d.items[].metrics.msg_cnt | 否 | integer |  |  |
-| d.items[].metrics.msg_avg | 否 | number |  |  |
-| d.items[].metrics.exp_pv | 否 | integer |  |  |
-| d.items[].metrics.exp_uv | 否 | integer |  |  |
-| d.items[].metrics.gen_cnt | 否 | integer |  |  |
-| d.items[].metrics.gen_ok | 否 | integer |  |  |
-| d.items[].metrics.gen_rate | 否 | number |  |  |
+| d.items[].metrics.chat_uv | 否 | integer |  | 当天进入聊天页或实际提交文本消息的去重用户/游客数。 |
+| d.items[].metrics.msg_cnt | 否 | integer |  | 当天文本消息轮次；编辑重生成复用同一消息 ID，不重复计数。 |
+| d.items[].metrics.msg_avg | 否 | number |  | 消息轮次 ÷ 聊天用户数，最多保留两位小数；没有聊天用户时为 null。 |
+| d.items[].metrics.exp_pv | 否 | integer |  | 当天 `home_character_impression` 事件数。 |
+| d.items[].metrics.exp_uv | 否 | integer |  | 当天曝光事件中的去重用户与游客数。 |
+| d.items[].metrics.gen_cnt | 否 | integer |  | 当天图片、视频生成提交数。 |
+| d.items[].metrics.gen_ok | 否 | integer |  | 当天状态为 succeeded 的图片、视频生成数。 |
+| d.items[].metrics.gen_rate | 否 | number |  | gen_ok ÷ gen_cnt，返回 0-1 小数；没有提交时为 null。 |
 | d.items[].updated_at | 否 | string | date-time |  |
 | d.page | 否 | integer |  |  |
 | d.page_size | 否 | integer |  |  |
@@ -116,7 +116,7 @@
           "day": "2026-08-01",
           "chat_uv": 10,
           "msg_cnt": 55,
-          "msg_avg": null,
+          "msg_avg": 5.5,
           "exp_pv": 120,
           "exp_uv": 80,
           "gen_cnt": 12,
@@ -285,14 +285,14 @@
 | d.draft.assets[].preview.ref | 否 | string | uri | 预览媒体的完整资源 URL。 |
 | d.metrics | 否 | CharacterMetrics |  |  |
 | d.metrics.day | 否 | string | date |  |
-| d.metrics.chat_uv | 否 | integer |  |  |
-| d.metrics.msg_cnt | 否 | integer |  |  |
-| d.metrics.msg_avg | 否 | number |  |  |
-| d.metrics.exp_pv | 否 | integer |  |  |
-| d.metrics.exp_uv | 否 | integer |  |  |
-| d.metrics.gen_cnt | 否 | integer |  |  |
-| d.metrics.gen_ok | 否 | integer |  |  |
-| d.metrics.gen_rate | 否 | number |  |  |
+| d.metrics.chat_uv | 否 | integer |  | 当天进入聊天页或实际提交文本消息的去重用户/游客数。 |
+| d.metrics.msg_cnt | 否 | integer |  | 当天文本消息轮次；编辑重生成复用同一消息 ID，不重复计数。 |
+| d.metrics.msg_avg | 否 | number |  | 消息轮次 ÷ 聊天用户数，最多保留两位小数；没有聊天用户时为 null。 |
+| d.metrics.exp_pv | 否 | integer |  | 当天 `home_character_impression` 事件数。 |
+| d.metrics.exp_uv | 否 | integer |  | 当天曝光事件中的去重用户与游客数。 |
+| d.metrics.gen_cnt | 否 | integer |  | 当天图片、视频生成提交数。 |
+| d.metrics.gen_ok | 否 | integer |  | 当天状态为 succeeded 的图片、视频生成数。 |
+| d.metrics.gen_rate | 否 | number |  | gen_ok ÷ gen_cnt，返回 0-1 小数；没有提交时为 null。 |
 
 成功响应示例：
 
