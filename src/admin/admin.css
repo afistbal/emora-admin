@@ -189,8 +189,11 @@ body {
 .users-table .user-email { min-width: 190px; overflow-wrap: anywhere; }
 .users-table .ant-table-cell { vertical-align: middle; }
 .user-copy-value { display: inline-flex; white-space: nowrap; }
-.user-attribution-cell { min-width: 0; }
-.user-attribution-params { display: block; max-width: 240px; margin-top: 4px; }
+.user-registration-source-cell { display: grid; min-width: 0; gap: 6px; }
+.user-attribution-row { display: flex; align-items: center; min-width: 0; gap: 6px; }
+.user-attribution-row .ant-tag { flex: none; margin-inline-end: 0; }
+.user-attribution-source { flex: none; max-width: 72px; }
+.user-attribution-params { flex: 1; min-width: 0; }
 .table tr.clickable { cursor: pointer; }
 .table .num { font-variant-numeric: tabular-nums; }
 .character-list-table .ant-table { min-width: 100%; }

@@ -29,6 +29,8 @@ function CharacterRoute({ context }) {
     deleteCharacter,
     deletingCharacterId,
     editing,
+    completeBatchCharacterImport,
+    importBatchCharacter,
     importCharacter,
     isCharacterImporting,
     retryCharacters,
@@ -71,6 +73,8 @@ function CharacterRoute({ context }) {
       list={charList}
       onEdit={setEditing}
       onImport={importCharacter}
+      onBatchImport={importBatchCharacter}
+      onBatchComplete={completeBatchCharacterImport}
       onDelete={deleteCharacter}
       isImporting={isCharacterImporting}
       deletingCharacterId={deletingCharacterId}

@@ -84,7 +84,7 @@ function formatUserStatus(status) {
 }
 
 function formatRegistrationChannel(channel) {
-  return ({ email: "邮箱注册", google: "Google 登录", facebook: "Facebook 登录", unknown: "未知" })[channel] || "未知";
+  return ({ email: "邮箱", google: "Google", facebook: "Facebook", unknown: "未知" })[channel] || "未知";
 }
 
 function formatAttributionParams(value) {
@@ -710,8 +710,10 @@ function parseImportedCharacterCard(value) {
   const text = (field) => (typeof field === "string" ? field : "");
   const name = text(card.name).trim();
   if (!name) throw new Error("角色 JSON 缺少 data.name，无法确定角色名称");
+  if (name.length > 64) throw new Error("角色名称不能超过 64 个字符");
   const specVersion = text(value.spec_version).trim();
   if (!specVersion) throw new Error("角色卡缺少 spec_version");
+  if (specVersion.length > 64) throw new Error("角色卡 spec_version 不能超过 64 个字符");
   const alternate = Array.isArray(card.alternate_greetings) ? card.alternate_greetings : [];
   const greetings = [
     ...(text(card.first_mes).trim() ? [{ kind: "primary", body: text(card.first_mes).trim(), enabled: true, sort: 0 }] : []),
@@ -775,13 +777,98 @@ export function CharacterListPage({
   onPageChange,
   onEdit,
   onImport,
+  onBatchImport,
+  onBatchComplete,
   onDelete,
   onRecommendationChange,
   isImporting = false,
   deletingCharacterId = null,
   updatingRecommendationId = null,
 }) {
+  const { message } = AntApp.useApp();
   const [confirmDelete, setConfirmDelete] = useState(null);
+  const [batchImportOpen, setBatchImportOpen] = useState(false);
+  const [batchPreparing, setBatchPreparing] = useState(false);
+  const [batchRunning, setBatchRunning] = useState(false);
+  const [batchProgress, setBatchProgress] = useState(0);
+  const [batchItems, setBatchItems] = useState([]);
+
+  const updateBatchItem = (itemId, values) => {
+    setBatchItems((items) => items.map((item) => (
+      item.id === itemId ? { ...item, ...(typeof values === "function" ? values(item) : values) } : item
+    )));
+  };
+
+  const prepareBatchDirectory = async (files) => {
+    setBatchImportOpen(true);
+    setBatchPreparing(true);
+    setBatchProgress(0);
+    setBatchItems([]);
+    try {
+      setBatchItems(await prepareCharacterBatchItems(files));
+    } catch (error) {
+      message.error(error instanceof Error ? error.message : "目录读取失败");
+    } finally {
+      setBatchPreparing(false);
+    }
+  };
+
+  const selectBatchDirectory = (file, fileList) => {
+    // Ant Upload 会为目录中的每个文件触发 beforeUpload，只在第一项统一解析完整文件列表。
+    if (file.uid === fileList[0]?.uid) void prepareBatchDirectory(fileList);
+    return false;
+  };
+
+  const runBatchImport = async (retryFailed = false) => {
+    if (batchRunning) return;
+    const candidates = batchItems.filter((item) => item.status === (retryFailed ? "failed" : "ready"));
+    if (!candidates.length) {
+      message.warning(retryFailed ? "没有可重试的失败角色" : "没有通过校验的待导入角色");
+      return;
+    }
+
+    setBatchRunning(true);
+    setBatchProgress(0);
+    let successCount = 0;
+    let failedCount = 0;
+    for (let index = 0; index < candidates.length; index += 1) {
+      const item = candidates[index];
+      let reusableAsset = item.asset;
+      updateBatchItem(item.id, { status: reusableAsset ? "creating" : "uploading", error: "" });
+      try {
+        await onBatchImport(item.character, {
+          existingAsset: reusableAsset,
+          onStage: (status) => updateBatchItem(item.id, { status }),
+          onAsset: (asset) => {
+            reusableAsset = asset;
+            updateBatchItem(item.id, { asset });
+          },
+        });
+        successCount += 1;
+        updateBatchItem(item.id, { status: "success", asset: reusableAsset, error: "" });
+      } catch (error) {
+        failedCount += 1;
+        const detail = getApiErrorMessage(error, error instanceof Error ? error.message : "角色导入失败");
+        const errorMessage = detail === "角色名称已存在，请修改后重试"
+          ? `角色名称「${item.name}」已存在`
+          : detail;
+        updateBatchItem(item.id, { status: "failed", asset: reusableAsset, error: errorMessage });
+      }
+      setBatchProgress(Math.round(((index + 1) / candidates.length) * 100));
+    }
+    setBatchRunning(false);
+    if (successCount > 0) onBatchComplete(successCount);
+    message.open({
+      type: failedCount > 0 ? "warning" : "success",
+      content: `批量导入完成：成功 ${successCount} 个，失败 ${failedCount} 个`,
+    });
+  };
+
+  const batchCounts = batchItems.reduce((counts, item) => {
+    counts[item.status] = (counts[item.status] || 0) + 1;
+    return counts;
+  }, {});
+  const isBatchBusy = batchPreparing || batchRunning;
 
   const confirmCharacterDelete = async () => {
     if (!confirmDelete) return;
@@ -798,15 +885,25 @@ export function CharacterListPage({
         actions={(
           <div style={{ display: "flex", gap: 10 }}>
             <Upload
+              directory
+              multiple
+              accept=".json,.png,.jpg,.jpeg,.webp,application/json,image/png,image/jpeg,image/webp"
+              disabled={isImporting || isBatchBusy}
+              showUploadList={false}
+              beforeUpload={selectBatchDirectory}
+            >
+              <AntButton type="primary" disabled={isImporting || isBatchBusy}>批量导入</AntButton>
+            </Upload>
+            <Upload
               accept=".json,application/json"
-              disabled={isImporting}
+              disabled={isImporting || isBatchBusy}
               showUploadList={false}
               beforeUpload={(file) => {
                 void onImport(file);
                 return false;
               }}
             >
-              <AntButton color="cyan" variant="solid" loading={isImporting} disabled={isImporting}>
+              <AntButton color="cyan" variant="solid" loading={isImporting} disabled={isImporting || isBatchBusy}>
                 {isImporting ? "正在导入…" : "导入 JSON"}
               </AntButton>
             </Upload>
@@ -904,6 +1001,81 @@ export function CharacterListPage({
           />
         )}
       </Card>
+
+      <AntModal
+        className="character-batch-import-modal"
+        title="批量导入角色"
+        width={980}
+        open={batchImportOpen}
+        closable={!isBatchBusy}
+        maskClosable={!isBatchBusy}
+        keyboard={!isBatchBusy}
+        onCancel={() => { if (!isBatchBusy) setBatchImportOpen(false); }}
+        footer={[
+          <Upload
+            key="select-directory"
+            directory
+            multiple
+            accept=".json,.png,.jpg,.jpeg,.webp,application/json,image/png,image/jpeg,image/webp"
+            disabled={isBatchBusy}
+            showUploadList={false}
+            beforeUpload={selectBatchDirectory}
+          >
+            <AntButton disabled={isBatchBusy}>重新选择目录</AntButton>
+          </Upload>,
+          <AntButton
+            key="clear"
+            disabled={isBatchBusy || batchItems.length === 0}
+            onClick={() => { setBatchItems([]); setBatchProgress(0); }}
+          >
+            清空
+          </AntButton>,
+          <AntButton
+            key="retry"
+            disabled={isBatchBusy || !batchItems.some((item) => item.status === "failed")}
+            onClick={() => void runBatchImport(true)}
+          >
+            重试失败项
+          </AntButton>,
+          <AntButton
+            key="start"
+            type="primary"
+            loading={batchRunning}
+            disabled={batchPreparing || batchRunning || !batchItems.some((item) => item.status === "ready")}
+            onClick={() => void runBatchImport(false)}
+          >
+            开始导入
+          </AntButton>,
+        ]}
+      >
+        <Spin spinning={batchPreparing} tip="正在读取目录中的 JSON 和图片…">
+          <Alert
+            type={batchItems.some((item) => item.status === "invalid") ? "warning" : "info"}
+            showIcon
+            message={`已识别 ${batchItems.length} 个角色`}
+            description={`待导入 ${batchCounts.ready || 0} · 成功 ${batchCounts.success || 0} · 失败 ${batchCounts.failed || 0} · 待修正 ${batchCounts.invalid || 0}`}
+          />
+          {(batchRunning || batchProgress > 0) && <AntProgress percent={batchProgress} status={batchRunning ? "active" : (batchCounts.failed ? "exception" : "success")} style={{ marginTop: 14 }} />}
+          <AntTable
+            className="character-batch-import-table"
+            style={{ marginTop: 14 }}
+            size="small"
+            pagination={false}
+            rowKey="id"
+            dataSource={batchItems}
+            locale={{ emptyText: <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="请选择包含角色 JSON 和封面的目录" /> }}
+            scroll={{ x: 820, y: 420 }}
+            columns={[
+              { title: "角色", dataIndex: "name", width: 150, ellipsis: { showTitle: true } },
+              { title: "版本", dataIndex: "version", width: 80 },
+              { title: "JSON", key: "json", width: 190, ellipsis: { showTitle: true }, render: (_, item) => item.jsonFile?.name || "—" },
+              { title: "封面", key: "cover", width: 160, ellipsis: { showTitle: true }, render: (_, item) => item.coverFile?.name || "—" },
+              { title: "状态", key: "status", width: 105, render: (_, item) => characterBatchStatusTag(item) },
+              { title: "说明", dataIndex: "error", width: 260, ellipsis: { showTitle: true }, render: (value) => value || "—" },
+            ]}
+          />
+        </Spin>
+      </AntModal>
     </>
   );
 }
@@ -984,6 +1156,136 @@ function characterVersionPreview(version) {
     tagline: content.tagline || "",
     cover: characterVersionCover(version),
   };
+}
+
+const CHARACTER_BATCH_IMAGE_EXTENSIONS = new Set(["png", "jpg", "jpeg", "webp"]);
+
+function characterImportRelativePath(file) {
+  return String(file?.webkitRelativePath || file?.name || "").replaceAll("\\", "/");
+}
+
+function normalizeCharacterImportPath(value) {
+  const segments = [];
+  String(value || "").replaceAll("\\", "/").split("/").forEach((segment) => {
+    if (!segment || segment === ".") return;
+    if (segment === "..") segments.pop();
+    else segments.push(segment);
+  });
+  return segments.join("/");
+}
+
+function characterImportDirectory(file) {
+  const segments = normalizeCharacterImportPath(characterImportRelativePath(file)).split("/");
+  segments.pop();
+  return segments.join("/").toLocaleLowerCase();
+}
+
+function characterImportFileStem(file) {
+  return String(file?.name || "").replace(/\.[^.]+$/, "");
+}
+
+function characterImportMatchKey(value) {
+  return String(value || "").toLocaleLowerCase().replace(/[^a-z0-9\p{L}\p{N}]+/gu, "");
+}
+
+function isCharacterBatchImage(file) {
+  const extension = String(file?.name || "").split(".").pop()?.toLocaleLowerCase();
+  return CHARACTER_BATCH_IMAGE_EXTENSIONS.has(extension);
+}
+
+function findCharacterBatchCover(jsonFile, imageFiles, source, characterName) {
+  const jsonDirectory = characterImportDirectory(jsonFile);
+  const siblingImages = imageFiles.filter((file) => characterImportDirectory(file) === jsonDirectory);
+  if (!siblingImages.length) return null;
+
+  const avatar = typeof source?.data?.avatar === "string" ? source.data.avatar.trim() : "";
+  if (avatar && !/^(?:https?:|data:|file:)/i.test(avatar)) {
+    const avatarPath = normalizeCharacterImportPath(`${jsonDirectory}/${avatar}`).toLocaleLowerCase();
+    const avatarFile = siblingImages.find((file) => normalizeCharacterImportPath(characterImportRelativePath(file)).toLocaleLowerCase() === avatarPath);
+    if (avatarFile) return avatarFile;
+  }
+
+  const preferredStem = ["cover", "avatar", "image"]
+    .map((stem) => siblingImages.find((file) => characterImportFileStem(file).toLocaleLowerCase() === stem))
+    .find(Boolean);
+  if (preferredStem) return preferredStem;
+
+  const jsonStem = characterImportFileStem(jsonFile).toLocaleLowerCase();
+  const jsonNamedImage = siblingImages.find((file) => characterImportFileStem(file).toLocaleLowerCase() === jsonStem);
+  if (jsonNamedImage) return jsonNamedImage;
+
+  const characterKey = characterImportMatchKey(characterName);
+  const characterNamedImage = siblingImages.find((file) => characterImportMatchKey(characterImportFileStem(file)) === characterKey);
+  if (characterNamedImage) return characterNamedImage;
+
+  return siblingImages.length === 1 ? siblingImages[0] : null;
+}
+
+async function prepareCharacterBatchItems(selectedFiles) {
+  const files = Array.from(selectedFiles || []);
+  const jsonFiles = files.filter((file) => String(file.name || "").toLocaleLowerCase().endsWith(".json"));
+  const imageFiles = files.filter(isCharacterBatchImage);
+  if (!jsonFiles.length) throw new Error("所选目录中没有 JSON 文件");
+
+  const items = await Promise.all(jsonFiles.map(async (jsonFile, index) => {
+    const baseItem = {
+      id: `character_batch_${Date.now()}_${index}_${jsonFile.uid || jsonFile.name}`,
+      name: "—",
+      version: "—",
+      jsonFile,
+      coverFile: null,
+      character: null,
+      asset: null,
+      status: "invalid",
+      error: "",
+    };
+    try {
+      let source;
+      try {
+        source = JSON.parse(await jsonFile.text());
+      } catch {
+        throw new Error("JSON 格式错误，请检查逗号、引号和括号");
+      }
+      const character = parseImportedCharacterCard(source);
+      const coverFile = findCharacterBatchCover(jsonFile, imageFiles, source, character.name);
+      if (!coverFile) throw new Error("未找到对应封面，请在角色 JSON 同目录放置 cover.png");
+      return {
+        ...baseItem,
+        name: character.name,
+        version: character.versionValue,
+        coverFile,
+        character: { ...character, coverFile },
+        status: "ready",
+      };
+    } catch (error) {
+      return { ...baseItem, error: error instanceof Error ? error.message : "角色文件解析失败" };
+    }
+  }));
+
+  const nameCounts = items.reduce((counts, item) => {
+    if (item.status === "ready") {
+      const key = item.name.toLocaleLowerCase();
+      counts.set(key, (counts.get(key) || 0) + 1);
+    }
+    return counts;
+  }, new Map());
+  return items.map((item) => (
+    item.status === "ready" && nameCounts.get(item.name.toLocaleLowerCase()) > 1
+      ? { ...item, status: "invalid", error: "所选目录中存在重复角色名称" }
+      : item
+  ));
+}
+
+function characterBatchStatusTag(item) {
+  const meta = {
+    ready: ["待导入", "default"],
+    uploading: ["上传封面", "processing"],
+    creating: ["导入角色", "processing"],
+    success: ["导入成功", "success"],
+    failed: ["导入失败", "error"],
+    invalid: ["待修正", "warning"],
+  }[item.status] || [item.status, "default"];
+  return <Tag color={meta[1]}>{meta[0]}</Tag>;
 }
 
 function characterVersionEditorState(version, fallbackName) {
@@ -2232,7 +2534,7 @@ export function UsersPage({ toast, adminToken }) {
           <AntTable
             className="table users-table"
             tableLayout="auto"
-            scroll={{ x: 1710 }}
+            scroll={{ x: 1680 }}
             pagination={false}
             rowKey="id"
             dataSource={filtered}
@@ -2251,26 +2553,26 @@ export function UsersPage({ toast, adminToken }) {
             { title: "邮箱", dataIndex: "email", width: 220, ellipsis: { showTitle: true }, render: (value) => <span className="muted">{value}</span> },
             { title: "昵称", dataIndex: "nick", width: 150 },
             { title: "注册时间", dataIndex: "registered", width: 125, render: (value) => <span className="muted">{value}</span> },
-            { title: "注册来源", dataIndex: "channel", width: 120, render: (value) => <Tag>{value}</Tag> },
             {
-              title: "广告归因",
-              key: "attribution",
-              width: 260,
+              title: "来源归因",
+              key: "registrationSource",
+              width: 350,
               render: (_, user) => (
-                <div className="user-attribution-cell">
-                  <Space size={6} wrap>
+                <div className="user-registration-source-cell">
+                  <div><Tag>{user.channel}</Tag></div>
+                  <div className="user-attribution-row">
                     <Tag color={user.isPromoted ? "blue" : "default"}>{user.isPromoted ? "推广用户" : "自然用户"}</Tag>
-                    <Typography.Text>{user.attributionSource}</Typography.Text>
-                  </Space>
-                  <Typography.Text
-                    className="user-attribution-params"
-                    type="secondary"
-                    ellipsis={{ tooltip: user.attributionParams }}
-                    copyable={user.attributionRaw ? { text: user.attributionRaw, tooltips: ["复制来源参数", "已复制"] } : false}
-                    onClick={(event) => event.stopPropagation()}
-                  >
-                    来源参数：{user.attributionParams}
-                  </Typography.Text>
+                    <Typography.Text className="user-attribution-source" type="secondary" ellipsis={{ tooltip: user.attributionSource }}>{user.attributionSource}</Typography.Text>
+                    <Typography.Text
+                      className="user-attribution-params"
+                      type="secondary"
+                      ellipsis={{ tooltip: user.attributionParams }}
+                      copyable={user.attributionRaw ? { text: user.attributionRaw, tooltips: ["复制来源参数", "已复制"] } : false}
+                      onClick={(event) => event.stopPropagation()}
+                    >
+                      来源参数：{user.attributionParams}
+                    </Typography.Text>
+                  </div>
                 </div>
               ),
             },
@@ -3455,13 +3757,28 @@ export default function Admin() {
     setEditing(null);
   };
 
-  const createCharacter = async (character) => {
+  const createCharacter = async (character, options = {}) => {
+    const {
+      existingAsset = null,
+      onStage,
+      onAsset,
+      appendToList = true,
+      openEditor = true,
+      notify = true,
+    } = options;
     const charCode = character.charCode;
-    const asset = character.coverFile ? await adminApi.media.uploadFile(character.coverFile, charCode) : null;
+    let asset = existingAsset;
+    if (!asset && character.coverFile) {
+      onStage?.("uploading");
+      asset = await adminApi.media.uploadFile(character.coverFile, charCode);
+      // 批量重试复用已登记资源，避免角色创建失败后重复上传封面并产生孤立资产。
+      onAsset?.(asset);
+    }
     const data = character.data || {
       name: character.name, tagline: character.subtitle, description: character.subtitle, prompt: "",
       greetings: [{ kind: "primary", body: character.greeting, enabled: true, sort: 0 }], tags: character.tags,
     };
+    onStage?.("creating");
     const created = await adminApi.characters.create({
         char_code: charCode,
         ...(character.versionValue ? { ver: character.versionValue } : {}),
@@ -3479,9 +3796,22 @@ export default function Admin() {
       gallery: asset ? [asset.ref] : [],
     };
     delete next.coverFile;
-    setCharList((list) => [...list, next]);
-    setEditing(next);
-    toast(`已创建草稿角色「${next.name}」`);
+    if (appendToList) setCharList((list) => [...list, next]);
+    if (openEditor) setEditing(next);
+    if (notify) toast(`已创建草稿角色「${next.name}」`);
+    return next;
+  };
+
+  const importBatchCharacter = (character, options) => createCharacter(character, {
+    ...options,
+    appendToList: false,
+    openEditor: false,
+    notify: false,
+  });
+
+  const completeBatchCharacterImport = () => {
+    setCharacterPage(1);
+    setCharacterRetryKey((key) => key + 1);
   };
 
   const importCharacter = async (file) => {
@@ -3649,6 +3979,8 @@ export default function Admin() {
             deletingCharacterId,
             updatingRecommendationId,
             importCharacter,
+            importBatchCharacter,
+            completeBatchCharacterImport,
             deleteCharacter,
             updateCharacterStatus,
             updateCharacterRecommendation,
