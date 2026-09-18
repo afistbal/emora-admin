@@ -4,6 +4,7 @@ import { ArrowsClockwise, ChatCircleDots, MagnifyingGlass, WarningCircle } from 
 import { useNavigate } from "umi";
 import { adminApi } from "./api/client.js";
 import PageBreadcrumb from "./components/PageBreadcrumb.jsx";
+import { DEFAULT_PAGE_SIZE, PAGE_SIZE_OPTIONS } from "./pagination.js";
 import "./messages.css";
 
 const TYPES = { text: "文本", image: "图片", video: "视频", private_photo: "私密照片" };
@@ -76,7 +77,7 @@ function TokenCallsTable({ calls = [] }) {
     { title: "成本", key: "cost", width: 130, align: "right", render: (_, row) => cost(row.cost_amount, row.cost_currency) },
     { title: "耗时", dataIndex: "duration_ms", width: 100, align: "right", render: (value) => value == null ? "—" : `${number(value)} ms` },
   ];
-  return <Table rowKey="id" columns={columns} dataSource={calls} pagination={false} size="middle" scroll={{ x: 1120 }} locale={{ emptyText: <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="该消息没有 Token 调用记录" /> }} />;
+  return <div className="table-wrap"><Table rowKey="id" columns={columns} dataSource={calls} pagination={false} size="middle" locale={{ emptyText: <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="该消息没有 Token 调用记录" /> }} /></div>;
 }
 
 function MessageDetailPage({ messageId, adminToken, onBack }) {
@@ -171,7 +172,7 @@ function MessageListPage({ adminToken, onOpen }) {
   const [draft, setDraft] = useState(EMPTY_FILTERS);
   const [filters, setFilters] = useState({});
   const [page, setPage] = useState(1);
-  const [pageSize, setPageSize] = useState(10);
+  const [pageSize, setPageSize] = useState(DEFAULT_PAGE_SIZE);
   const [refresh, setRefresh] = useState(0);
   const [result, setResult] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -196,7 +197,7 @@ function MessageListPage({ adminToken, onOpen }) {
     { title: "消息状态", dataIndex: "status", width: 140, render: (value) => <MessageStatus value={value} /> },
     { title: "发送时间", dataIndex: "created_at", width: 200, render: time },
     { title: "生成时间", dataIndex: "completed_at", width: 200, render: time },
-    { title: "操作", key: "action", width: 80, fixed: "right", render: (_, record) => <Button type="link" onClick={(event) => { event.stopPropagation(); onOpen(record.id); }}>详情</Button> },
+    { title: "操作", key: "action", width: 80, render: (_, record) => <Button type="link" onClick={(event) => { event.stopPropagation(); onOpen(record.id); }}>详情</Button> },
   ];
 
   const search = () => { setFilters(Object.fromEntries(Object.entries(draft).filter(([, value]) => value !== ""))); setPage(1); };
@@ -212,8 +213,8 @@ function MessageListPage({ adminToken, onOpen }) {
         <Form.Item><Space><Button type="primary" htmlType="submit">查询</Button><Button onClick={() => { setDraft(EMPTY_FILTERS); setFilters({}); setPage(1); }}>重置</Button></Space></Form.Item>
       </Form>
       {error && <Alert type="error" showIcon message="消息列表加载失败" description={error} action={<Button onClick={() => setRefresh((value) => value + 1)}>重试</Button>} />}
-      <Table className="message-list-table" rowKey="id" columns={columns} dataSource={error ? [] : result?.items || []} loading={{ spinning: loading, tip: "正在加载消息…" }} pagination={false} scroll={{ x: 1250 }} locale={{ emptyText: <Empty description="没有符合条件的消息" /> }} onRow={(record) => ({ tabIndex: 0, role: "link", onClick: () => onOpen(record.id), onKeyDown: (event) => { if (event.key === "Enter" || event.key === " ") { event.preventDefault(); onOpen(record.id); } } })} />
-      {!error && Number(result?.total || 0) > 0 && <div className="admin-pagination"><Pagination current={page} pageSize={pageSize} total={Number(result.total)} showSizeChanger pageSizeOptions={[10, 20, 50, 100]} showTotal={(total) => `共 ${total} 条`} onChange={(nextPage, nextPageSize) => { setPageSize(nextPageSize); setPage(nextPageSize !== pageSize ? 1 : nextPage); }} /></div>}
+      <div className="table-wrap"><Table className="message-list-table" rowKey="id" columns={columns} dataSource={error ? [] : result?.items || []} loading={{ spinning: loading, tip: "正在加载消息…" }} pagination={false} locale={{ emptyText: <Empty description="没有符合条件的消息" /> }} onRow={(record) => ({ tabIndex: 0, role: "link", onClick: () => onOpen(record.id), onKeyDown: (event) => { if (event.key === "Enter" || event.key === " ") { event.preventDefault(); onOpen(record.id); } } })} /></div>
+      {!error && Number(result?.total || 0) > 0 && <div className="admin-pagination"><Pagination current={page} pageSize={pageSize} total={Number(result.total)} showSizeChanger pageSizeOptions={PAGE_SIZE_OPTIONS} showTotal={(total) => `共 ${total} 条`} onChange={(nextPage, nextPageSize) => { setPageSize(nextPageSize); setPage(nextPageSize !== pageSize ? 1 : nextPage); }} /></div>}
     </Card>
   </div>;
 }

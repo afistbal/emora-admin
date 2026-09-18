@@ -184,8 +184,9 @@ body {
 .muted { color: var(--muted); }
 .small { font-size: 12px; }
 
-/* 表格 */
-.table-wrap { overflow-x: auto; }
+/* 页面级表格统一由外层容器横向滚动，纵向交给页面，避免 Ant Table 内外双滚动。 */
+.table-wrap { overflow-x: auto; overflow-y: hidden; }
+.table-wrap .ant-table { width: max-content; min-width: 100%; }
 .users-table .user-email { min-width: 190px; overflow-wrap: anywhere; }
 .users-table .ant-table-cell { vertical-align: middle; }
 .user-copy-value { display: inline-flex; white-space: nowrap; }
@@ -197,12 +198,12 @@ body {
 .user-attribution-params { display: block; min-width: 0; max-width: 100%; }
 .table tr.clickable { cursor: pointer; }
 .table .num { font-variant-numeric: tabular-nums; }
-.character-list-table .ant-table { min-width: 100%; }
 /* 角色列表列数较多，字号保持紧凑，并为右侧开关和操作列释放稳定空间。 */
 .character-list-table .ant-table-thead > tr > th,
 .character-list-table .ant-table-tbody > tr > td { font-size: 14px; }
 .character-list-table .ant-tag { font-size: 13px; line-height: 20px; }
 .character-list-actions { display:flex; align-items:center; justify-content:flex-end; flex-wrap:wrap; gap:10px; }
+.character-list-filters { margin-bottom: 20px; row-gap: 12px; }
 /* 短字段按内容收缩，角色和标签列弹性使用剩余空间。 */
 .character-list-table .ant-table-cell:is(:nth-child(2), :nth-child(4), :nth-child(5), :nth-child(7), :nth-child(8), :nth-child(9), :nth-child(10), :nth-child(11), :nth-child(12)) {
   width: 1%;
@@ -438,6 +439,8 @@ body {
 .provider-route-status { display: inline-flex; flex: none; align-items: center; }
 /* 模型启用状态需要在紧凑下拉框中快速辨识，仅局部放大 Ant Design 红绿状态点。 */
 .provider-route-status .ant-badge-status-dot { width: 8px; height: 8px; }
+/* 中转站列宽固定后由外层 table-wrap 横向滚动，避免全局 max-content 让名称列吞掉其余列。 */
+.model-config-table .ant-table { width: 100%; min-width: 1460px; }
 .user-detail-modal .ant-modal-body { max-height: min(720px, 72vh); overflow-y: auto; padding-right: 6px; }
 .user-detail-modal .section-gap > * + * { margin-top: 12px; }
 .user-detail-loading-state { display: grid; min-height: min(420px, 55vh); place-items: center; }
@@ -639,6 +642,38 @@ body {
 .character-tag-editor { display: grid; justify-items: start; gap: 8px; min-width: 0; }
 .character-tag-entry.ant-space-compact { width: min(420px, 100%); }
 .character-tag-entry .ant-input { min-width: 0; flex: 1; }
+
+/* 标签主数据页使用双栏快速管理；Tag 使用独立胶囊展示，避免表格弱化分组关系。 */
+.character-tags-page { display: grid; gap: 18px; }
+.character-tags-header { display: flex; justify-content: space-between; align-items: flex-start; gap: 20px; }
+.character-tags-header .ant-typography { margin: 0; }
+.character-tags-heading { display: flex; align-items: baseline; gap: 14px; min-width: 0; flex-wrap: wrap; }
+.character-tags-heading > .ant-typography-secondary { white-space: nowrap; }
+.character-tags-layout { display: grid; grid-template-columns: minmax(240px, 300px) minmax(0, 1fr); gap: 16px; align-items: start; }
+.character-tag-classes .ant-card-body { display: grid; gap: 6px; }
+.character-tag-class-item { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; min-height: 44px; border-radius: 8px; }
+.character-tag-class-item > .ant-btn:first-child, .character-tag-class-all.ant-btn { justify-content: space-between; width: 100%; min-width: 0; text-align: left; }
+.character-tag-class-item > .ant-btn:first-child span, .character-tag-class-all span { overflow: hidden; text-overflow: ellipsis; }
+.character-tag-class-item.is-active, .character-tag-class-item:has(> .ant-btn:hover) { background: color-mix(in srgb, var(--accent) 9%, transparent); }
+.character-tag-class-item b { color: var(--muted); font-variant-numeric: tabular-nums; }
+.character-tags-table-card { min-width: 0; }
+.character-tag-cloud { display: flex; align-content: flex-start; flex-wrap: wrap; gap: 12px 10px; min-height: 150px; padding: 18px 2px 6px; border-top: 1px solid var(--line); }
+.character-tag-cloud .character-tag-pill { display: inline-flex; align-items: center; gap: 6px; margin: 0; cursor: pointer; transition: box-shadow .2s ease, transform .2s ease; }
+.character-tag-cloud .character-tag-pill:hover { transform: translateY(-1px); box-shadow: 0 4px 12px rgb(0 0 0 / 10%); }
+.character-tag-cloud .character-tag-pill.is-selected { box-shadow: 0 0 0 2px color-mix(in srgb, var(--accent) 35%, transparent); }
+.character-tag-pill .ant-checkbox-wrapper { margin-inline-end: 1px; }
+.character-tag-pill small { min-width: 16px; color: currentColor; text-align: center; font-variant-numeric: tabular-nums; opacity: .72; }
+.character-tag-add.ant-btn { align-self: center; }
+.character-tag-empty { display: grid; justify-items: center; gap: 12px; padding: 28px 0 12px; }
+.character-tag-tooltip { display: grid; gap: 4px; max-width: 320px; }
+.character-tag-tooltip span { color: rgb(255 255 255 / 78%); }
+.character-tags-ai-actions { margin: 18px 0; }
+.character-tags-ai-preview { margin-top: 16px; }
+@media (max-width: 900px) {
+  .character-tags-layout { grid-template-columns: 1fr; }
+  .character-tags-header { display: grid; }
+  .character-tags-heading > .ant-typography-secondary { white-space: normal; }
+}
 
 
 .filter-bar { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }

@@ -32,11 +32,14 @@
 
 | 字段 | 必填 | 类型 | 约束 | 说明 |
 |---|---:|---|---|---|
-| keyword | 否 | string |  |  |
-| state | 否 | string | enum: "all" / "draft" / "online" |  |
+| keyword | 否 | string | max: 64 | 按角色编码、当前展示版本的名称、简介或标签模糊查询。 |
+| id | 否 | integer | min: 1 | 按角色 ID 精确查询。 |
+| state | 否 | string | enum: "all" / "draft" / "online" | 全部、未上架或已上架；默认 `all`。 |
 | day | 否 | string | date |  |
+| sort_by | 否 | string | enum: "id" / "chat_uv" / "msg_cnt" | 排序字段；默认 `id`。 |
+| sort_order | 否 | string | enum: "asc" / "desc" | 排序方向；默认 `desc`。 |
 | page | 否 | integer | min: 1 |  |
-| page_size | 否 | integer | min: 1; max: 100 |  |
+| page_size | 否 | integer | min: 1; max: 100 | 默认 30。 |
 
 ### 响应
 

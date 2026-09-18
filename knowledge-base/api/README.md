@@ -31,6 +31,7 @@
 | 消息管理 | 2 | [admin-messages.md](./admin-messages.md) |
 | 订单与订阅 | 2 | [admin-billing.md](./admin-billing.md) |
 | 首页推荐 | 4 | [admin-home-recommendation.md](./admin-home-recommendation.md) |
+| 角色标签分类 | 12 | [admin-character-tags.md](./admin-character-tags.md) |
 
 ## 完整接口索引
 
@@ -85,3 +86,15 @@
 | 46 | POST | `/admin/home-recommendation/pool/save` | 保存推荐池角色配置 | [查看](./admin-home-recommendation.md#保存推荐池条目) |
 | 47 | POST | `/admin/settings/context-memory` | 获取上下文整理边界指令 | [查看](./admin-settings.md#上下文整理边界) |
 | 48 | POST | `/admin/settings/context-memory/save` | 保存上下文整理边界指令 | [查看](./admin-settings.md#上下文整理边界) |
+| 49 | POST | `/admin/character-tags/overview` | 标签分类总览 | [查看](./admin-character-tags.md#查询总览) |
+| 50 | POST | `/admin/character-tags/list` | 分页查询标签 | [查看](./admin-character-tags.md#分页查询-tags) |
+| 51 | POST | `/admin/character-tags/classes/create` | 新增标签分类 | [查看](./admin-character-tags.md#class-crud) |
+| 52 | POST | `/admin/character-tags/classes/update` | 编辑标签分类 | [查看](./admin-character-tags.md#class-crud) |
+| 53 | POST | `/admin/character-tags/classes/delete` | 删除空标签分类 | [查看](./admin-character-tags.md#class-crud) |
+| 54 | POST | `/admin/character-tags/create` | 新增标签 | [查看](./admin-character-tags.md#tag-crud) |
+| 55 | POST | `/admin/character-tags/update` | 编辑及移动标签 | [查看](./admin-character-tags.md#tag-crud) |
+| 56 | POST | `/admin/character-tags/delete` | 删除标签并同步角色版本 | [查看](./admin-character-tags.md#tag-crud) |
+| 57 | POST | `/admin/character-tags/organize/export` | 导出 AI 整理文件 | [查看](./admin-character-tags.md#ai-一键整理) |
+| 58 | POST | `/admin/character-tags/organize/preview` | 预检 AI 整理结果 | [查看](./admin-character-tags.md#ai-一键整理) |
+| 59 | POST | `/admin/character-tags/organize/apply` | 应用 AI 整理结果 | [查看](./admin-character-tags.md#ai-一键整理) |
+| 60 | POST | `/admin/character-tags/batch/class` | 批量移动标签分类 | [查看](./admin-character-tags.md#tag-crud) |

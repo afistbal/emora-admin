@@ -5,6 +5,7 @@ import MessagesPage from "../admin/MessagesPage.jsx";
 import SettingsPage from "../admin/SettingsPage.jsx";
 import UserLedgerPage from "../admin/UserLedgerPage.jsx";
 import RecommendationSettingsPage from "../admin/RecommendationSettingsPage.jsx";
+import CharacterTagsPage from "../admin/CharacterTagsPage.jsx";
 import {
   AnalyticsPage,
   CharacterEditorPage,
@@ -25,6 +26,8 @@ function CharacterRoute({ context }) {
     charList,
     characterPage,
     characterPageSize,
+    characterFilters,
+    characterSort,
     characterTotal,
     characterLoadError,
     characterLoadState,
@@ -40,6 +43,8 @@ function CharacterRoute({ context }) {
     publishingCharacterId,
     retryCharacters,
     setCharacterPagination,
+    setCharacterListFilters,
+    setCharacterListSort,
     setEditing,
     toast,
     updateCharacterStatus,
@@ -90,6 +95,10 @@ function CharacterRoute({ context }) {
       pageSize={characterPageSize}
       total={characterTotal}
       onPageChange={setCharacterPagination}
+      filters={characterFilters}
+      sort={characterSort}
+      onFilterChange={setCharacterListFilters}
+      onSortChange={setCharacterListSort}
       onPublish={publishCharacterFromList}
       onBatchPublish={batchPublishCharacters}
       onBatchRecommend={batchRecommendCharacters}
@@ -106,6 +115,7 @@ export default function AdminRoutePage() {
     case "analytics": return <AnalyticsPage toast={toast} adminToken={adminToken} />;
     case "token-usage": return <TokenUsagePage toast={toast} adminToken={adminToken} />;
     case "characters": return <CharacterRoute context={context} />;
+    case "character-tags": return <CharacterTagsPage />;
     case "presets": return <PresetsPage toast={toast} adminToken={adminToken} />;
     case "models": return <ModelConfigPage toast={toast} adminToken={adminToken} />;
     case "users": return <UsersPage toast={toast} adminToken={adminToken} />;

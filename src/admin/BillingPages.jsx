@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { Alert, Button, Card, DatePicker, Empty, Form, Input, InputNumber, Pagination, Select, Space, Spin, Table, Tag, Typography } from "antd";
 import dayjs from "dayjs";
 import { adminApi } from "./api/client.js";
+import { DEFAULT_PAGE_SIZE, PAGE_SIZE_OPTIONS } from "./pagination.js";
 import "./billing.css";
 
 const PLATFORMS = { 98: "iOS · Apple", 99: "Android · Google", 1: "PayPal" };
@@ -44,7 +45,7 @@ export default function BillingPage({ subscription = false, adminToken }) {
   const [draft, setDraft] = useState(initial);
   const [filters, setFilters] = useState(initial);
   const [page, setPage] = useState(1);
-  const [pageSize, setPageSize] = useState(10);
+  const [pageSize, setPageSize] = useState(DEFAULT_PAGE_SIZE);
   const [version, setVersion] = useState(0);
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -120,8 +121,8 @@ export default function BillingPage({ subscription = false, adminToken }) {
       {error && <Alert type="error" showIcon message={error} action={<Button onClick={() => setVersion((current) => current + 1)}>重试</Button>} />}
       {!error && loading && <div className="empty-state"><Spin description="正在加载…" /></div>}
       {!error && !loading && !data?.items?.length && <Empty description="没有符合条件的记录" />}
-      {!error && !loading && Boolean(data?.items?.length) && <Table rowKey={subscription ? (item) => `${item.platform}-${item.id}` : "id"} columns={subscription ? subscriptionColumns : orderColumns} dataSource={data.items} pagination={false} scroll={{ x: 1100 }} size="middle" />}
-      {!error && Number(subscription ? data?.summary?.total : data?.total || 0) > 0 && <div className="admin-pagination"><Pagination current={page} pageSize={pageSize} total={Number(subscription ? data.summary.total : data.total)} showSizeChanger pageSizeOptions={[10, 20, 50, 100]} showTotal={(total) => `共 ${total} 条`} onChange={(nextPage, nextPageSize) => { setPageSize(nextPageSize); setPage(nextPageSize !== pageSize ? 1 : nextPage); }} /></div>}
+      {!error && !loading && Boolean(data?.items?.length) && <div className="table-wrap"><Table rowKey={subscription ? (item) => `${item.platform}-${item.id}` : "id"} columns={subscription ? subscriptionColumns : orderColumns} dataSource={data.items} pagination={false} size="middle" /></div>}
+      {!error && Number(subscription ? data?.summary?.total : data?.total || 0) > 0 && <div className="admin-pagination"><Pagination current={page} pageSize={pageSize} total={Number(subscription ? data.summary.total : data.total)} showSizeChanger pageSizeOptions={PAGE_SIZE_OPTIONS} showTotal={(total) => `共 ${total} 条`} onChange={(nextPage, nextPageSize) => { setPageSize(nextPageSize); setPage(nextPageSize !== pageSize ? 1 : nextPage); }} /></div>}
       {!subscription && <p className="billing-note">金额为订单保存金额（未汇总）；订单表未记录币种。未确认订单的“平台订单号”可能仍为本地占位号。</p>}
     </Card>
   </div>;

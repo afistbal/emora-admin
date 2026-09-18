@@ -18,6 +18,7 @@ import {
   Prohibit,
   Sparkle,
   Sun,
+  Tag as TagIcon,
   UserCircle,
   Users,
   VideoCamera,
@@ -28,6 +29,7 @@ import {
 import { adminApi, getAdminToken, getApiErrorMessage, setAdminToken } from "./api/client.js";
 import { Outlet, useLocation, useNavigate } from "umi";
 import PageBreadcrumb from "./components/PageBreadcrumb.jsx";
+import { DEFAULT_PAGE_SIZE, PAGE_SIZE_OPTIONS } from "./pagination.js";
 
 /* ================= 共享小组件 ================= */
 
@@ -674,7 +676,7 @@ export function TokenUsagePage({ toast, adminToken }) {
         </div>
 
         <Card title="模型消耗排行" sub={`共 ${models.length} 个模型 · 按总 Token 降序`}>
-          {sortedModels.length ? <div className="table-wrap"><AntTable className="table compact" tableLayout="auto" scroll={{ x: 900 }} pagination={false} rowKey={(item) => `${item.provider || "default"}-${item.model}`} dataSource={sortedModels} columns={[
+          {sortedModels.length ? <div className="table-wrap"><AntTable className="table compact" tableLayout="auto" pagination={false} rowKey={(item) => `${item.provider || "default"}-${item.model}`} dataSource={sortedModels} columns={[
             { title: "模型", dataIndex: "model", render: (value) => <b>{value || "—"}</b> },
             { title: "Provider", dataIndex: "provider", render: (value) => <span className="muted">{value || "未标注"}</span> },
             ...[["调用次数", "requests"], ["输入", "input_tokens"], ["输出", "output_tokens"], ["推理", "reasoning_tokens"]].map(([title, key]) => ({ title, key, align: "right", render: (_, item) => formatTokenNumber(tokenMetric(item, key)) })),
@@ -684,7 +686,7 @@ export function TokenUsagePage({ toast, adminToken }) {
         </Card>
 
         <Card title="业务类型消耗" sub="用于识别聊天、图片、视频等调用成本">
-          {sortedTypes.length ? <div className="table-wrap"><AntTable className="table compact" tableLayout="auto" scroll={{ x: 780 }} pagination={false} rowKey="type" dataSource={sortedTypes} columns={[
+          {sortedTypes.length ? <div className="table-wrap"><AntTable className="table compact" tableLayout="auto" pagination={false} rowKey="type" dataSource={sortedTypes} columns={[
             { title: "业务类型", dataIndex: "type", render: (value) => <Tag color="blue">{value || "未标注"}</Tag> },
             ...[["调用次数", "requests"], ["输入 Token", "input_tokens"], ["输出 Token", "output_tokens"], ["推理 Token", "reasoning_tokens"]].map(([title, key]) => ({ title, key, align: "right", render: (_, item) => formatTokenNumber(tokenMetric(item, key)) })),
             { title: "总 Token", key: "total", align: "right", render: (_, item) => <b>{formatTokenNumber(tokenMetric(item, "total_tokens"))}</b> },
@@ -775,6 +777,10 @@ export function CharacterListPage({
   page,
   pageSize,
   onPageChange,
+  filters,
+  sort,
+  onFilterChange,
+  onSortChange,
   onEdit,
   onImport,
   onBatchImport,
@@ -791,6 +797,7 @@ export function CharacterListPage({
   batchAction = null,
 }) {
   const { message } = AntApp.useApp();
+  const [filterForm] = Form.useForm();
   const [confirmDelete, setConfirmDelete] = useState(null);
   const [selectedRowKeys, setSelectedRowKeys] = useState([]);
   const [batchImportOpen, setBatchImportOpen] = useState(false);
@@ -950,30 +957,78 @@ export function CharacterListPage({
           </div>
         )}
       >
-        <div className="table-wrap">
+        <Form
+          form={filterForm}
+          className="character-list-filters"
+          layout="inline"
+          initialValues={filters}
+          onFinish={(values) => onFilterChange({
+            keyword: String(values.keyword || "").trim(),
+            id: values.id || null,
+            state: values.state || "all",
+          })}
+        >
+          <Form.Item name="keyword" label="关键词">
+            <AntInput allowClear placeholder="角色名称 / 编码 / 标签" style={{ width: 240 }} />
+          </Form.Item>
+          <Form.Item name="id" label="角色 ID">
+            <AntInputNumber min={1} precision={0} placeholder="精确查询" style={{ width: 150 }} />
+          </Form.Item>
+          <Form.Item name="state" label="上架状态">
+            <AntSelect
+              style={{ width: 140 }}
+              options={[
+                { value: "all", label: "全部" },
+                { value: "online", label: "已上架" },
+                { value: "draft", label: "未上架" },
+              ]}
+            />
+          </Form.Item>
+          <Form.Item>
+            <Space>
+              <AntButton type="primary" htmlType="submit">查询</AntButton>
+              <AntButton
+                onClick={() => {
+                  filterForm.resetFields();
+                  onFilterChange({ keyword: "", id: null, state: "all" });
+                }}
+              >
+                重置
+              </AntButton>
+            </Space>
+          </Form.Item>
+        </Form>
+        {/* 角色表格只使用外层 table-wrap 滚动，避免 Ant Table 再生成一个内侧滚动区域。 */}
+        <div className="table-wrap character-list-table-wrap">
           <AntTable
-          className="table character-list-table"
-          tableLayout="auto"
-          scroll={{ x: "max-content" }}
-          pagination={false}
-          rowKey="id"
-          dataSource={list}
-          rowSelection={{
-            selectedRowKeys,
-            columnWidth: 48,
-            onChange: (keys) => setSelectedRowKeys(keys.map(Number)),
-            getCheckboxProps: () => ({ disabled: batchAction !== null }),
-          }}
-          rowClassName={() => "clickable"}
-          onRow={(character) => ({ onClick: () => onEdit(character) })}
-          columns={[
-            { title: "ID", dataIndex: "id", render: (value) => <span className="muted">{value}</span> },
+            className="table character-list-table"
+            tableLayout="auto"
+            pagination={false}
+            rowKey="id"
+            dataSource={list}
+            rowSelection={{
+              selectedRowKeys,
+              columnWidth: 48,
+              onChange: (keys) => setSelectedRowKeys(keys.map(Number)),
+              getCheckboxProps: () => ({ disabled: batchAction !== null }),
+            }}
+            rowClassName={() => "clickable"}
+            onRow={(character) => ({ onClick: () => onEdit(character) })}
+            onChange={(_, __, sorter, extra) => {
+              if (extra.action !== "sort" || Array.isArray(sorter)) return;
+              onSortChange({
+                field: sorter.columnKey || "id",
+                order: sorter.order || "descend",
+              });
+            }}
+            columns={[
+            { title: "ID", dataIndex: "id", key: "id", sorter: true, sortOrder: sort.field === "id" ? sort.order : null, render: (value) => <span className="muted">{value}</span> },
             { title: "角色", key: "role", render: (_, character) => <div className="character-list-role"><Avatar className="character-list-avatar" shape="square" size={80} src={character.image || undefined} alt={character.name}>{character.name?.trim().charAt(0) || "?"}</Avatar><div className="character-list-role-copy"><b>{character.name}</b>{character.subtitle && <div className="muted character-list-summary" title={character.subtitle}>{character.subtitle}</div>}</div></div> },
             { title: "状态", key: "status", render: (_, character) => <><Badge tone={character.status === "草稿" ? "orange" : "green"}>{character.status}</Badge><div className="character-status-note">{character.status === "草稿" ? "未影响线上版本" : "C 端可见"}</div></> },
             { title: "版本", dataIndex: "version", render: (value) => value ? <Typography.Text code>{displayCharacterVersion(value)}</Typography.Text> : "—" },
             { title: "标签", dataIndex: "tags", render: (tags) => <Space size={[4, 4]} wrap>{tags.slice(0, 2).map((tag) => <Tag key={tag}>{tag}</Tag>)}</Space> },
-            { title: "今日聊天用户数", dataIndex: "chats", align: "right", render: (value) => value.toLocaleString() },
-            { title: "消息次数", key: "messages", align: "right", render: (_, character) => <>{character.msgCount.toLocaleString()}<div className="muted" style={{ fontSize: 11 }}>人均 {character.msgPer} 轮</div></> },
+            { title: "今日聊天用户数", dataIndex: "chats", key: "chat_uv", align: "right", sorter: true, sortOrder: sort.field === "chat_uv" ? sort.order : null, render: (value) => value.toLocaleString() },
+            { title: "消息次数", key: "msg_cnt", align: "right", sorter: true, sortOrder: sort.field === "msg_cnt" ? sort.order : null, render: (_, character) => <>{character.msgCount.toLocaleString()}<div className="muted" style={{ fontSize: 11 }}>人均 {character.msgPer} 轮</div></> },
             { title: "卡曝光 pv/uv", key: "exposure", align: "right", render: (_, character) => `${character.expPv.toLocaleString()} / ${character.expUv.toLocaleString()}` },
             { title: "生成提交 → 成功率", key: "generation", align: "right", render: (_, character) => `${character.genSubmit.toLocaleString()} → ${character.genRate}` },
             {
@@ -1018,7 +1073,6 @@ export function CharacterListPage({
               title: "操作",
               key: "action",
               width: 104,
-              fixed: "right",
               render: (_, character) => (
                 <Space size={0} wrap>
                   <AntButton type="link" onClick={(event) => { event.stopPropagation(); onEdit(character); }}>编辑</AntButton>
@@ -1037,7 +1091,7 @@ export function CharacterListPage({
                 </Space>
               ),
             },
-          ]}
+            ]}
           />
         </div>
         {total > 0 && (
@@ -1047,7 +1101,7 @@ export function CharacterListPage({
               pageSize={pageSize}
               total={total}
               showSizeChanger
-              pageSizeOptions={[10, 20, 50, 100]}
+              pageSizeOptions={PAGE_SIZE_OPTIONS}
               showTotal={(count) => `共 ${count} 条`}
               onChange={onPageChange}
             />
@@ -2340,7 +2394,7 @@ export function UsersPage({ toast, adminToken }) {
   const [usersError, setUsersError] = useState("");
   const [usersReloadKey, setUsersReloadKey] = useState(0);
   const [page, setPage] = useState(1);
-  const [pageSize, setPageSize] = useState(10);
+  const [pageSize, setPageSize] = useState(DEFAULT_PAGE_SIZE);
   const [totalUsers, setTotalUsers] = useState(0);
   const [records, setRecords] = useState([]);
   const [keyword, setKeyword] = useState("");
@@ -2605,7 +2659,6 @@ export function UsersPage({ toast, adminToken }) {
           <AntTable
             className="table users-table"
             tableLayout="auto"
-            scroll={{ x: 1555 }}
             pagination={false}
             rowKey="id"
             dataSource={filtered}
@@ -2655,7 +2708,7 @@ export function UsersPage({ toast, adminToken }) {
             { title: "操作", key: "action", width: 150, render: (_, user) => <Space size={0} wrap><AntButton type="link" onClick={(event) => { event.stopPropagation(); openUser(user); }}>详情</AntButton><AntButton type="link" onClick={(event) => { event.stopPropagation(); openWalletRecords(user); }}>流水</AntButton></Space> },
           ]} />
         </div>
-        {totalUsers > 0 && <div className="admin-pagination"><Pagination current={page} pageSize={pageSize} total={totalUsers} showSizeChanger pageSizeOptions={[10, 20, 50, 100]} showTotal={(total) => `共 ${total} 条`} onChange={(nextPage, nextPageSize) => { setPageSize(nextPageSize); setPage(nextPageSize !== pageSize ? 1 : nextPage); }} /></div>}
+        {totalUsers > 0 && <div className="admin-pagination"><Pagination current={page} pageSize={pageSize} total={totalUsers} showSizeChanger pageSizeOptions={PAGE_SIZE_OPTIONS} showTotal={(total) => `共 ${total} 条`} onChange={(nextPage, nextPageSize) => { setPageSize(nextPageSize); setPage(nextPageSize !== pageSize ? 1 : nextPage); }} /></div>}
       </Card>
 
       {selected && (
@@ -2997,7 +3050,7 @@ export function CommercePage({ toast, adminToken }) {
   // 订阅配置默认面向 Android 商品，Android 在平台切换中排在第一位。
   const [platform, setPlatform] = useState(1);
   const [productPage, setProductPage] = useState(1);
-  const [productPageSize, setProductPageSize] = useState(10);
+  const [productPageSize, setProductPageSize] = useState(DEFAULT_PAGE_SIZE);
   const [productTotal, setProductTotal] = useState(0);
   const [productsLoading, setProductsLoading] = useState(false);
   const productRequest = useRef(0);
@@ -3213,7 +3266,7 @@ export function CommercePage({ toast, adminToken }) {
         </>
       )}
 
-      {!productsLoading && productTotal > 0 && <div className="admin-pagination"><span className="pagination-edit-note">切换前请保存当前页修改</span><Pagination current={productPage} pageSize={productPageSize} total={productTotal} showSizeChanger pageSizeOptions={[10, 20, 50, 100]} showTotal={(total) => `共 ${total} 条`} onChange={(nextPage, nextPageSize) => { setProductPageSize(nextPageSize); setProductPage(nextPageSize !== productPageSize ? 1 : nextPage); }} /></div>}
+      {!productsLoading && productTotal > 0 && <div className="admin-pagination"><span className="pagination-edit-note">切换前请保存当前页修改</span><Pagination current={productPage} pageSize={productPageSize} total={productTotal} showSizeChanger pageSizeOptions={PAGE_SIZE_OPTIONS} showTotal={(total) => `共 ${total} 条`} onChange={(nextPage, nextPageSize) => { setProductPageSize(nextPageSize); setProductPage(nextPageSize !== productPageSize ? 1 : nextPage); }} /></div>}
       {showAddProduct && <AddProductDialog platform={platform} kind={showAddProduct} onClose={() => setShowAddProduct(null)} onCreate={createProduct} />}
     </div>
   );
@@ -3628,11 +3681,11 @@ export function ModelConfigPage({ toast, adminToken }) {
   return (
     <div className="section-gap">
       <Card title="中转站列表" sub={`共 ${providers.length} 个 · 每个中转站可配置多个文本/图片/视频模型 · 配置即时生效`} actions={<AntButton type="primary" onClick={() => setEditing(null)}>+ 新建中转站</AntButton>}>
-        {loading ? <LoadingState text="正在加载中转站配置…" /> : <div className="table-wrap"><AntTable className="table compact" pagination={false} rowKey="id" dataSource={providers} locale={{ emptyText: <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="暂无中转站配置" /> }} scroll={{ x: "max-content" }} columns={[
-          { title: "名称", dataIndex: "name", render: (value, provider) => <div style={{ whiteSpace: "nowrap" }}><b>{value}</b><div><Tag color={provider.status === "enabled" ? "success" : "default"}>{provider.status === "enabled" ? "已启用" : "已停用"}</Tag></div></div> },
+        {loading ? <LoadingState text="正在加载中转站配置…" /> : <div className="table-wrap"><AntTable className="table compact model-config-table" pagination={false} rowKey="id" dataSource={providers} locale={{ emptyText: <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="暂无中转站配置" /> }} columns={[
+          { title: "名称", dataIndex: "name", width: 150, render: (value, provider) => <div style={{ whiteSpace: "nowrap" }}><b>{value}</b><div><Tag color={provider.status === "enabled" ? "success" : "default"}>{provider.status === "enabled" ? "已启用" : "已停用"}</Tag></div></div> },
           { title: "API 地址", dataIndex: "base_url", width: 210, ellipsis: { showTitle: true }, render: (value) => <span className="muted mono">{value}</span> },
-          { title: "API Key", dataIndex: "api_key", render: (value) => <span className="muted mono" style={{ whiteSpace: "nowrap" }}>{maskApiKey(value)}</span> },
-          ...MODEL_PROFILES.map((profile) => ({ title: `${profile.label}模型`, key: profile.type, render: (_, provider) => { const routes = getProviderRoutes(provider, profile.type); const active = routes.find((route) => route.enabled) || routes[0]; return <div style={{ minWidth: 220 }}>{routes.length ? <AntSelect style={{ width: "100%" }} value={active?.id || ""} disabled={provider.status !== "enabled"} onChange={(value) => switchRoute(provider, profile, value)} options={routes.map((route) => ({ value: route.id, label: <ProviderRouteLabel route={route} /> }))} /> : <span className="muted">—</span>}</div>; } })),
+          { title: "API Key", dataIndex: "api_key", width: 180, render: (value) => <span className="muted mono" style={{ whiteSpace: "nowrap" }}>{maskApiKey(value)}</span> },
+          ...MODEL_PROFILES.map((profile) => ({ title: `${profile.label}模型`, key: profile.type, width: 230, render: (_, provider) => { const routes = getProviderRoutes(provider, profile.type); const active = routes.find((route) => route.enabled) || routes[0]; return <div style={{ minWidth: 200 }}>{routes.length ? <AntSelect style={{ width: "100%" }} value={active?.id || ""} disabled={provider.status !== "enabled"} onChange={(value) => switchRoute(provider, profile, value)} options={routes.map((route) => ({ value: route.id, label: <ProviderRouteLabel route={route} /> }))} /> : <span className="muted">—</span>}</div>; } })),
           { title: "开关", key: "enabled", width: 110, render: (_, provider) => <AntSwitch checked={provider.status === "enabled"} checkedChildren="启用" unCheckedChildren="停用" aria-label={`${provider.name}中转站开关`} onChange={() => toggleProvider(provider)} /> },
           { title: "操作", key: "action", width: 130, render: (_, provider) => <Space size={0} wrap><AntButton type="link" onClick={() => setEditing(provider)}>编辑</AntButton><AntButton type="link" danger onClick={() => setConfirmDelete(provider)}>删除</AntButton></Space> },
         ]} /></div>}
@@ -3662,6 +3715,7 @@ const NAV_GROUPS = [
     icon: Sparkle,
     children: [
       { id: "characters", path: "/characters", label: "角色管理", icon: MaskHappy },
+      { id: "character-tags", path: "/character-tags", label: "标签管理", icon: TagIcon },
       { id: "presets", path: "/presets", label: "生成预设", icon: ImageSquare },
       { id: "models", path: "/models", label: "模型配置", icon: GearSix },
     ],
@@ -3713,7 +3767,9 @@ export default function Admin() {
   const [editing, setEditing] = useState(null); // 角色编辑器中的角色
   const [charList, setCharList] = useState([]);
   const [characterPage, setCharacterPage] = useState(1);
-  const [characterPageSize, setCharacterPageSize] = useState(10);
+  const [characterPageSize, setCharacterPageSize] = useState(DEFAULT_PAGE_SIZE);
+  const [characterFilters, setCharacterFilters] = useState({ keyword: "", id: null, state: "all" });
+  const [characterSort, setCharacterSort] = useState({ field: "id", order: "descend" });
   const [characterTotal, setCharacterTotal] = useState(0);
   const [updatingRecommendationId, setUpdatingRecommendationId] = useState(null);
   const updatingRecommendationRef = useRef(null);
@@ -3778,7 +3834,15 @@ export default function Admin() {
     setCharacterLoadState("loading");
     setCharacterLoadError("");
     adminApi.characters.list(
-      { state: "all", page: characterPage, page_size: characterPageSize },
+      {
+        keyword: characterFilters.keyword || undefined,
+        id: characterFilters.id || undefined,
+        state: characterFilters.state,
+        sort_by: characterSort.field,
+        sort_order: characterSort.order === "ascend" ? "asc" : "desc",
+        page: characterPage,
+        page_size: characterPageSize,
+      },
       { signal: controller.signal },
     ).then((data) => {
       const items = data?.items || [];
@@ -3817,7 +3881,7 @@ export default function Admin() {
     });
 
     return () => controller.abort();
-  }, [adminToken, characterPage, characterPageSize, characterRetryKey, editing, page]);
+  }, [adminToken, characterFilters, characterPage, characterPageSize, characterRetryKey, characterSort, editing, page]);
 
   useEffect(() => {
     if (!activeRoute && location.pathname !== "/login") navigate("/", { replace: true });
@@ -4113,6 +4177,8 @@ export default function Admin() {
             charList,
             characterPage,
             characterPageSize,
+            characterFilters,
+            characterSort,
             characterTotal,
             characterLoadState,
             characterLoadError,
@@ -4120,6 +4186,14 @@ export default function Admin() {
             setCharacterPagination: (nextPage, nextPageSize) => {
               setCharacterPageSize(nextPageSize);
               setCharacterPage(nextPageSize !== characterPageSize ? 1 : nextPage);
+            },
+            setCharacterListFilters: (nextFilters) => {
+              setCharacterFilters(nextFilters);
+              setCharacterPage(1);
+            },
+            setCharacterListSort: (nextSort) => {
+              setCharacterSort(nextSort);
+              setCharacterPage(1);
             },
             isCharacterImporting,
             deletingCharacterId,

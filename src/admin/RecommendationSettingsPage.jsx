@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { Alert, Button, Card, DatePicker, Empty, InputNumber, Modal, Pagination, Select, Space, Spin, Switch, Table, Tag, Tooltip, Typography } from "antd";
 import dayjs from "dayjs";
 import { adminApi, getApiErrorMessage } from "./api/client.js";
+import { DEFAULT_PAGE_SIZE, PAGE_SIZE_OPTIONS } from "./pagination.js";
 
 const POOL_OPTIONS = [
   { value: "new", label: "全新池", position: "左上" },
@@ -32,7 +33,7 @@ const DEFAULT_SLOTS = Array.from({ length: 10 }, (_, index) => ({
 }));
 
 const createPoolPagination = () => Object.fromEntries(
-  POOL_OPTIONS.map(({ value }) => [value, { page: 1, pageSize: 10 }]),
+  POOL_OPTIONS.map(({ value }) => [value, { page: 1, pageSize: DEFAULT_PAGE_SIZE }]),
 );
 
 export default function RecommendationSettingsPage({ toast }) {
@@ -52,7 +53,7 @@ export default function RecommendationSettingsPage({ toast }) {
     setLoading(true);
     setError("");
     return adminApi.homeRecommendation.config(
-      { pool: "recommended", pool_page: 1, pool_page_size: 10 },
+      { pool: "recommended", pool_page: 1, pool_page_size: DEFAULT_PAGE_SIZE },
       { signal },
     ).then((data) => {
       setResult(data);
@@ -240,7 +241,7 @@ export default function RecommendationSettingsPage({ toast }) {
       { title: "开关", dataIndex: "enabled", width: 76, render: (value, item) => <Switch checked={value} onChange={(enabled) => updatePoolItem(pool, item.id, { enabled })} /> },
       { title: "排序", dataIndex: "sort_order", width: 110, render: (value, item) => <InputNumber min={0} max={1000000} value={value} onChange={(sortOrder) => updatePoolItem(pool, item.id, { sort_order: sortOrder ?? 0 })} /> },
       { title: "生效时间", key: "range", width: 370, render: (_, item) => <DatePicker.RangePicker showTime allowEmpty={[true, true]} value={[item.start_at ? dayjs(item.start_at) : null, item.end_at ? dayjs(item.end_at) : null]} onChange={(dates) => updatePoolItem(pool, item.id, { start_at: dates?.[0]?.toISOString() || null, end_at: dates?.[1]?.toISOString() || null })} /> },
-      { title: "操作", key: "action", width: 70, fixed: "right", render: (_, item) => <Button type="link" loading={savingItemId === item.id} disabled={savingItemId !== null} onClick={() => savePoolItem(pool, item)}>保存</Button> },
+      { title: "操作", key: "action", width: 70, render: (_, item) => <Button type="link" loading={savingItemId === item.id} disabled={savingItemId !== null} onClick={() => savePoolItem(pool, item)}>保存</Button> },
     ] : [
       { title: "首次上架时间", dataIndex: "first_published_at", width: 180, render: (value) => (value ? dayjs(value).format("YYYY-MM-DD HH:mm:ss") : "—") },
     ]),
@@ -285,16 +286,17 @@ export default function RecommendationSettingsPage({ toast }) {
               extra={<Typography.Text type="secondary">共 {Number(poolResult?.pool_total || 0)} 个</Typography.Text>}
             >
               <Typography.Paragraph type="secondary" className="recommendation-pool-rule">规则：{POOL_RULES[value]}</Typography.Paragraph>
-              <Table
-                size="middle"
-                rowKey={(item) => `${value}-${item.char_id}`}
-                pagination={false}
-                scroll={{ x: value === "recommended" ? 1020 : 580, y: 260 }}
-                loading={{ spinning: Boolean(poolLoading[value]), tip: "正在加载池子数据…" }}
-                dataSource={poolResult?.pool_items || []}
-                locale={{ emptyText: <Empty description={`${label}暂无角色`} /> }}
-                columns={commonColumns(value)}
-              />
+              <div className="table-wrap">
+                <Table
+                  size="middle"
+                  rowKey={(item) => `${value}-${item.char_id}`}
+                  pagination={false}
+                  loading={{ spinning: Boolean(poolLoading[value]), tip: "正在加载池子数据…" }}
+                  dataSource={poolResult?.pool_items || []}
+                  locale={{ emptyText: <Empty description={`${label}暂无角色`} /> }}
+                  columns={commonColumns(value)}
+                />
+              </div>
               {Number(poolResult?.pool_total || 0) > 0 && (
                 <div className="admin-pagination recommendation-pool-pagination">
                   <Pagination
@@ -302,7 +304,7 @@ export default function RecommendationSettingsPage({ toast }) {
                     pageSize={pagination.pageSize}
                     total={Number(poolResult.pool_total)}
                     showSizeChanger
-                    pageSizeOptions={[10, 20, 50, 100]}
+                    pageSizeOptions={PAGE_SIZE_OPTIONS}
                     showTotal={(total) => `共 ${total} 条`}
                     onChange={(page, pageSize) => changePoolPage(value, page, pageSize)}
                   />

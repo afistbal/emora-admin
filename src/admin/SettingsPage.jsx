@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { Alert, App as AntApp, Button, Card, Empty, Form, Input, Modal, Pagination, Select, Space, Spin, Switch, Table, Tag, Typography } from "antd";
 import { adminApi } from "./api/client.js";
+import { DEFAULT_PAGE_SIZE, PAGE_SIZE_OPTIONS } from "./pagination.js";
 import "./settings.css";
 
 const EMPTY_FILTERS = { keyword: "", status: undefined, is_public: undefined };
@@ -65,7 +66,7 @@ export default function SettingsPage({ adminToken }) {
   const [draft, setDraft] = useState(EMPTY_FILTERS);
   const [filters, setFilters] = useState({});
   const [page, setPage] = useState(1);
-  const [pageSize, setPageSize] = useState(10);
+  const [pageSize, setPageSize] = useState(DEFAULT_PAGE_SIZE);
   const [result, setResult] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
@@ -259,8 +260,8 @@ export default function SettingsPage({ adminToken }) {
       {error && <Alert type="error" showIcon message={error} action={<Button onClick={() => setRefresh((value) => value + 1)}>重试</Button>} />}
       {!error && loading && <div className="empty-state"><Spin description="正在加载配置…" /></div>}
       {!error && !loading && !result?.items?.length && <Empty description="没有符合条件的配置" />}
-      {!error && !loading && Boolean(result?.items?.length) && <Table rowKey="id" columns={columns} dataSource={result.items} pagination={false} scroll={{ x: 1460 }} />}
-      {!error && Number(result?.total || 0) > 0 && <div className="admin-pagination"><Pagination current={page} pageSize={pageSize} total={Number(result.total)} showSizeChanger pageSizeOptions={[10, 20, 50, 100]} showTotal={(total) => `共 ${total} 条`} onChange={(nextPage, nextPageSize) => { setPageSize(nextPageSize); setPage(nextPageSize !== pageSize ? 1 : nextPage); }} /></div>}
+      {!error && !loading && Boolean(result?.items?.length) && <div className="table-wrap"><Table rowKey="id" columns={columns} dataSource={result.items} pagination={false} /></div>}
+      {!error && Number(result?.total || 0) > 0 && <div className="admin-pagination"><Pagination current={page} pageSize={pageSize} total={Number(result.total)} showSizeChanger pageSizeOptions={PAGE_SIZE_OPTIONS} showTotal={(total) => `共 ${total} 条`} onChange={(nextPage, nextPageSize) => { setPageSize(nextPageSize); setPage(nextPageSize !== pageSize ? 1 : nextPage); }} /></div>}
     </Card>
 
     <Modal open={Boolean(creating)} title="添加系统配置键" okText="添加" cancelText="取消" confirmLoading={createSaving} width={760} onOk={saveCreating} onCancel={() => setCreating(null)} destroyOnHidden>
